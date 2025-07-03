@@ -1,5 +1,5 @@
 // Card-specific types
-import { BaseEntity } from './common.types.js';
+import type { BaseEntity } from './common.types.js';
 
 export interface Card extends BaseEntity {
   userId: string;
@@ -7,7 +7,7 @@ export interface Card extends BaseEntity {
   processedImageUrl?: string;
   extractedText: string;
   confidence: number;
-  
+
   // Extracted Information
   name?: string;
   title?: string;
@@ -16,13 +16,13 @@ export interface Card extends BaseEntity {
   phone?: string;
   address?: string;
   website?: string;
-  
+
   // Enrichment Data
   companyInfo?: CompanyInfo;
   calendarContext?: CalendarContext;
   notes: string;
   tags: string[];
-  
+
   // Metadata
   scanDate: Date;
   lastEnrichmentDate?: Date;

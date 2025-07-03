@@ -3,16 +3,23 @@
 ## 1. Project Overview
 
 ### Vision
-Create a comprehensive web application that scans business name cards, extracts key information, and enriches the data with contextual information for better contact management and networking.
+
+Create a comprehensive web application that scans business name cards, extracts
+key information, and enriches the data with contextual information for better
+contact management and networking.
 
 ### Core Features
-- **Image Capture/Upload**: Camera integration and file upload for business cards
+
+- **Image Capture/Upload**: Camera integration and file upload for business
+  cards
 - **OCR & Data Extraction**: Intelligent text extraction and field parsing
 - **Data Enrichment**: Calendar context, company research, and news integration
-- **Search & Management**: Full-text search, categorization, and export functionality
+- **Search & Management**: Full-text search, categorization, and export
+  functionality
 - **Context Awareness**: Link scanned cards to calendar events and meetings
 
 ### Target Users
+
 - Business professionals attending conferences and networking events
 - Sales teams managing prospect contacts
 - Entrepreneurs building their professional network
@@ -20,6 +27,7 @@ Create a comprehensive web application that scans business name cards, extracts 
 ## 2. Technical Architecture
 
 ### Tech Stack
+
 - **Frontend**: React 18 with TypeScript, Vite, Tailwind CSS
 - **Backend**: Node.js with Express, TypeScript
 - **Database**: PostgreSQL with Prisma ORM
@@ -31,6 +39,7 @@ Create a comprehensive web application that scans business name cards, extracts 
 - **Infrastructure**: Terraform for IaC
 
 ### System Architecture
+
 ```
 Frontend (React) → API Gateway → ECS Fargate (Node.js API)
                                       ↓
@@ -255,6 +264,7 @@ namecard-app/
 ### Core AWS Services
 
 #### Compute & Hosting
+
 - **Amazon ECS Fargate**: Container hosting for API services
   - Auto-scaling based on CPU/memory metrics
   - Health checks and automatic recovery
@@ -271,6 +281,7 @@ namecard-app/
   - Automatic compression and caching
 
 #### Storage & Database
+
 - **Amazon RDS (PostgreSQL)**: Primary database
   - Multi-AZ deployment for high availability
   - Automated backups and point-in-time recovery
@@ -287,6 +298,7 @@ namecard-app/
   - Real-time data caching
 
 #### Processing & Integration
+
 - **Amazon SQS**: Message queuing for background jobs
   - Dead letter queues for failed processing
   - Message deduplication
@@ -303,6 +315,7 @@ namecard-app/
   - Visual workflow monitoring
 
 #### Security & Monitoring
+
 - **AWS Cognito**: User authentication and authorization
   - User pools for authentication
   - Identity pools for AWS resource access
@@ -369,6 +382,7 @@ Internet
 ## 5. Development Phases
 
 ### Phase 1: Foundation (Weeks 1-2)
+
 - Set up monorepo structure with Turborepo
 - Configure development environment
 - Set up basic React frontend with routing
@@ -377,6 +391,7 @@ Internet
 - Implement basic authentication with AWS Cognito
 
 ### Phase 2: Core Scanning (Weeks 3-4)
+
 - Implement camera integration for live scanning
 - Add file upload functionality
 - Integrate OCR service (Textract or Tesseract.js)
@@ -385,6 +400,7 @@ Internet
 - Add basic card storage and retrieval
 
 ### Phase 3: Data Management (Weeks 5-6)
+
 - Build comprehensive card management interface
 - Implement full-text search functionality
 - Add filtering and sorting capabilities
@@ -393,6 +409,7 @@ Internet
 - Add batch operations for multiple cards
 
 ### Phase 4: Enrichment Features (Weeks 7-8)
+
 - Integrate calendar APIs for context extraction
 - Implement company research functionality
 - Add news aggregation for companies
@@ -401,6 +418,7 @@ Internet
 - Add enrichment status tracking
 
 ### Phase 5: Production Readiness (Weeks 9-10)
+
 - Set up AWS infrastructure with Terraform
 - Implement comprehensive monitoring and logging
 - Add error handling and recovery mechanisms
@@ -409,6 +427,7 @@ Internet
 - Performance optimization and caching
 
 ### Phase 6: Advanced Features (Weeks 11-12)
+
 - Add mobile-responsive design
 - Implement real-time notifications
 - Add advanced search with filters
@@ -419,6 +438,7 @@ Internet
 ## 6. Task Breakdown
 
 ### High Priority Tasks
+
 1. **Project Setup**
    - Initialize monorepo with Turborepo
    - Set up TypeScript configurations
@@ -444,6 +464,7 @@ Internet
    - Create data extraction algorithms
 
 ### Medium Priority Tasks
+
 1. **Search Functionality**
    - Implement full-text search with PostgreSQL
    - Add advanced filtering options
@@ -469,6 +490,7 @@ Internet
    - Create retry mechanisms
 
 ### Low Priority Tasks
+
 1. **Analytics and Reporting**
    - Create usage analytics
    - Implement performance metrics
@@ -492,6 +514,7 @@ Internet
 ### Core Endpoints
 
 #### Authentication
+
 ```
 POST /api/auth/register
 POST /api/auth/login
@@ -501,6 +524,7 @@ GET  /api/auth/profile
 ```
 
 #### Card Management
+
 ```
 POST   /api/cards/scan          # Upload and process new card
 GET    /api/cards               # List cards with pagination
@@ -511,6 +535,7 @@ POST   /api/cards/:id/enrich    # Trigger enrichment process
 ```
 
 #### Search and Filtering
+
 ```
 GET /api/cards/search           # Search cards with filters
 GET /api/cards/tags             # Get available tags
@@ -518,12 +543,14 @@ GET /api/cards/companies        # Get company list
 ```
 
 #### Export and Import
+
 ```
 POST /api/cards/export          # Export cards in various formats
 POST /api/cards/import          # Bulk import cards
 ```
 
 #### Analytics
+
 ```
 GET /api/analytics/stats        # Get usage statistics
 GET /api/analytics/trends       # Get trending data
@@ -532,6 +559,7 @@ GET /api/analytics/trends       # Get trending data
 ### Data Models
 
 #### Card Model
+
 ```typescript
 interface Card {
   id: string;
@@ -540,7 +568,7 @@ interface Card {
   processedImageUrl?: string;
   extractedText: string;
   confidence: number;
-  
+
   // Extracted Information
   name?: string;
   title?: string;
@@ -549,13 +577,13 @@ interface Card {
   phone?: string;
   address?: string;
   website?: string;
-  
+
   // Enrichment Data
   companyInfo?: CompanyInfo;
   calendarContext?: CalendarContext;
   notes: string;
   tags: string[];
-  
+
   // Metadata
   scanDate: Date;
   lastEnrichmentDate?: Date;
@@ -565,6 +593,7 @@ interface Card {
 ```
 
 #### Company Model
+
 ```typescript
 interface CompanyInfo {
   id: string;
@@ -580,6 +609,7 @@ interface CompanyInfo {
 ```
 
 #### Calendar Context Model
+
 ```typescript
 interface CalendarContext {
   eventId: string;
@@ -596,6 +626,7 @@ interface CalendarContext {
 ### Core Tables
 
 #### Users Table
+
 ```sql
 CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -610,6 +641,7 @@ CREATE TABLE users (
 ```
 
 #### Cards Table
+
 ```sql
 CREATE TABLE cards (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -618,7 +650,7 @@ CREATE TABLE cards (
   processed_image_url TEXT,
   extracted_text TEXT,
   confidence DECIMAL(5,4),
-  
+
   -- Extracted fields
   name VARCHAR(255),
   title VARCHAR(255),
@@ -627,7 +659,7 @@ CREATE TABLE cards (
   phone VARCHAR(50),
   address TEXT,
   website TEXT,
-  
+
   -- Metadata
   notes TEXT,
   tags TEXT[],
@@ -639,6 +671,7 @@ CREATE TABLE cards (
 ```
 
 #### Companies Table
+
 ```sql
 CREATE TABLE companies (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -655,6 +688,7 @@ CREATE TABLE companies (
 ```
 
 #### Card Companies Junction Table
+
 ```sql
 CREATE TABLE card_companies (
   card_id UUID REFERENCES cards(id) ON DELETE CASCADE,
@@ -664,6 +698,7 @@ CREATE TABLE card_companies (
 ```
 
 #### Calendar Events Table
+
 ```sql
 CREATE TABLE calendar_events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -679,6 +714,7 @@ CREATE TABLE calendar_events (
 ```
 
 #### News Articles Table
+
 ```sql
 CREATE TABLE news_articles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -693,6 +729,7 @@ CREATE TABLE news_articles (
 ```
 
 ### Indexes for Performance
+
 ```sql
 -- Search optimization
 CREATE INDEX idx_cards_user_id ON cards(user_id);
@@ -702,10 +739,10 @@ CREATE INDEX idx_cards_email ON cards(email);
 CREATE INDEX idx_cards_scan_date ON cards(scan_date);
 
 -- Full-text search
-CREATE INDEX idx_cards_search ON cards USING GIN(to_tsvector('english', 
-  COALESCE(name, '') || ' ' || 
-  COALESCE(company, '') || ' ' || 
-  COALESCE(title, '') || ' ' || 
+CREATE INDEX idx_cards_search ON cards USING GIN(to_tsvector('english',
+  COALESCE(name, '') || ' ' ||
+  COALESCE(company, '') || ' ' ||
+  COALESCE(title, '') || ' ' ||
   COALESCE(notes, '')
 ));
 
@@ -717,6 +754,7 @@ CREATE INDEX idx_news_company_date ON news_articles(company_id, published_date D
 ## 9. Integration Requirements
 
 ### OCR Integration
+
 - **Primary**: AWS Textract for production use
   - Document analysis API for structured data extraction
   - Forms and tables detection
@@ -729,6 +767,7 @@ CREATE INDEX idx_news_company_date ON news_articles(company_id, published_date D
   - Preprocessing pipeline for image enhancement
 
 ### Calendar API Integration
+
 - **Google Calendar API**
   - OAuth 2.0 authentication
   - Event creation and retrieval
@@ -742,6 +781,7 @@ CREATE INDEX idx_news_company_date ON news_articles(company_id, published_date D
   - Cross-platform compatibility
 
 ### Company Research APIs
+
 - **Clearbit API**
   - Company enrichment data
   - Employee information
@@ -755,6 +795,7 @@ CREATE INDEX idx_news_company_date ON news_articles(company_id, published_date D
   - Sentiment analysis integration
 
 ### External Service Integration Architecture
+
 ```typescript
 // Service abstraction layer
 interface CalendarService {
@@ -770,7 +811,7 @@ class OutlookCalendarService implements CalendarService { ... }
 // Service registry
 class ServiceRegistry {
   private services: Map<string, CalendarService> = new Map();
-  
+
   register(provider: string, service: CalendarService): void;
   get(provider: string): CalendarService;
 }
@@ -779,30 +820,35 @@ class ServiceRegistry {
 ## 10. Security Considerations
 
 ### Authentication & Authorization
+
 - **AWS Cognito User Pools**: Secure user authentication
 - **JWT Tokens**: Stateless authentication with proper expiration
 - **Multi-Factor Authentication**: Optional 2FA for enhanced security
 - **Role-Based Access Control**: Different permission levels for users
 
 ### Data Protection
+
 - **Encryption at Rest**: All sensitive data encrypted in database
 - **Encryption in Transit**: HTTPS/TLS for all communications
 - **Image Privacy**: Secure S3 buckets with proper access controls
 - **PII Handling**: Compliance with data protection regulations
 
 ### API Security
+
 - **Rate Limiting**: Prevent abuse and DoS attacks
 - **Input Validation**: Comprehensive validation of all inputs
 - **SQL Injection Prevention**: Parameterized queries with Prisma
 - **CORS Configuration**: Proper cross-origin resource sharing setup
 
 ### Infrastructure Security
+
 - **VPC Network Isolation**: Private subnets for database and internal services
 - **Security Groups**: Restrictive firewall rules
 - **WAF Rules**: Protection against common web attacks
 - **Secrets Management**: AWS Secrets Manager for API keys and credentials
 
 ### Privacy Compliance
+
 - **GDPR Compliance**: User data portability and deletion rights
 - **Data Retention Policies**: Automatic cleanup of old data
 - **Audit Logging**: Comprehensive logging of data access and modifications
@@ -811,24 +857,28 @@ class ServiceRegistry {
 ## 11. Monitoring & Maintenance
 
 ### Application Monitoring
+
 - **CloudWatch Metrics**: Custom metrics for business KPIs
 - **Application Performance Monitoring**: Response times and error rates
 - **Real-time Alerting**: Automated alerts for critical issues
 - **Dashboard Creation**: Visual monitoring dashboards
 
 ### Infrastructure Monitoring
+
 - **Resource Utilization**: CPU, memory, and storage monitoring
 - **Cost Monitoring**: AWS cost tracking and optimization
 - **Security Monitoring**: Unusual activity detection
 - **Backup Monitoring**: Database backup verification
 
 ### Operational Procedures
+
 - **Deployment Rollbacks**: Automated rollback procedures
 - **Database Maintenance**: Regular optimization and cleanup
 - **Security Updates**: Automated dependency updates
 - **Performance Optimization**: Regular performance reviews
 
 ### Logging Strategy
+
 ```typescript
 // Structured logging with correlation IDs
 interface LogContext {
@@ -848,18 +898,21 @@ class Logger {
 ## 12. Success Metrics & KPIs
 
 ### Technical Metrics
+
 - **API Response Times**: < 200ms for read operations, < 1s for processing
 - **OCR Accuracy**: > 95% for standard business cards
 - **System Uptime**: 99.9% availability
 - **Error Rates**: < 1% error rate for all operations
 
 ### Business Metrics
+
 - **User Engagement**: Daily/monthly active users
 - **Scan Success Rate**: Percentage of successful card scans
 - **Data Enrichment Rate**: Percentage of cards with enriched data
 - **User Retention**: Monthly user retention rates
 
 ### Performance Benchmarks
+
 - **Scalability**: Handle 1000+ concurrent users
 - **Storage Efficiency**: Optimized image storage and retrieval
 - **Processing Speed**: Card processing within 10 seconds
@@ -871,8 +924,11 @@ class Logger {
 
 1. **Review and approve** this comprehensive plan
 2. **Set up development environment** with required tools and services
-3. **Create initial project structure** following the defined folder organization
+3. **Create initial project structure** following the defined folder
+   organization
 4. **Begin Phase 1 implementation** starting with foundation components
 5. **Establish CI/CD pipeline** for automated testing and deployment
 
-This plan provides a complete roadmap for building a production-ready business name card scanner application with comprehensive features, scalable architecture, and robust deployment strategy.
+This plan provides a complete roadmap for building a production-ready business
+name card scanner application with comprehensive features, scalable
+architecture, and robust deployment strategy.

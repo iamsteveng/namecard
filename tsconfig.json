@@ -25,6 +25,9 @@
     "noImplicitOverride": true,
     "allowUnusedLabels": false,
     "allowUnreachableCode": false,
+    "noPropertyAccessFromIndexSignature": true,
+    "noUncheckedSideEffectImports": true,
+    "verbatimModuleSyntax": true,
     "baseUrl": ".",
     "paths": {
       "@namecard/shared": ["packages/shared/src"],
@@ -32,5 +35,11 @@
     }
   },
   "include": [],
-  "exclude": ["node_modules", "dist", "build", ".next"]
+  "exclude": ["node_modules", "dist", "build", ".next", "coverage"],
+  "references": [
+    { "path": "./packages/shared" },
+    { "path": "./packages/web" },
+    { "path": "./packages/api" },
+    { "path": "./packages/workers" }
+  ]
 }

@@ -20,6 +20,7 @@
     "sourceMap": true,
     "composite": true,
     "incremental": true,
+    "verbatimModuleSyntax": false,
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
@@ -28,7 +29,8 @@
       "@/utils/*": ["src/utils/*"],
       "@namecard/shared": ["../shared/src"],
       "@namecard/shared/*": ["../shared/src/*"]
-    }
+    },
+    "types": ["node", "@types/aws-lambda"]
   },
   "include": ["src/**/*"],
   "exclude": ["dist", "node_modules", "**/*.test.ts", "**/*.spec.ts"],

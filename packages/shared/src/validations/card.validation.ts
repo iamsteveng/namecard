@@ -11,7 +11,10 @@ export const cardSchema = z.object({
   address: z.string().max(500).optional(),
   website: z.string().url().optional(),
   notes: z.string().max(VALIDATION_LIMITS.NOTES.MAX_LENGTH).optional(),
-  tags: z.array(z.string().max(VALIDATION_LIMITS.TAGS.MAX_LENGTH)).max(VALIDATION_LIMITS.TAGS.MAX_COUNT).optional(),
+  tags: z
+    .array(z.string().max(VALIDATION_LIMITS.TAGS.MAX_LENGTH))
+    .max(VALIDATION_LIMITS.TAGS.MAX_COUNT)
+    .optional(),
 });
 
 export const scanCardSchema = z.object({

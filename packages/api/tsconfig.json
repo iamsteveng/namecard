@@ -20,6 +20,9 @@
     "sourceMap": true,
     "composite": true,
     "incremental": true,
+    "verbatimModuleSyntax": false,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
