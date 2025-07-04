@@ -1,0 +1,30 @@
+{
+  "success": true,
+  "data": {
+    "cards": [
+      {
+        "id": "card-1",
+        "name": "John Doe",
+        "title": "Software Engineer",
+        "company": "Tech Corp",
+        "email": "john.doe@techcorp.com",
+        "phone": "+1-555-0123",
+        "scanDate": "2024-01-15T10:30:00Z",
+        "confidence": 0.95
+      },
+      {
+        "id": "card-2",
+        "name": "Jane Smith",
+        "title": "Product Manager",
+        "company": "Startup Inc",
+        "email": "jane.smith@startup.com",
+        "phone": "+1-555-0456",
+        "scanDate": "2024-01-14T14:20:00Z",
+        "confidence": 0.92
+      }
+    ],
+    "total": 2,
+    "page": 1,
+    "pageSize": 10
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "success": true,
+  "data": {
+    "id": "new-card-id",
+    "originalImageUrl": "https://example.com/images/card.jpg",
+    "extractedText": "John Doe\\nSoftware Engineer\\nTech Corp\\njohn.doe@techcorp.com\\n+1-555-0123",
+    "confidence": 0.95,
+    "name": "John Doe",
+    "title": "Software Engineer", 
+    "company": "Tech Corp",
+    "email": "john.doe@techcorp.com",
+    "phone": "+1-555-0123",
+    "scanDate": "2024-01-15T10:30:00Z"
+  }
+}
