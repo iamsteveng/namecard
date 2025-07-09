@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: namecard-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: namecard_dev
+      POSTGRES_USER: namecard_user
+      POSTGRES_PASSWORD: namecard_password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - namecard_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U namecard_user -d namecard_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres_test:
+    image: postgres:15-alpine
+    container_name: namecard-postgres-test
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: namecard_test
+      POSTGRES_USER: namecard_user
+      POSTGRES_PASSWORD: namecard_password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    networks:
+      - namecard_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U namecard_user -d namecard_test"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: namecard-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - namecard_network
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+    driver: local
+  postgres_test_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  namecard_network:
+    driver: bridge

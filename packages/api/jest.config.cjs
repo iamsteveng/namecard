@@ -26,6 +26,7 @@ module.exports = {
       useESM: true,
     }],
   },
+  setupFiles: ['<rootDir>/jest.env.cjs'],
   globalSetup: '<rootDir>/jest.global-setup.js',
   globalTeardown: '<rootDir>/jest.global-teardown.js',
 };
