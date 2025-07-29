@@ -7,30 +7,90 @@ import {
   validateCardUpdate,
 } from '../middleware/validation.middleware.js';
 import { asyncHandler } from '../middleware/error.middleware.js';
+import prisma from '../lib/prisma.js';
 
 const router = Router();
 
 // GET /api/v1/cards - List cards with pagination and search
 router.get('/', validatePaginationAndSearch, asyncHandler(async (req: Request, res: Response) => {
-  // TODO: Implement card listing with database
-  // The validation middleware should have applied defaults to req.query
-  const { page, limit, sort, sortBy } = req.query;
+  const { page = '1', limit = '20', sort = 'desc', sortBy = 'createdAt' } = req.query;
   const { q, tags, company, dateFrom, dateTo } = req.query;
+  
+  const pageNum = parseInt(page as string);
+  const limitNum = parseInt(limit as string);
+  const skip = (pageNum - 1) * limitNum;
+  
+  // Build where clause for filtering
+  const where: any = {};
+  
+  if (q) {
+    where.OR = [
+      { name: { contains: q as string, mode: 'insensitive' } },
+      { company: { contains: q as string, mode: 'insensitive' } },
+      { title: { contains: q as string, mode: 'insensitive' } },
+      { email: { contains: q as string, mode: 'insensitive' } },
+      { notes: { contains: q as string, mode: 'insensitive' } },
+    ];
+  }
+  
+  if (company) {
+    where.company = { contains: company as string, mode: 'insensitive' };
+  }
+  
+  if (tags && Array.isArray(tags)) {
+    where.tags = { hasSome: tags as string[] };
+  } else if (tags) {
+    where.tags = { has: tags as string };
+  }
+  
+  if (dateFrom || dateTo) {
+    where.scanDate = {};
+    if (dateFrom) where.scanDate.gte = new Date(dateFrom as string);
+    if (dateTo) where.scanDate.lte = new Date(dateTo as string);
+  }
+  
+  // Execute queries in parallel
+  const [cards, total] = await Promise.all([
+    prisma.card.findMany({
+      where,
+      skip,
+      take: limitNum,
+      orderBy: {
+        [sortBy as string]: sort as 'asc' | 'desc',
+      },
+      include: {
+        user: {
+          select: { id: true, name: true, email: true },
+        },
+        companies: {
+          include: {
+            company: {
+              select: { id: true, name: true, industry: true },
+            },
+          },
+        },
+      },
+    }),
+    prisma.card.count({ where }),
+  ]);
+  
+  const totalPages = Math.ceil(total / limitNum);
   
   res.json({
     success: true,
     data: {
-      message: 'Card listing endpoint - to be implemented',
-      pagination: { 
-        page: page || '1', 
-        limit: limit || '20', 
-        sort: sort || 'desc', 
-        sortBy: sortBy || 'createdAt' 
+      cards,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        sort,
+        sortBy,
+        total,
+        totalPages,
+        hasNext: pageNum < totalPages,
+        hasPrev: pageNum > 1,
       },
       filters: { q, tags, company, dateFrom, dateTo },
-      cards: [], // Will be populated from database
-      total: 0,
-      totalPages: 0,
     },
   });
 }));
@@ -49,32 +109,91 @@ router.post('/scan', asyncHandler(async (_req: Request, res: Response) => {
 
 // GET /api/v1/cards/:id - Get specific card details
 router.get('/:id', validateId, asyncHandler(async (req: Request, res: Response) => {
-  // TODO: Implement card retrieval by ID
   const { id } = req.params;
+  
+  const card = await prisma.card.findUnique({
+    where: { id },
+    include: {
+      user: {
+        select: { id: true, name: true, email: true },
+      },
+      companies: {
+        include: {
+          company: {
+            select: { id: true, name: true, industry: true, website: true },
+          },
+        },
+      },
+      calendarEvents: {
+        orderBy: { eventDate: 'desc' },
+        take: 5,
+      },
+    },
+  });
+  
+  if (!card) {
+    return res.status(404).json({
+      success: false,
+      error: {
+        message: 'Card not found',
+        code: 'CARD_NOT_FOUND',
+      },
+      timestamp: new Date().toISOString(),
+    });
+  }
   
   res.json({
     success: true,
-    data: {
-      message: 'Card detail endpoint - to be implemented',
-      cardId: id,
-      // Will return card details from database
-    },
+    data: { card },
   });
 }));
 
 // PUT /api/v1/cards/:id - Update card information
 router.put('/:id', validateId, validateCardUpdate, asyncHandler(async (req: Request, res: Response) => {
-  // TODO: Implement card update
   const { id } = req.params;
+  const updateData = req.body;
+  
+  // Check if card exists
+  const existingCard = await prisma.card.findUnique({
+    where: { id },
+  });
+  
+  if (!existingCard) {
+    return res.status(404).json({
+      success: false,
+      error: {
+        message: 'Card not found',
+        code: 'CARD_NOT_FOUND',
+      },
+      timestamp: new Date().toISOString(),
+    });
+  }
+  
+  // Update the card
+  const updatedCard = await prisma.card.update({
+    where: { id },
+    data: {
+      ...updateData,
+      updatedAt: new Date(),
+    },
+    include: {
+      user: {
+        select: { id: true, name: true, email: true },
+      },
+      companies: {
+        include: {
+          company: {
+            select: { id: true, name: true, industry: true },
+          },
+        },
+      },
+    },
+  });
   
   res.json({
     success: true,
-    data: {
-      message: 'Card update endpoint - to be implemented',
-      cardId: id,
-      updates: req.body,
-      // Will return updated card data
-    },
+    data: { card: updatedCard },
+    message: 'Card updated successfully',
   });
 }));
 

@@ -8,18 +8,31 @@ describe('App', () => {
     clearRateLimitCleanup();
   });
   describe('GET /health', () => {
-    it('should return health status', async () => {
+    it('should return health status with database check', async () => {
       const response = await request(app)
-        .get('/health')
-        .expect(200);
+        .get('/health');
 
-      expect(response.body).toEqual({
-        status: 'ok',
-        timestamp: expect.any(String),
-        environment: 'test',
-        uptime: expect.any(Number),
-        memory: expect.any(Object),
-      });
+      // Health check might return 200 (database connected) or 503 (database disconnected)
+      expect([200, 503]).toContain(response.status);
+      
+      if (response.status === 200) {
+        expect(response.body).toEqual({
+          status: 'ok',
+          timestamp: expect.any(String),
+          environment: 'test',
+          uptime: expect.any(Number),
+          memory: expect.any(Object),
+          database: 'connected',
+        });
+      } else {
+        expect(response.body).toEqual({
+          status: 'error',
+          timestamp: expect.any(String),
+          environment: 'test',
+          database: 'disconnected',
+          error: 'Database connection failed',
+        });
+      }
     });
   });
 
@@ -56,9 +69,9 @@ describe('App', () => {
   describe('Security headers', () => {
     it('should include security headers', async () => {
       const response = await request(app)
-        .get('/health')
-        .expect(200);
+        .get('/');
 
+      expect(response.status).toBe(200);
       expect(response.headers).toHaveProperty('x-content-type-options');
       expect(response.headers).toHaveProperty('x-frame-options');
     });

@@ -5,10 +5,11 @@ import compression from 'compression';
 import 'express-async-errors';
 
 import { env } from './config/env.js';
-import { requestLogger } from './utils/logger.js';
+import logger, { requestLogger } from './utils/logger.js';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware.js';
 import { apiRateLimit } from './middleware/rate-limit.middleware.js';
 import apiRoutes from './routes/index.js';
+import prisma from './lib/prisma.js';
 
 const app = express();
 
@@ -43,14 +44,29 @@ if (!env.isTest) {
 app.use(apiRateLimit);
 
 // Health check endpoint (before API routes)
-app.get('/health', (_req, res) => {
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    environment: env.node,
-    uptime: process.uptime(),
-    memory: process.memoryUsage(),
-  });
+app.get('/health', async (_req, res) => {
+  try {
+    // Check database connection
+    await prisma.$queryRaw`SELECT 1`;
+    
+    res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      environment: env.node,
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+      database: 'connected',
+    });
+  } catch (error) {
+    logger.error('Health check failed', error);
+    res.status(503).json({
+      status: 'error',
+      timestamp: new Date().toISOString(),
+      environment: env.node,
+      database: 'disconnected',
+      error: 'Database connection failed',
+    });
+  }
 });
 
 // API routes
