@@ -16,6 +16,7 @@
     "test:coverage": "vitest --coverage"
   },
   "dependencies": {
+    "@namecard/shared": "*",
     "@tanstack/react-query": "^5.17.0",
     "@tanstack/react-router": "^1.15.0",
     "clsx": "^2.1.0",
@@ -26,7 +27,6 @@
     "zustand": "^4.4.7"
   },
   "devDependencies": {
-    "@namecard/shared": "*",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
     "@types/react": "^18.2.48",

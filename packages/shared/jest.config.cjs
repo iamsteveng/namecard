@@ -17,7 +17,9 @@ module.exports = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.cjs'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
+    '^(\\.{1,2}/.*)\\.js$': '$1',
   },
+  extensionsToTreatAsEsm: ['.ts'],
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
       tsconfig: 'tsconfig.json',

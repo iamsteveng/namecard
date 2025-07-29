@@ -21,6 +21,7 @@
     "db:seed": "tsx src/scripts/seed.ts"
   },
   "dependencies": {
+    "@namecard/shared": "*",
     "@aws-sdk/client-cognito-identity-provider": "^3.490.0",
     "@aws-sdk/client-s3": "^3.490.0",
     "@aws-sdk/client-textract": "^3.490.0",
@@ -41,7 +42,6 @@
     "winston": "^3.11.0"
   },
   "devDependencies": {
-    "@namecard/shared": "*",
     "@types/bcryptjs": "^2.4.6",
     "@types/compression": "^1.7.5",
     "@types/cors": "^2.8.17",

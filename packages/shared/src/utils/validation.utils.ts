@@ -1,5 +1,5 @@
 // Validation utility functions
-import { VALIDATION_PATTERNS } from '../constants/validation.constants';
+import { VALIDATION_PATTERNS } from '../constants/validation.constants.js';
 
 export const isValidEmail = (email: string): boolean => {
   return VALIDATION_PATTERNS.EMAIL.test(email);

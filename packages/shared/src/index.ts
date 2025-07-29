@@ -7,5 +7,5 @@ export * from './constants/index.js';
 // Export utilities
 export * from './utils/index.js';
 
-// Export validations
-export * from './validations/index.js';
+// Export validation schemas (namespaced to avoid conflicts)
+export * as schemas from './validations/index.js';
