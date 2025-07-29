@@ -1,8 +1,17 @@
 // Global teardown for API tests
 module.exports = async () => {
-  // Clean up test database connection
   console.log('Tearing down test environment...');
   
-  // You can add cleanup logic here
-  // For example, stopping test database container
+  // Clean up rate limit intervals
+  try {
+    const { clearRateLimitCleanup } = require('./dist/middleware/rate-limit.middleware.js');
+    clearRateLimitCleanup();
+  } catch (error) {
+    // Ignore if module not found or not built yet
+  }
+  
+  // Force exit any remaining handles
+  setTimeout(() => {
+    process.exit(0);
+  }, 100);
 };

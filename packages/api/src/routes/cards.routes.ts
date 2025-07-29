@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import {
   validateId,
-  validatePagination,
+  validatePaginationAndSearch,
   validateSearch,
   // validateCardCreate,
   validateCardUpdate,
@@ -11,8 +11,9 @@ import { asyncHandler } from '../middleware/error.middleware.js';
 const router = Router();
 
 // GET /api/v1/cards - List cards with pagination and search
-router.get('/', validatePagination, validateSearch, asyncHandler(async (req: Request, res: Response) => {
+router.get('/', validatePaginationAndSearch, asyncHandler(async (req: Request, res: Response) => {
   // TODO: Implement card listing with database
+  // The validation middleware should have applied defaults to req.query
   const { page, limit, sort, sortBy } = req.query;
   const { q, tags, company, dateFrom, dateTo } = req.query;
   
@@ -20,7 +21,12 @@ router.get('/', validatePagination, validateSearch, asyncHandler(async (req: Req
     success: true,
     data: {
       message: 'Card listing endpoint - to be implemented',
-      pagination: { page, limit, sort, sortBy },
+      pagination: { 
+        page: page || '1', 
+        limit: limit || '20', 
+        sort: sort || 'desc', 
+        sortBy: sortBy || 'createdAt' 
+      },
       filters: { q, tags, company, dateFrom, dateTo },
       cards: [], // Will be populated from database
       total: 0,

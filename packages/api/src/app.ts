@@ -5,7 +5,7 @@ import compression from 'compression';
 import 'express-async-errors';
 
 import { env } from './config/env.js';
-import logger, { requestLogger } from './utils/logger.js';
+import { requestLogger } from './utils/logger.js';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware.js';
 import { apiRateLimit } from './middleware/rate-limit.middleware.js';
 import apiRoutes from './routes/index.js';

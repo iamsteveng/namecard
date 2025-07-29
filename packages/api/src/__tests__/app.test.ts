@@ -1,7 +1,12 @@
 import request from 'supertest';
 import app from '../app';
+import { clearRateLimitCleanup } from '../middleware/rate-limit.middleware';
 
 describe('App', () => {
+  afterAll(async () => {
+    // Clean up any open handles
+    clearRateLimitCleanup();
+  });
   describe('GET /health', () => {
     it('should return health status', async () => {
       const response = await request(app)
@@ -11,18 +16,31 @@ describe('App', () => {
       expect(response.body).toEqual({
         status: 'ok',
         timestamp: expect.any(String),
+        environment: 'test',
+        uptime: expect.any(Number),
+        memory: expect.any(Object),
       });
     });
   });
 
   describe('GET /', () => {
-    it('should return welcome message', async () => {
+    it('should return API information', async () => {
       const response = await request(app)
         .get('/')
         .expect(200);
 
       expect(response.body).toEqual({
-        message: 'NameCard API Server',
+        name: 'NameCard API Server',
+        version: 'v1',
+        environment: 'test',
+        status: 'running',
+        timestamp: expect.any(String),
+        endpoints: {
+          health: '/health',
+          api: '/api/v1',
+          auth: '/api/v1/auth',
+          cards: '/api/v1/cards',
+        },
       });
     });
   });

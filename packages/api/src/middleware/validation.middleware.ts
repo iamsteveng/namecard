@@ -19,7 +19,7 @@ export const validate = (schemas: ValidationOptions) => {
     // Validate each schema if provided
     Object.entries(schemas).forEach(([source, schema]) => {
       if (schema) {
-        const { error, value } = schema.validate(req[source as keyof Request], {
+        const { error, value } = schema.validate(req[source as keyof Request] || {}, {
           abortEarly: false,
           stripUnknown: true,
         });
@@ -130,6 +130,11 @@ export const commonSchemas = {
 export const validatePagination = validate({ query: commonSchemas.pagination });
 export const validateId = validate({ params: commonSchemas.id });
 export const validateSearch = validate({ query: commonSchemas.search });
+
+// Combined pagination and search validation
+export const validatePaginationAndSearch = validate({ 
+  query: commonSchemas.pagination.concat(commonSchemas.search) 
+});
 export const validateUserRegistration = validate({ body: commonSchemas.userRegistration });
 export const validateUserLogin = validate({ body: commonSchemas.userLogin });
 export const validateCardCreate = validate({ body: commonSchemas.cardCreate });

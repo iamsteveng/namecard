@@ -48,7 +48,8 @@ class InMemoryRateLimitStore {
   cleanup(): void {
     const now = Date.now();
     Object.keys(this.store).forEach(key => {
-      if (this.store[key].resetTime < now) {
+      const record = this.store[key];
+      if (record && record.resetTime < now) {
         delete this.store[key];
       }
     });
@@ -57,10 +58,22 @@ class InMemoryRateLimitStore {
 
 const store = new InMemoryRateLimitStore();
 
-// Clean up expired records every 10 minutes
-setInterval(() => {
-  store.cleanup();
-}, 10 * 60 * 1000);
+// Clean up expired records every 10 minutes (disable in test environment)
+let cleanupInterval: NodeJS.Timeout | null = null;
+
+if (process.env['NODE_ENV'] !== 'test') {
+  cleanupInterval = setInterval(() => {
+    store.cleanup();
+  }, 10 * 60 * 1000);
+}
+
+// Export cleanup function for test teardown
+export const clearRateLimitCleanup = () => {
+  if (cleanupInterval) {
+    clearInterval(cleanupInterval);
+    cleanupInterval = null;
+  }
+};
 
 interface RateLimitOptions {
   windowMs?: number;

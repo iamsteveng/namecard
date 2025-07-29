@@ -1,7 +1,12 @@
 import request from 'supertest';
 import app from '../../app.js';
+import { clearRateLimitCleanup } from '../../middleware/rate-limit.middleware.js';
 
 describe('API Integration Tests', () => {
+  afterAll(async () => {
+    // Clean up any open handles
+    clearRateLimitCleanup();
+  });
   describe('Health Check', () => {
     it('should return health status', async () => {
       const response = await request(app)
