@@ -1,79 +1,84 @@
 import { clsx } from 'clsx';
 import { Search, Filter, Download, MoreVertical, Mail, Phone, Globe } from 'lucide-react';
 import { useState } from 'react';
-
-interface Card {
-  id: number;
-  name: string;
-  title: string;
-  company: string;
-  email: string;
-  phone: string;
-  website?: string;
-  scannedAt: string;
-  tags: string[];
-}
+import type { Card } from '@namecard/shared';
 
 const mockCards: Card[] = [
   {
-    id: 1,
+    id: 'card_1', 
+    userId: 'user_1',
+    originalImageUrl: 'https://example.com/card1.jpg',
     name: 'John Smith',
     title: 'Senior Developer',
     company: 'Tech Corp',
     email: 'john.smith@techcorp.com',
     phone: '+1 (555) 123-4567',
     website: 'https://techcorp.com',
-    scannedAt: '2024-01-15',
+    scanDate: new Date('2024-01-15'),
     tags: ['Developer', 'Tech'],
+    createdAt: new Date('2024-01-15'),
+    updatedAt: new Date('2024-01-15'),
   },
   {
-    id: 2,
+    id: 'card_2',
+    userId: 'user_1', 
+    originalImageUrl: 'https://example.com/card2.jpg',
     name: 'Sarah Johnson',
     title: 'Product Manager',
     company: 'Innovation Ltd',
     email: 'sarah.j@innovation.com',
     phone: '+1 (555) 987-6543',
     website: 'https://innovation.com',
-    scannedAt: '2024-01-14',
+    scanDate: new Date('2024-01-14'), 
     tags: ['Product', 'Management'],
+    createdAt: new Date('2024-01-14'),
+    updatedAt: new Date('2024-01-14'),
   },
   {
-    id: 3,
+    id: 'card_3',
+    userId: 'user_1',
+    originalImageUrl: 'https://example.com/card3.jpg', 
     name: 'Michael Chen',
     title: 'Design Lead',
     company: 'Creative Studio',
     email: 'mike@creativestudio.com',
     phone: '+1 (555) 456-7890',
-    scannedAt: '2024-01-13',
+    scanDate: new Date('2024-01-13'),
     tags: ['Design', 'Creative'],
+    createdAt: new Date('2024-01-13'),
+    updatedAt: new Date('2024-01-13'),
   },
   {
-    id: 4,
+    id: 'card_4',
+    userId: 'user_1',
+    originalImageUrl: 'https://example.com/card4.jpg',
     name: 'Emily Rodriguez',
-    title: 'Marketing Director',
+    title: 'Marketing Director', 
     company: 'Growth Agency',
     email: 'emily@growthagency.com',
     phone: '+1 (555) 321-9876',
     website: 'https://growthagency.com',
-    scannedAt: '2024-01-12',
+    scanDate: new Date('2024-01-12'),
     tags: ['Marketing', 'Growth'],
+    createdAt: new Date('2024-01-12'),
+    updatedAt: new Date('2024-01-12'),
   },
 ];
 
 export default function Cards() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCards, setSelectedCards] = useState<number[]>([]);
+  const [selectedCards, setSelectedCards] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   const filteredCards = mockCards.filter(
     card =>
-      card.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      card.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      card.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      card.email.toLowerCase().includes(searchTerm.toLowerCase())
+      card.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      card.company?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      card.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      card.email?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const toggleCardSelection = (cardId: number) => {
+  const toggleCardSelection = (cardId: string) => {
     setSelectedCards(prev =>
       prev.includes(cardId) ? prev.filter(id => id !== cardId) : [...prev, cardId]
     );
@@ -195,30 +200,34 @@ export default function Cards() {
 
                 <div className="space-y-3">
                   <div>
-                    <h3 className="font-semibold text-gray-900">{card.name}</h3>
-                    <p className="text-sm text-gray-600">{card.title}</p>
-                    <p className="text-sm font-medium text-gray-700">{card.company}</p>
+                    <h3 className="font-semibold text-gray-900">{card.name || 'Unknown Name'}</h3>
+                    <p className="text-sm text-gray-600">{card.title || 'No Title'}</p>
+                    <p className="text-sm font-medium text-gray-700">{card.company || 'No Company'}</p>
                   </div>
 
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Mail className="h-4 w-4 text-gray-400" />
-                      <a
-                        href={`mailto:${card.email}`}
-                        className="text-sm text-blue-600 hover:text-blue-700 truncate"
-                      >
-                        {card.email}
-                      </a>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Phone className="h-4 w-4 text-gray-400" />
-                      <a
-                        href={`tel:${card.phone}`}
-                        className="text-sm text-gray-600 hover:text-gray-700"
-                      >
-                        {card.phone}
-                      </a>
-                    </div>
+                    {card.email && (
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-4 w-4 text-gray-400" />
+                        <a
+                          href={`mailto:${card.email}`}
+                          className="text-sm text-blue-600 hover:text-blue-700 truncate"
+                        >
+                          {card.email}
+                        </a>
+                      </div>
+                    )}
+                    {card.phone && (
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-4 w-4 text-gray-400" />
+                        <a
+                          href={`tel:${card.phone}`}
+                          className="text-sm text-gray-600 hover:text-gray-700"
+                        >
+                          {card.phone}
+                        </a>
+                      </div>
+                    )}
                     {card.website && (
                       <div className="flex items-center gap-2">
                         <Globe className="h-4 w-4 text-gray-400" />
@@ -246,7 +255,7 @@ export default function Cards() {
                   </div>
 
                   <p className="text-xs text-gray-500">
-                    Scanned on {new Date(card.scannedAt).toLocaleDateString()}
+                    Scanned on {card.scanDate?.toLocaleDateString() || 'Unknown date'}
                   </p>
                 </div>
               </div>
@@ -274,9 +283,9 @@ export default function Cards() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <h3 className="font-semibold text-gray-900">{card.name}</h3>
+                        <h3 className="font-semibold text-gray-900">{card.name || 'Unknown Name'}</h3>
                         <p className="text-sm text-gray-600">
-                          {card.title} at {card.company}
+                          {card.title || 'No Title'} at {card.company || 'No Company'}
                         </p>
                       </div>
                       <button className="text-gray-400 hover:text-gray-600">
@@ -284,20 +293,24 @@ export default function Cards() {
                       </button>
                     </div>
                     <div className="mt-3 flex flex-wrap gap-4">
-                      <a
-                        href={`mailto:${card.email}`}
-                        className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
-                      >
-                        <Mail className="h-4 w-4" />
-                        {card.email}
-                      </a>
-                      <a
-                        href={`tel:${card.phone}`}
-                        className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-700"
-                      >
-                        <Phone className="h-4 w-4" />
-                        {card.phone}
-                      </a>
+                      {card.email && (
+                        <a
+                          href={`mailto:${card.email}`}
+                          className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
+                        >
+                          <Mail className="h-4 w-4" />
+                          {card.email}
+                        </a>
+                      )}
+                      {card.phone && (
+                        <a
+                          href={`tel:${card.phone}`}
+                          className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-700"
+                        >
+                          <Phone className="h-4 w-4" />
+                          {card.phone}
+                        </a>
+                      )}
                       {card.website && (
                         <a
                           href={card.website}
