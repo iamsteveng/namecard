@@ -53,8 +53,8 @@ export const registerDataSchema = z.object({
     .min(8, 'Password must be at least 8 characters')
     .max(128, 'Password must not exceed 128 characters')
     .regex(
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
-      'Password must contain at least one lowercase letter, one uppercase letter, and one number'
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`])/,
+      'Password must contain at least one lowercase letter, one uppercase letter, one number, and one symbol'
     ),
   name: createStringSchema(1, 100),
   confirmPassword: z.string(),
@@ -73,8 +73,8 @@ export const changePasswordSchema = z.object({
     .min(8, 'Password must be at least 8 characters')
     .max(128, 'Password must not exceed 128 characters')
     .regex(
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
-      'Password must contain at least one lowercase letter, one uppercase letter, and one number'
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`])/,
+      'Password must contain at least one lowercase letter, one uppercase letter, one number, and one symbol'
     ),
   confirmPassword: z.string(),
 }).refine(
@@ -103,8 +103,8 @@ export const confirmResetPasswordSchema = z.object({
     .min(8, 'Password must be at least 8 characters')
     .max(128, 'Password must not exceed 128 characters')
     .regex(
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
-      'Password must contain at least one lowercase letter, one uppercase letter, and one number'
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`])/,
+      'Password must contain at least one lowercase letter, one uppercase letter, one number, and one symbol'
     ),
   confirmPassword: z.string(),
 }).refine(
@@ -164,8 +164,8 @@ export const userRegistrationSchema = z.object({
     .min(8, 'Password must be at least 8 characters')
     .max(128, 'Password must not exceed 128 characters')
     .regex(
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
-      'Password must contain at least one lowercase letter, one uppercase letter, and one number'
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`])/,
+      'Password must contain at least one lowercase letter, one uppercase letter, one number, and one symbol'
     ),
   name: createStringSchema(1, 100),
 });
@@ -185,7 +185,7 @@ export const validatePassword = (password: string): boolean => {
     .string()
     .min(8)
     .max(128)
-    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
+    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`])/)
     .safeParse(password).success;
 };
 

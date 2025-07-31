@@ -120,3 +120,6 @@ public
 # Temporary files
 *.tmp
 *.temp
+
+# TypeScript
+*.tsbuildinfo
