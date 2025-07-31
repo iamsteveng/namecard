@@ -19,6 +19,7 @@ module.exports = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
     '^(\\.{1,2}/.*)\\.js$': '$1',
+    '^@namecard/shared$': '<rootDir>/../shared/src/index.ts',
   },
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
