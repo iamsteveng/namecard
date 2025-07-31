@@ -1,5 +1,6 @@
 import { ScanLine, CreditCard, Users, TrendingUp } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useAuthStore } from '../store/auth.store';
 
 const stats = [
   { name: 'Total Cards', value: '42', icon: CreditCard, change: '+12%' },
@@ -33,13 +34,17 @@ const recentCards = [
 ];
 
 export default function Dashboard() {
+  const { user } = useAuthStore();
+  
   return (
     <div className="space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+        <h1 className="text-2xl font-bold text-gray-900">
+          Welcome back, {user?.name?.split(' ')[0] || 'there'}!
+        </h1>
         <p className="mt-2 text-gray-600">
-          Welcome back! Here's an overview of your business card scanning activity.
+          Here's an overview of your business card scanning activity.
         </p>
       </div>
 

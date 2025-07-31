@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 
 import Layout from './components/Layout';
 import Cards from './pages/Cards';
@@ -9,7 +9,9 @@ import Settings from './pages/Settings';
 import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
+import NotFound from './pages/NotFound';
 import ProtectedRoute from './components/auth/ProtectedRoute';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Create a query client
 const queryClient = new QueryClient({
@@ -24,8 +26,9 @@ const queryClient = new QueryClient({
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Router>
-        <Routes>
+      <ErrorBoundary>
+        <Router>
+          <Routes>
           {/* Public authentication routes */}
           <Route path="/auth/login" element={<LoginPage />} />
           <Route path="/auth/register" element={<RegisterPage />} />
@@ -60,8 +63,12 @@ export default function App() {
               </Layout>
             </ProtectedRoute>
           } />
+          
+          {/* 404 Catch-all route */}
+          <Route path="*" element={<NotFound />} />
         </Routes>
-      </Router>
+        </Router>
+      </ErrorBoundary>
     </QueryClientProvider>
   );
 }
