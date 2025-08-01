@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import authRoutes from './auth.routes.js';
 import cardsRoutes from './cards.routes.js';
+import scanRoutes from './scan.routes.js';
 import { env } from '../config/env.js';
 
 const router = Router();
@@ -18,6 +19,7 @@ router.get('/', (_req, res) => {
       endpoints: {
         auth: `/api/${env.apiVersion}/auth`,
         cards: `/api/${env.apiVersion}/cards`,
+        scan: `/api/${env.apiVersion}/scan`,
         health: '/health',
       },
     },
@@ -27,5 +29,6 @@ router.get('/', (_req, res) => {
 // Mount route modules
 router.use('/auth', authRoutes);
 router.use('/cards', cardsRoutes);
+router.use('/scan', scanRoutes);
 
 export default router;
