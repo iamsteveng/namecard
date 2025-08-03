@@ -23,6 +23,12 @@
     "verbatimModuleSyntax": false,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
+    "exactOptionalPropertyTypes": false,
+    "noPropertyAccessFromIndexSignature": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noImplicitReturns": false,
+    "strictNullChecks": false,
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],

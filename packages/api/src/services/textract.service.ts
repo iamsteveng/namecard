@@ -2,28 +2,29 @@ import {
   TextractClient,
   AnalyzeDocumentCommand,
   Block,
-  BoundingBox,
-  Geometry,
   DetectDocumentTextCommand,
 } from '@aws-sdk/client-textract';
 import logger from '../utils/logger.js';
+import { env } from '../config/env.js';
 import Sharp from 'sharp';
 
 // AWS Textract configuration
 const textractClient = new TextractClient({
-  region: process.env.TEXTRACT_REGION || 'us-east-1',
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
+  region: env.aws.region,
+  ...(env.aws.accessKeyId && env.aws.secretAccessKey && {
+    credentials: {
+      accessKeyId: env.aws.accessKeyId,
+      secretAccessKey: env.aws.secretAccessKey,
+    },
+  }),
 });
 
 // Types for OCR results
 export interface TextractBlock {
   id: string;
   blockType: string;
-  text?: string;
-  confidence?: number;
+  text: string;
+  confidence: number;
   geometry?: {
     boundingBox?: {
       width: number;
@@ -107,7 +108,7 @@ class TextractService {
       const result = await processed
         .grayscale()
         .normalize()
-        .sharpen({ sigma: 1, flat: 1, jagged: 2 })
+        .sharpen(1, 1, 2)
         .jpeg({ quality: 95 }) // High quality JPEG for OCR
         .toBuffer();
 
@@ -147,8 +148,8 @@ class TextractService {
     const converted: TextractBlock = {
       id: block.Id || '',
       blockType: block.BlockType || '',
-      text: block.Text,
-      confidence: block.Confidence,
+      text: block.Text || '',
+      confidence: block.Confidence || 0,
     };
 
     // Convert geometry if present
@@ -492,7 +493,7 @@ class TextractService {
         status: 'healthy',
         details: {
           responseTime,
-          region: process.env.TEXTRACT_REGION || 'us-east-1',
+          region: env.aws.region,
           timestamp: new Date().toISOString(),
         },
       };
@@ -501,7 +502,7 @@ class TextractService {
         status: 'unhealthy',
         details: {
           error: error.message,
-          region: process.env.TEXTRACT_REGION || 'us-east-1',
+          region: env.aws.region,
           timestamp: new Date().toISOString(),
         },
       };

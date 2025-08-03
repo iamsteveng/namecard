@@ -1,8 +1,10 @@
 import { config } from 'dotenv';
 import Joi from 'joi';
 
-// Load environment variables
-config();
+// Load environment variables based on NODE_ENV
+const environment = process.env['NODE_ENV'] || 'development';
+config({ path: `.env.${environment}` });
+config(); // Load default .env as fallback
 
 const envSchema = Joi.object({
   NODE_ENV: Joi.string().valid('development', 'test', 'production').default('development'),
@@ -33,6 +35,7 @@ const envSchema = Joi.object({
   // S3
   S3_BUCKET_NAME: Joi.string().required(),
   S3_REGION: Joi.string().default('us-east-1'),
+  S3_CDN_DOMAIN: Joi.string().allow(''),
 
   // Cognito
   COGNITO_USER_POOL_ID: Joi.string().required(),
@@ -94,6 +97,7 @@ export const env = {
   s3: {
     bucketName: envVars.S3_BUCKET_NAME,
     region: envVars.S3_REGION,
+    cdnDomain: envVars.S3_CDN_DOMAIN,
   },
 
   cognito: {

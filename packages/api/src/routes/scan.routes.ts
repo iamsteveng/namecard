@@ -36,6 +36,8 @@ interface AuthenticatedScanRequest extends Request {
     id: string;
     email: string;
     cognitoId: string;
+    name?: string;
+    cognitoUser: any; // Temporary fix for CognitoUser type
   };
   file?: Express.Multer.File;
 }

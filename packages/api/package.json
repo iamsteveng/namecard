@@ -21,10 +21,11 @@
     "db:seed": "tsx src/scripts/seed.ts"
   },
   "dependencies": {
-    "@namecard/shared": "*",
     "@aws-sdk/client-cognito-identity-provider": "^3.490.0",
     "@aws-sdk/client-s3": "^3.490.0",
     "@aws-sdk/client-textract": "^3.490.0",
+    "@aws-sdk/s3-request-presigner": "^3.859.0",
+    "@namecard/shared": "*",
     "@prisma/client": "^5.8.1",
     "bcryptjs": "^2.4.3",
     "bull": "^4.12.2",

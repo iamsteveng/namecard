@@ -90,7 +90,13 @@ router.post('/register', validateUserRegistration, asyncHandler(async (req: Requ
     res.status(201).json(response);
 
   } catch (error: any) {
-    logger.error('Registration failed', { email, error: error.message });
+    logger.error('Registration failed - detailed error:', { 
+      email, 
+      message: error.message,
+      name: error.name,
+      code: error.code,
+      stack: error.stack?.substring(0, 500)
+    });
     
     if (error instanceof AppError) {
       throw error;
@@ -105,7 +111,7 @@ router.post('/register', validateUserRegistration, asyncHandler(async (req: Requ
       throw new AppError('Invalid email format', 400);
     }
     
-    throw new AppError('Registration failed. Please try again.', 500);
+    throw new AppError(`Registration failed: ${error.message}`, 500);
   }
 }));
 
@@ -316,7 +322,6 @@ router.get('/profile', authenticateToken, asyncHandler(async (req: Request, res:
       success: true,
       data: {
         id: user.id,
-        cognitoId: user.cognitoId,
         email: user.email,
         name: user.name || undefined,
         avatarUrl: user.avatarUrl || undefined,

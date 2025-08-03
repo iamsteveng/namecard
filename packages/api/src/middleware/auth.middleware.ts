@@ -1,9 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
 import { AppError } from './error.middleware.js';
 import cognitoService, { CognitoUser } from '../services/cognito.service.js';
 import prisma from '../lib/prisma.js';
-import { env } from '../config/env.js';
 import logger from '../utils/logger.js';
 
 // Extend Express Request interface to include user
@@ -24,7 +22,7 @@ declare global {
 /**
  * Middleware to authenticate requests using JWT tokens from Cognito
  */
-export const authenticateToken = async (req: Request, res: Response, next: NextFunction) => {
+export const authenticateToken = async (req: Request, _res: Response, next: NextFunction) => {
   try {
     // Get token from Authorization header
     const authHeader = req.headers.authorization;
@@ -82,8 +80,8 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
       id: dbUser.id,
       cognitoId: dbUser.cognitoId,
       email: dbUser.email,
-      name: dbUser.name || undefined,
       cognitoUser,
+      ...(dbUser.name && { name: dbUser.name }),
     };
 
     logger.debug('User authenticated successfully', { 
@@ -106,7 +104,7 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
  * Middleware to optionally authenticate requests
  * Sets req.user if valid token is provided, but doesn't fail if no token
  */
-export const optionalAuth = async (req: Request, res: Response, next: NextFunction) => {
+export const optionalAuth = async (req: Request, _res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers.authorization;
     const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
@@ -128,8 +126,8 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
           id: dbUser.id,
           cognitoId: dbUser.cognitoId,
           email: dbUser.email,
-          name: dbUser.name || undefined,
           cognitoUser,
+          ...(dbUser.name && { name: dbUser.name }),
         };
       }
     } catch (error) {
@@ -148,7 +146,7 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
  * Middleware to check if user has specific permissions
  */
 export const requirePermission = (permission: string) => {
-  return (req: Request, res: Response, next: NextFunction) => {
+  return (req: Request, _res: Response, next: NextFunction) => {
     if (!req.user) {
       throw new AppError('Authentication required', 401);
     }
@@ -171,7 +169,7 @@ export const requirePermission = (permission: string) => {
  * Middleware to ensure user owns the resource
  */
 export const requireOwnership = (resourceUserIdField = 'userId') => {
-  return (req: Request, res: Response, next: NextFunction) => {
+  return (req: Request, _res: Response, next: NextFunction) => {
     if (!req.user) {
       throw new AppError('Authentication required', 401);
     }
@@ -191,7 +189,7 @@ export const requireOwnership = (resourceUserIdField = 'userId') => {
  * Middleware to validate JWT token format without Cognito verification
  * Useful for quickly rejecting malformed tokens
  */
-export const validateTokenFormat = (req: Request, res: Response, next: NextFunction) => {
+export const validateTokenFormat = (req: Request, _res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers.authorization;
     const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
@@ -208,7 +206,9 @@ export const validateTokenFormat = (req: Request, res: Response, next: NextFunct
 
     // Try to decode payload (without verification)
     try {
-      JSON.parse(Buffer.from(parts[1], 'base64').toString());
+      if (parts[1]) {
+        JSON.parse(Buffer.from(parts[1], 'base64').toString());
+      }
     } catch {
       throw new AppError('Invalid token payload', 401);
     }
@@ -231,8 +231,8 @@ export const injectUserId = async (req: Request, res: Response, next: NextFuncti
   try {
     await authenticateToken(req, res, () => {
       if (req.user) {
-        req.params.userId = req.user.id;
-        req.body.userId = req.user.id;
+        req.params['userId'] = req.user.id;
+        req.body['userId'] = req.user.id;
       }
       next();
     });

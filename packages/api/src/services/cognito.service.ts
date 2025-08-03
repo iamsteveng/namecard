@@ -46,12 +46,26 @@ class CognitoService {
   private clientId: string;
 
   constructor() {
+    // Debug AWS credentials
+    logger.info('Cognito service initialization', {
+      region: env.cognito.region,
+      hasAccessKey: !!env.aws.accessKeyId,
+      awsProfile: process.env.AWS_PROFILE || 'not-set',
+      userPoolId: env.cognito.userPoolId,
+      clientId: env.cognito.clientId
+    });
+
     this.client = new CognitoIdentityProviderClient({
       region: env.cognito.region,
-      credentials: env.aws.accessKeyId ? {
-        accessKeyId: env.aws.accessKeyId,
-        secretAccessKey: env.aws.secretAccessKey!,
-      } : undefined,
+      // Only use explicit credentials if both are provided and valid
+      // Otherwise, let AWS SDK use the default credential chain (profile, IAM role, etc.)
+      ...(env.aws.accessKeyId && env.aws.secretAccessKey && 
+          env.aws.accessKeyId !== 'your-access-key-here' ? {
+        credentials: {
+          accessKeyId: env.aws.accessKeyId,
+          secretAccessKey: env.aws.secretAccessKey,
+        }
+      } : {})
     });
     
     this.userPoolId = env.cognito.userPoolId;
@@ -152,7 +166,7 @@ class CognitoService {
           expiresIn: 0,
           tokenType: 'Bearer',
           user: {} as CognitoUser,
-          challengeName: authResult.ChallengeName,
+          challengeName: authResult.ChallengeName as any,
           session: authResult.Session,
         };
       }
