@@ -5,3 +5,4 @@ export * from './card.types.js';
 export * from './company.types.js';
 export * from './api.types.js';
 export * from './textract.types.js';
+export * from './s3.types.js';

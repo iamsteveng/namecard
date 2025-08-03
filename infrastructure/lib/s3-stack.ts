@@ -5,17 +5,18 @@ import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { Construct } from 'constructs';
 
-export interface InfrastructureStackProps extends cdk.StackProps {
+export interface S3StackProps extends cdk.StackProps {
   environment: string;
+  domainName?: string;
 }
 
-export class InfrastructureStack extends cdk.Stack {
+export class S3Stack extends cdk.Stack {
   public readonly bucket: s3.Bucket;
-  public readonly cloudFrontDistribution: cloudfront.Distribution;
+  public readonly cloudFrontDistribution?: cloudfront.Distribution;
   public readonly bucketName: string;
-  public readonly cloudFrontDomainName: string;
+  public readonly cloudFrontDomainName?: string;
 
-  constructor(scope: Construct, id: string, props: InfrastructureStackProps) {
+  constructor(scope: Construct, id: string, props: S3StackProps) {
     super(scope, id, props);
 
     const { environment } = props;
@@ -94,13 +95,8 @@ export class InfrastructureStack extends cdk.Stack {
     // Create IAM policies for API access
     this.createIAMPolicies(environment);
 
-    // Add stack-level tags
-    cdk.Tags.of(this).add('Environment', environment);
-    cdk.Tags.of(this).add('Application', 'NameCard');
-    cdk.Tags.of(this).add('ManagedBy', 'CDK');
-
     // Output important values
-    this.createOutputs(environment);
+    this.createOutputs();
   }
 
   private getAllowedOrigins(environment: string): string[] {
@@ -258,7 +254,7 @@ export class InfrastructureStack extends cdk.Stack {
     });
   }
 
-  private createOutputs(environment: string): void {
+  private createOutputs(): void {
     // S3 Bucket outputs
     new cdk.CfnOutput(this, 'BucketName', {
       value: this.bucket.bucketName,
@@ -279,23 +275,25 @@ export class InfrastructureStack extends cdk.Stack {
     });
 
     // CloudFront outputs
-    new cdk.CfnOutput(this, 'CloudFrontDistributionId', {
-      value: this.cloudFrontDistribution.distributionId,
-      description: 'CloudFront distribution ID',
-      exportName: `${this.stackName}-CloudFrontDistributionId`,
-    });
+    if (this.cloudFrontDistribution) {
+      new cdk.CfnOutput(this, 'CloudFrontDistributionId', {
+        value: this.cloudFrontDistribution.distributionId,
+        description: 'CloudFront distribution ID',
+        exportName: `${this.stackName}-CloudFrontDistributionId`,
+      });
 
-    new cdk.CfnOutput(this, 'CloudFrontDomainName', {
-      value: this.cloudFrontDistribution.domainName,
-      description: 'CloudFront distribution domain name',
-      exportName: `${this.stackName}-CloudFrontDomainName`,
-    });
+      new cdk.CfnOutput(this, 'CloudFrontDomainName', {
+        value: this.cloudFrontDistribution.domainName,
+        description: 'CloudFront distribution domain name',
+        exportName: `${this.stackName}-CloudFrontDomainName`,
+      });
 
-    new cdk.CfnOutput(this, 'CDNUrl', {
-      value: `https://${this.cloudFrontDistribution.domainName}`,
-      description: 'CDN URL for images',
-      exportName: `${this.stackName}-CDNUrl`,
-    });
+      new cdk.CfnOutput(this, 'CDNUrl', {
+        value: `https://${this.cloudFrontDistribution.domainName}`,
+        description: 'CDN URL for images',
+        exportName: `${this.stackName}-CDNUrl`,
+      });
+    }
 
     // Environment variables for application
     new cdk.CfnOutput(this, 'S3BucketNameEnvVar', {
@@ -310,21 +308,12 @@ export class InfrastructureStack extends cdk.Stack {
       exportName: `${this.stackName}-S3-REGION`,
     });
 
-    new cdk.CfnOutput(this, 'S3CdnDomainEnvVar', {
-      value: this.cloudFrontDistribution.domainName,
-      description: 'Environment variable: S3_CDN_DOMAIN',
-      exportName: `${this.stackName}-S3-CDN-DOMAIN`,
-    });
-
-    // Output summary information
-    new cdk.CfnOutput(this, 'StackSummary', {
-      value: JSON.stringify({
-        environment,
-        bucketName: this.bucketName,
-        cdnDomain: this.cloudFrontDomainName,
-        region: this.region,
-      }),
-      description: 'Stack deployment summary',
-    });
+    if (this.cloudFrontDistribution) {
+      new cdk.CfnOutput(this, 'S3CdnDomainEnvVar', {
+        value: this.cloudFrontDistribution.domainName,
+        description: 'Environment variable: S3_CDN_DOMAIN',
+        exportName: `${this.stackName}-S3-CDN-DOMAIN`,
+      });
+    }
   }
 }
