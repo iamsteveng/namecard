@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import multer from 'multer';
 import {
   validateId,
   validatePaginationAndSearch,
@@ -6,13 +7,42 @@ import {
   // validateCardCreate,
   validateCardUpdate,
 } from '../middleware/validation.middleware.js';
-import { asyncHandler } from '../middleware/error.middleware.js';
+import { asyncHandler, AppError } from '../middleware/error.middleware.js';
+import { authenticateToken } from '../middleware/auth.middleware.js';
+import { CardProcessingService } from '../services/card-processing.service.js';
 import prisma from '../lib/prisma.js';
+import logger from '../utils/logger.js';
 
 const router = Router();
 
+// Configure multer for card scanning
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+    files: 1, // Single file for card scanning
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedMimes = [
+      'image/jpeg',
+      'image/jpg', 
+      'image/png',
+      'image/webp',
+    ];
+    
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new AppError('Invalid file type. Only JPEG, PNG, and WebP images are allowed', 400));
+    }
+  },
+});
+
+// Initialize card processing service
+const cardProcessingService = new CardProcessingService(prisma);
+
 // GET /api/v1/cards - List cards with pagination and search
-router.get('/', validatePaginationAndSearch, asyncHandler(async (req: Request, res: Response) => {
+router.get('/', authenticateToken, validatePaginationAndSearch, asyncHandler(async (req: Request, res: Response) => {
   const { page = '1', limit = '20', sort = 'desc', sortBy = 'createdAt' } = req.query;
   const { q, tags, company, dateFrom, dateTo } = req.query;
   
@@ -21,7 +51,7 @@ router.get('/', validatePaginationAndSearch, asyncHandler(async (req: Request, r
   const skip = (pageNum - 1) * limitNum;
   
   // Build where clause for filtering
-  const where: any = {};
+  const where: any = { userId: req.user!.id };
   
   if (q) {
     where.OR = [
@@ -96,7 +126,7 @@ router.get('/', validatePaginationAndSearch, asyncHandler(async (req: Request, r
 }));
 
 // GET /api/v1/cards/search - Advanced search
-router.get('/search', validateSearch, asyncHandler(async (req: Request, res: Response) => {
+router.get('/search', authenticateToken, validateSearch, asyncHandler(async (req: Request, res: Response) => {
   const { q, tags, company, dateFrom, dateTo, page = '1', limit = '20' } = req.query;
   
   const pageNum = parseInt(page as string);
@@ -104,7 +134,7 @@ router.get('/search', validateSearch, asyncHandler(async (req: Request, res: Res
   const skip = (pageNum - 1) * limitNum;
   
   // Build where clause for advanced search
-  const where: any = {};
+  const where: any = { userId: req.user!.id };
   
   if (q) {
     where.OR = [
@@ -172,11 +202,12 @@ router.get('/search', validateSearch, asyncHandler(async (req: Request, res: Res
 }));
 
 // GET /api/v1/cards/tags - Get available tags
-router.get('/tags', asyncHandler(async (_req: Request, res: Response) => {
+router.get('/tags', authenticateToken, asyncHandler(async (req: Request, res: Response) => {
   // Get all unique tags from cards
   const cards = await prisma.card.findMany({
     select: { tags: true },
     where: {
+      userId: req.user!.id,
       NOT: {
         tags: { isEmpty: true },
       },
@@ -203,13 +234,14 @@ router.get('/tags', asyncHandler(async (_req: Request, res: Response) => {
 }));
 
 // GET /api/v1/cards/companies - Get company list
-router.get('/companies', asyncHandler(async (_req: Request, res: Response) => {
+router.get('/companies', authenticateToken, asyncHandler(async (req: Request, res: Response) => {
   // Get companies from cards and Company table
   const [cardCompanies, registeredCompanies] = await Promise.all([
     // Get companies mentioned in cards
     prisma.card.groupBy({
       by: ['company'],
       where: {
+        userId: req.user!.id,
         company: {
           not: null,
         },
@@ -273,15 +305,73 @@ router.get('/companies', asyncHandler(async (_req: Request, res: Response) => {
 }));
 
 // POST /api/v1/cards/scan - Upload and process new card
-router.post('/scan', asyncHandler(async (_req: Request, res: Response) => {
-  // TODO: Implement file upload, OCR processing, and card creation
-  res.status(201).json({
-    success: true,
-    data: {
-      message: 'Card scanning endpoint - to be implemented',
-      // Will return processed card data
-    },
-  });
+router.post('/scan', authenticateToken, upload.single('image'), asyncHandler(async (req: Request, res: Response) => {
+  try {
+    if (!req.file) {
+      throw new AppError('No image file provided', 400);
+    }
+
+    const userId = req.user!.id;
+    const options = {
+      skipDuplicateCheck: req.body.skipDuplicateCheck === 'true',
+      saveOriginalImage: req.body.saveOriginalImage !== 'false',
+      saveProcessedImage: req.body.saveProcessedImage === 'true',
+      ocrOptions: {
+        minConfidence: parseFloat(req.body.minConfidence) || 0.8,
+        useAnalyzeDocument: req.body.useAnalyzeDocument !== 'false',
+        enhanceImage: req.body.enhanceImage !== 'false',
+      },
+    };
+
+    logger.info('Processing business card scan request', {
+      userId,
+      fileName: req.file.originalname,
+      fileSize: req.file.size,
+      options,
+    });
+
+    const result = await cardProcessingService.processBusinessCard(
+      req.file.buffer,
+      req.file.originalname,
+      userId,
+      options
+    );
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        error: result.error?.message || 'Processing failed',
+        details: result.error,
+      });
+    }
+
+    res.status(201).json({
+      success: true,
+      data: result.data,
+      message: result.data?.duplicateCardId 
+        ? 'Business card processed successfully. Duplicate card detected.'
+        : 'Business card processed successfully',
+    });
+
+  } catch (error) {
+    logger.error('Card scan endpoint error', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      userId: req.user?.id,
+      fileName: req.file?.originalname,
+    });
+
+    if (error instanceof AppError) {
+      return res.status(error.statusCode).json({
+        success: false,
+        error: error.message,
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error during card processing',
+    });
+  }
 }));
 
 // GET /api/v1/cards/:id - Get specific card details
@@ -326,13 +416,13 @@ router.get('/:id', validateId, asyncHandler(async (req: Request, res: Response) 
 }));
 
 // PUT /api/v1/cards/:id - Update card information
-router.put('/:id', validateId, validateCardUpdate, asyncHandler(async (req: Request, res: Response) => {
+router.put('/:id', authenticateToken, validateId, validateCardUpdate, asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
   const updateData = req.body;
   
-  // Check if card exists
-  const existingCard = await prisma.card.findUnique({
-    where: { id },
+  // Check if card exists and belongs to user
+  const existingCard = await prisma.card.findFirst({
+    where: { id, userId: req.user!.id },
   });
   
   if (!existingCard) {
@@ -375,12 +465,12 @@ router.put('/:id', validateId, validateCardUpdate, asyncHandler(async (req: Requ
 }));
 
 // DELETE /api/v1/cards/:id - Delete card
-router.delete('/:id', validateId, asyncHandler(async (req: Request, res: Response) => {
+router.delete('/:id', authenticateToken, validateId, asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
   
-  // Check if card exists
-  const existingCard = await prisma.card.findUnique({
-    where: { id },
+  // Check if card exists and belongs to user
+  const existingCard = await prisma.card.findFirst({
+    where: { id, userId: req.user!.id },
   });
   
   if (!existingCard) {
@@ -436,7 +526,7 @@ router.post('/export', asyncHandler(async (req: Request, res: Response) => {
 }));
 
 // POST /api/v1/cards/import - Bulk import cards
-router.post('/import', asyncHandler(async (_req: Request, res: Response) => {
+router.post('/import', authenticateToken, asyncHandler(async (_req: Request, res: Response) => {
   // TODO: Implement bulk card import
   res.json({
     success: true,
@@ -444,6 +534,30 @@ router.post('/import', asyncHandler(async (_req: Request, res: Response) => {
       message: 'Card import endpoint - to be implemented',
     },
   });
+}));
+
+// GET /api/v1/cards/stats - Get user's card processing statistics
+router.get('/stats', authenticateToken, asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const stats = await cardProcessingService.getProcessingStats(userId);
+
+    res.json({
+      success: true,
+      data: { stats },
+    });
+
+  } catch (error) {
+    logger.error('Card stats endpoint error', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      userId: req.user?.id,
+    });
+
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
 }));
 
 export default router;
