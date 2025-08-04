@@ -1,13 +1,8 @@
-import S3Service from '../../services/s3.service.js';
+import s3Service from '../../services/s3.service.js';
 import sharp from 'sharp';
 
 describe('S3 Service Tests', () => {
-  let s3Service: S3Service;
-
-  beforeAll(() => {
-    // Initialize S3 service with test configuration
-    s3Service = new S3Service();
-  });
+  // Use the singleton instance directly
 
   // Helper to create test images using Sharp
   const createTestImage = async (

@@ -118,14 +118,14 @@ export class ImagePreprocessingService {
       }
 
       // 2. Resize if needed
-      const { resizedImage, resizeApplied } = await this.applyResizing(
+      const { resizedImage, resizeApplied, actualDimensions } = await this.applyResizing(
         processedImage,
         originalMetadata,
         finalOptions
       );
       processedImage = resizedImage;
-      if (resizeApplied) {
-        optimizations.push(`Resized to fit ${finalOptions.maxWidth}x${finalOptions.maxHeight}`);
+      if (resizeApplied && actualDimensions) {
+        optimizations.push(`Resized to fit ${actualDimensions.width}x${actualDimensions.height}`);
       }
 
       // 3. Apply purpose-specific enhancements
@@ -205,7 +205,7 @@ export class ImagePreprocessingService {
     image: sharp.Sharp,
     metadata: sharp.Metadata,
     options: PreprocessingOptions
-  ): Promise<{ resizedImage: sharp.Sharp; resizeApplied: boolean }> {
+  ): Promise<{ resizedImage: sharp.Sharp; resizeApplied: boolean; actualDimensions?: { width: number; height: number } }> {
     if (!metadata.width || !metadata.height || !options.maxWidth || !options.maxHeight) {
       return { resizedImage: image, resizeApplied: false };
     }
@@ -222,7 +222,25 @@ export class ImagePreprocessingService {
       kernel: sharp.kernel.lanczos3, // High quality resampling
     });
 
-    return { resizedImage, resizeApplied: true };
+    // Calculate actual dimensions based on aspect ratio preservation
+    const originalAspectRatio = metadata.width / metadata.height;
+    const maxAspectRatio = options.maxWidth / options.maxHeight;
+    
+    let actualWidth: number, actualHeight: number;
+    
+    if (originalAspectRatio > maxAspectRatio) {
+      // Width is the limiting factor
+      actualWidth = options.maxWidth;
+      actualHeight = Math.round(options.maxWidth / originalAspectRatio);
+    } else {
+      // Height is the limiting factor
+      actualHeight = options.maxHeight;
+      actualWidth = Math.round(options.maxHeight * originalAspectRatio);
+    }
+    
+    const actualDimensions = { width: actualWidth, height: actualHeight };
+
+    return { resizedImage, resizeApplied: true, actualDimensions };
   }
 
   /**
@@ -360,37 +378,30 @@ export class ImagePreprocessingService {
     images: Array<{ buffer: Buffer; name: string }>,
     options: Partial<PreprocessingOptions> = {}
   ): Promise<Array<{ name: string; result: PreprocessingResult; error?: string }>> {
-    const results: Array<{ name: string; result?: PreprocessingResult; error?: string }> = [];
+    const results: Array<{ name: string; result?: PreprocessingResult; error?: string }> = 
+      new Array(images.length);
 
     logger.info('Starting batch image preprocessing', {
       imageCount: images.length,
       purpose: options.purpose || 'storage',
     });
 
-    // Process images in parallel with concurrency limit
-    const concurrencyLimit = 3;
-    const promises: Promise<void>[] = [];
+    // Process images while maintaining order
+    const promises = images.map(async (image, index) => {
+      try {
+        const result = await this.processImage(image.buffer, options);
+        results[index] = { name: image.name, result };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('Batch processing failed for image', {
+          imageName: image.name,
+          error: errorMessage,
+        });
+        results[index] = { name: image.name, error: errorMessage };
+      }
+    });
 
-    for (let i = 0; i < images.length; i += concurrencyLimit) {
-      const batch = images.slice(i, i + concurrencyLimit);
-      
-      const batchPromises = batch.map(async (image) => {
-        try {
-          const result = await this.processImage(image.buffer, options);
-          results.push({ name: image.name, result });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          logger.error('Batch processing failed for image', {
-            imageName: image.name,
-            error: errorMessage,
-          });
-          results.push({ name: image.name, error: errorMessage });
-        }
-      });
-
-      promises.push(...batchPromises);
-      await Promise.all(batchPromises); // Wait for this batch before starting next
-    }
+    await Promise.all(promises);
 
     logger.info('Batch image preprocessing completed', {
       totalImages: images.length,

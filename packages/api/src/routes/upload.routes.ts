@@ -339,7 +339,7 @@ router.get('/health', (req: Request, res: Response) => {
   
   res.json({
     success: true,
-    service: 'Upload Service with Advanced Validation & Preprocessing',
+    service: 'Upload Service with Advanced Validation',
     status: 'healthy',
     timestamp: new Date().toISOString(),
     features: {

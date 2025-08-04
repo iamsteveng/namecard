@@ -60,7 +60,7 @@ describe('Image Preprocessing Service Tests', () => {
 
       expect(result.metadata.processedDimensions.width).toBeLessThanOrEqual(1920);
       expect(result.metadata.processedDimensions.height).toBeLessThanOrEqual(1080);
-      expect(result.optimizations).toContain('Resized to fit 1920x1080');
+      expect(result.optimizations).toContain('Resized to fit 1440x1080'); // 4000x3000 -> 1440x1080 (maintaining 4:3 aspect ratio)
     });
 
     it('should maintain aspect ratio when resizing', async () => {
@@ -266,11 +266,12 @@ describe('Image Preprocessing Service Tests', () => {
       const result = await ImagePreprocessingService.processImage(inputBuffer, {
         purpose: 'storage',
         maxWidth: 800,
+        maxHeight: 800,
         removeMetadata: true
       });
 
       expect(result.optimizations.length).toBeGreaterThan(0);
-      expect(result.optimizations).toContain('Resized to fit 800x800');
+      expect(result.optimizations).toContain('Resized to fit 800x600'); // 1600x1200 -> 800x600 (maintaining aspect ratio)
       expect(result.optimizations).toContain('Removed EXIF metadata for privacy');
       expect(result.optimizations).toContain('Applied storage optimizations (light sharpening)');
     });

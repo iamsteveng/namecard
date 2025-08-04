@@ -277,7 +277,17 @@ export class ImageValidationService {
         Buffer.from('<%', 'utf8'),
       ];
 
-      // Only check header area to avoid false positives in compressed image data
+      // Check for suspicious patterns in the entire buffer (for obvious threats)
+      const fullBuffer = buffer.toString('utf8', 0, Math.min(2048, buffer.length));
+      for (const pattern of suspiciousPatterns) {
+        if (buffer.includes(pattern)) {
+          result.isValid = false;
+          result.errors.push('Suspicious content detected in image file');
+          return;
+        }
+      }
+
+      // Additional check in header area for metadata issues
       for (const pattern of suspiciousPatterns) {
         if (header.includes(pattern)) {
           result.warnings.push('Potential embedded content detected in image metadata');
