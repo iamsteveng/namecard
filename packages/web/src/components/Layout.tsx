@@ -40,6 +40,8 @@ export default function Layout({ children }: LayoutProps) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
+    
+    return undefined;
   }, [userMenuOpen]);
 
   return (

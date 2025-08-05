@@ -195,21 +195,4 @@ export interface S3StorageAnalytics {
   }>;
 }
 
-// Export defaults for backwards compatibility
-export default {} as {
-  S3UploadResult: typeof S3UploadResult;
-  S3UploadOptions: typeof S3UploadOptions;
-  S3FileInfo: typeof S3FileInfo;
-  S3BatchUploadResult: typeof S3BatchUploadResult;
-  S3HealthStatus: typeof S3HealthStatus;
-  S3Config: typeof S3Config;
-  S3ConfigSummary: typeof S3ConfigSummary;
-  S3Error: typeof S3Error;
-  S3UploadProgress: typeof S3UploadProgress;
-  S3BatchUploadProgress: typeof S3BatchUploadProgress;
-  S3CDNOptions: typeof S3CDNOptions;
-  S3CDNUrl: typeof S3CDNUrl;
-  S3FileMetadata: typeof S3FileMetadata;
-  S3AccessPolicy: typeof S3AccessPolicy;
-  S3StorageAnalytics: typeof S3StorageAnalytics;
-};
+// Export all types for named imports

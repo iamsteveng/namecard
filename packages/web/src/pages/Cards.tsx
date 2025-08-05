@@ -1,76 +1,58 @@
 import { clsx } from 'clsx';
-import { Search, Filter, Download, MoreVertical, Mail, Phone, Globe } from 'lucide-react';
-import { useState } from 'react';
+import { Search, Filter, Download, MoreVertical, Mail, Phone, Globe, CheckCircle, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import type { Card } from '@namecard/shared';
+import cardService from '../services/card.service';
+import { useAuthStore } from '../store/auth.store';
 
-const mockCards: Card[] = [
-  {
-    id: 'card_1', 
-    userId: 'user_1',
-    originalImageUrl: 'https://example.com/card1.jpg',
-    name: 'John Smith',
-    title: 'Senior Developer',
-    company: 'Tech Corp',
-    email: 'john.smith@techcorp.com',
-    phone: '+1 (555) 123-4567',
-    website: 'https://techcorp.com',
-    scanDate: new Date('2024-01-15'),
-    tags: ['Developer', 'Tech'],
-    createdAt: new Date('2024-01-15'),
-    updatedAt: new Date('2024-01-15'),
-  },
-  {
-    id: 'card_2',
-    userId: 'user_1', 
-    originalImageUrl: 'https://example.com/card2.jpg',
-    name: 'Sarah Johnson',
-    title: 'Product Manager',
-    company: 'Innovation Ltd',
-    email: 'sarah.j@innovation.com',
-    phone: '+1 (555) 987-6543',
-    website: 'https://innovation.com',
-    scanDate: new Date('2024-01-14'), 
-    tags: ['Product', 'Management'],
-    createdAt: new Date('2024-01-14'),
-    updatedAt: new Date('2024-01-14'),
-  },
-  {
-    id: 'card_3',
-    userId: 'user_1',
-    originalImageUrl: 'https://example.com/card3.jpg', 
-    name: 'Michael Chen',
-    title: 'Design Lead',
-    company: 'Creative Studio',
-    email: 'mike@creativestudio.com',
-    phone: '+1 (555) 456-7890',
-    scanDate: new Date('2024-01-13'),
-    tags: ['Design', 'Creative'],
-    createdAt: new Date('2024-01-13'),
-    updatedAt: new Date('2024-01-13'),
-  },
-  {
-    id: 'card_4',
-    userId: 'user_1',
-    originalImageUrl: 'https://example.com/card4.jpg',
-    name: 'Emily Rodriguez',
-    title: 'Marketing Director', 
-    company: 'Growth Agency',
-    email: 'emily@growthagency.com',
-    phone: '+1 (555) 321-9876',
-    website: 'https://growthagency.com',
-    scanDate: new Date('2024-01-12'),
-    tags: ['Marketing', 'Growth'],
-    createdAt: new Date('2024-01-12'),
-    updatedAt: new Date('2024-01-12'),
-  },
-];
 
 export default function Cards() {
+  const location = useLocation();
+  const { session } = useAuthStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCards, setSelectedCards] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [cards, setCards] = useState<Card[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const filteredCards = mockCards.filter(
+  // Handle success message from navigation state
+  useEffect(() => {
+    if (location.state?.message) {
+      setSuccessMessage(location.state.message);
+      // Clear the state to prevent showing the message on refresh
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
+
+  // Load cards on component mount
+  useEffect(() => {
+    const loadCards = async () => {
+      if (!session?.accessToken) {
+        setError('Authentication required');
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const data = await cardService.getCards(session.accessToken);
+        setCards(data.cards);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load cards');
+        setCards([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadCards();
+  }, [session?.accessToken]);
+
+  const filteredCards = cards.filter(
     card =>
       card.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       card.company?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -92,8 +74,56 @@ export default function Cards() {
     setSelectedCards([]);
   };
 
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading your business cards...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-64">
+        <div className="text-center">
+          <div className="text-red-500 text-6xl mb-4">⚠️</div>
+          <p className="text-red-600 font-medium">{error}</p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
+      {/* Success Message */}
+      {successMessage && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              <span className="text-green-800 font-medium">{successMessage}</span>
+            </div>
+            <button
+              onClick={() => setSuccessMessage(null)}
+              className="text-green-600 hover:text-green-800"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
