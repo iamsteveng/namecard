@@ -1,0 +1,373 @@
+/**
+ * Main Enrichment Service
+ * 
+ * Orchestrates multi-source company data enrichment
+ */
+
+import { PrismaClient } from '@prisma/client';
+import { 
+  EnrichmentSource, 
+  EnrichmentSourceConfig, 
+  EnrichCompanyRequest, 
+  EnrichCompanyResponse,
+  CompanyEnrichmentData,
+  EnrichmentSettings,
+  EnrichmentError
+} from '@namecard/shared/types/enrichment.types';
+import { BaseEnrichmentService } from './base-enrichment.service';
+import { ClearbitEnrichmentService } from './clearbit-enrichment.service';
+
+export class EnrichmentService {
+  private prisma: PrismaClient;
+  private sources: Map<EnrichmentSource, BaseEnrichmentService>;
+  private settings: EnrichmentSettings;
+
+  constructor(
+    prisma: PrismaClient, 
+    sourceConfigs: EnrichmentSourceConfig[],
+    settings: EnrichmentSettings
+  ) {
+    this.prisma = prisma;
+    this.sources = new Map();
+    this.settings = settings;
+
+    // Initialize available enrichment sources
+    this.initializeSources(sourceConfigs);
+  }
+
+  /**
+   * Initialize enrichment sources based on configuration
+   */
+  private initializeSources(configs: EnrichmentSourceConfig[]): void {
+    for (const config of configs) {
+      if (!config.enabled) continue;
+
+      try {
+        switch (config.source) {
+          case 'clearbit':
+            this.sources.set('clearbit', new ClearbitEnrichmentService(this.prisma, config));
+            break;
+          
+          // Future enrichment sources can be added here
+          case 'linkedin':
+            // this.sources.set('linkedin', new LinkedInEnrichmentService(this.prisma, config));
+            console.log('LinkedIn enrichment service not yet implemented');
+            break;
+            
+          case 'crunchbase':
+            // this.sources.set('crunchbase', new CrunchbaseEnrichmentService(this.prisma, config));
+            console.log('Crunchbase enrichment service not yet implemented');
+            break;
+
+          default:
+            console.warn(`Unknown enrichment source: ${config.source}`);
+        }
+      } catch (error) {
+        console.error(`Failed to initialize ${config.source} enrichment service:`, error);
+      }
+    }
+
+    console.log(`Initialized ${this.sources.size} enrichment sources:`, Array.from(this.sources.keys()));
+  }
+
+  /**
+   * Enrich company data using multiple sources
+   */
+  async enrichCompany(request: EnrichCompanyRequest): Promise<EnrichCompanyResponse> {
+    const startTime = Date.now();
+    const requestedSources = request.sources || this.settings.enabledSources;
+    const results: EnrichCompanyResponse[] = [];
+    
+    try {
+      // Get available sources that are enabled and configured
+      const availableSources = requestedSources.filter(source => 
+        this.sources.has(source) && this.sources.get(source)!.isEnabled()
+      );
+
+      if (availableSources.length === 0) {
+        throw new Error('No enabled enrichment sources available');
+      }
+
+      console.log(`Enriching company with sources: ${availableSources.join(', ')}`);
+
+      // Execute enrichment from each source in parallel
+      const enrichmentPromises = availableSources.map(async (source) => {
+        const service = this.sources.get(source)!;
+        try {
+          return await service.enrichCompany(request);
+        } catch (error) {
+          console.error(`Enrichment failed for source ${source}:`, error);
+          return {
+            success: false,
+            companyId: '',
+            enrichmentData: {},
+            sources: {
+              [source]: {
+                status: 'failed',
+                confidence: 0,
+                dataPoints: 0,
+                error: error instanceof Error ? error.message : 'Unknown error'
+              }
+            },
+            overallConfidence: 0,
+            processingTimeMs: 0
+          } as EnrichCompanyResponse;
+        }
+      });
+
+      // Wait for all enrichments to complete
+      results.push(...await Promise.all(enrichmentPromises));
+
+      // Merge results from all sources
+      return this.mergeEnrichmentResults(results, startTime);
+
+    } catch (error) {
+      console.error('Enrichment orchestration error:', error);
+      
+      return {
+        success: false,
+        companyId: '',
+        enrichmentData: {},
+        sources: {},
+        overallConfidence: 0,
+        processingTimeMs: Date.now() - startTime
+      };
+    }
+  }
+
+  /**
+   * Merge enrichment results from multiple sources
+   */
+  private mergeEnrichmentResults(results: EnrichCompanyResponse[], startTime: number): EnrichCompanyResponse {
+    const successfulResults = results.filter(r => r.success);
+    const allSources: EnrichCompanyResponse['sources'] = {};
+    
+    // Combine source information
+    for (const result of results) {
+      Object.assign(allSources, result.sources);
+    }
+
+    if (successfulResults.length === 0) {
+      return {
+        success: false,
+        companyId: '',
+        enrichmentData: {},
+        sources: allSources,
+        overallConfidence: 0,
+        processingTimeMs: Date.now() - startTime
+      };
+    }
+
+    // Use the first successful result as the base company ID
+    const companyId = successfulResults[0].companyId;
+
+    // Merge enrichment data using confidence-weighted approach
+    const mergedData = this.mergeCompanyData(successfulResults.map(r => r.enrichmentData));
+    
+    // Calculate overall confidence based on source weights and individual confidences
+    const overallConfidence = this.calculateOverallConfidence(successfulResults, allSources);
+
+    return {
+      success: true,
+      companyId,
+      enrichmentData: mergedData,
+      sources: allSources,
+      overallConfidence,
+      processingTimeMs: Date.now() - startTime
+    };
+  }
+
+  /**
+   * Merge company data from multiple sources using confidence weighting
+   */
+  private mergeCompanyData(dataArray: CompanyEnrichmentData[]): CompanyEnrichmentData {
+    if (dataArray.length === 0) return {};
+    if (dataArray.length === 1) return dataArray[0];
+
+    const merged: CompanyEnrichmentData = {};
+    const fields = [
+      'name', 'domain', 'website', 'description', 'industry', 
+      'headquarters', 'location', 'size', 'employeeCount', 'founded',
+      'annualRevenue', 'funding', 'linkedinUrl', 'twitterHandle', 
+      'facebookUrl', 'logoUrl'
+    ] as const;
+
+    // For each field, select the value from the source with highest confidence
+    for (const field of fields) {
+      let bestValue: any = undefined;
+      let bestConfidence = 0;
+
+      for (const data of dataArray) {
+        const value = data[field];
+        const confidence = data.confidence || 0;
+        
+        if (value && confidence > bestConfidence) {
+          bestValue = value;
+          bestConfidence = confidence;
+        }
+      }
+
+      if (bestValue !== undefined) {
+        (merged as any)[field] = bestValue;
+      }
+    }
+
+    // Merge array fields (technologies, keywords) by combining unique values
+    const arrayFields = ['technologies', 'keywords'] as const;
+    for (const field of arrayFields) {
+      const allValues: string[] = [];
+      for (const data of dataArray) {
+        if (data[field]?.length) {
+          allValues.push(...data[field]!);
+        }
+      }
+      if (allValues.length > 0) {
+        merged[field] = [...new Set(allValues)]; // Remove duplicates
+      }
+    }
+
+    // Set confidence to the highest individual confidence
+    merged.confidence = Math.max(...dataArray.map(d => d.confidence || 0));
+    merged.lastUpdated = new Date();
+
+    return merged;
+  }
+
+  /**
+   * Calculate overall confidence score from multiple sources
+   */
+  private calculateOverallConfidence(
+    results: EnrichCompanyResponse[], 
+    allSources: EnrichCompanyResponse['sources']
+  ): number {
+    if (results.length === 0) return 0;
+
+    let totalWeightedConfidence = 0;
+    let totalWeight = 0;
+
+    for (const result of results) {
+      const confidence = result.overallConfidence;
+      const sourceKey = Object.keys(result.sources)[0];
+      const weight = this.getSourceWeight(sourceKey as EnrichmentSource);
+      
+      totalWeightedConfidence += confidence * weight;
+      totalWeight += weight;
+    }
+
+    // Boost confidence if multiple sources agree
+    const agreementBonus = results.length > 1 ? Math.min(10, (results.length - 1) * 5) : 0;
+    const baseConfidence = totalWeight > 0 ? totalWeightedConfidence / totalWeight : 0;
+    
+    return Math.min(100, Math.round(baseConfidence + agreementBonus));
+  }
+
+  /**
+   * Get source weight for confidence calculation
+   */
+  private getSourceWeight(source: EnrichmentSource): number {
+    return this.settings.sourcePreferences?.[source]?.weight || 1.0;
+  }
+
+  /**
+   * Get enrichment status for a company
+   */
+  async getCompanyEnrichmentStatus(companyId: string): Promise<{
+    company: any;
+    enrichments: any[];
+    overallScore: number;
+    lastEnriched: Date | null;
+  }> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      include: {
+        enrichments: {
+          orderBy: { updatedAt: 'desc' }
+        }
+      }
+    });
+
+    if (!company) {
+      throw new Error(`Company not found: ${companyId}`);
+    }
+
+    return {
+      company,
+      enrichments: company.enrichments,
+      overallScore: company.overallEnrichmentScore || 0,
+      lastEnriched: company.lastEnrichmentDate
+    };
+  }
+
+  /**
+   * Get available enrichment sources
+   */
+  getAvailableSources(): EnrichmentSource[] {
+    return Array.from(this.sources.keys()).filter(source => 
+      this.sources.get(source)!.isEnabled()
+    );
+  }
+
+  /**
+   * Update enrichment settings
+   */
+  updateSettings(newSettings: Partial<EnrichmentSettings>): void {
+    this.settings = { ...this.settings, ...newSettings };
+  }
+
+  /**
+   * Health check for all enrichment sources
+   */
+  async healthCheck(): Promise<{
+    status: 'healthy' | 'degraded' | 'unhealthy';
+    sources: Record<EnrichmentSource, {
+      enabled: boolean;
+      configured: boolean;
+      responsive: boolean;
+      error?: string;
+    }>;
+  }> {
+    const sourceStatus: Record<string, any> = {};
+    let healthyCount = 0;
+    let totalEnabled = 0;
+
+    for (const [source, service] of this.sources) {
+      const enabled = service.isEnabled();
+      if (enabled) totalEnabled++;
+
+      try {
+        // Test basic connectivity/configuration
+        const configured = service.isEnabled();
+        sourceStatus[source] = {
+          enabled,
+          configured,
+          responsive: configured, // For now, assume responsive if configured
+        };
+        
+        if (configured) healthyCount++;
+      } catch (error) {
+        sourceStatus[source] = {
+          enabled,
+          configured: false,
+          responsive: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        };
+      }
+    }
+
+    let status: 'healthy' | 'degraded' | 'unhealthy';
+    if (healthyCount === totalEnabled && totalEnabled > 0) {
+      status = 'healthy';
+    } else if (healthyCount > 0) {
+      status = 'degraded';
+    } else {
+      status = 'unhealthy';
+    }
+
+    return {
+      status,
+      sources: sourceStatus as any
+    };
+  }
+}
+
+export default EnrichmentService;

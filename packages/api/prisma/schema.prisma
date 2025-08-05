@@ -56,6 +56,7 @@ model Card {
   user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   companies      CardCompany[]
   calendarEvents CalendarEvent[]
+  enrichments    CardEnrichment[]  // Track card-level enrichments
   
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -72,22 +73,107 @@ model Card {
 model Company {
   id           String  @id @default(cuid())
   name         String  @unique
+  domain       String? @unique // Primary domain for API lookups
   industry     String?
   size         String?
   headquarters String?
+  location     String? // Full address/location
   website      String?
   description  String?
   logoUrl      String? @map("logo_url")
   
+  // Enhanced enrichment data (merged from all sources)
+  founded           Int?      // Year founded
+  employeeCount     Int?      @map("employee_count")
+  annualRevenue     String?   @map("annual_revenue") // e.g., "$1M-$10M"
+  funding           String?   // Funding stage/amount
+  technologies      String[]  // Tech stack used
+  keywords          String[]  // Industry keywords/tags
+  
+  // Social media and external links
+  linkedinUrl       String?   @map("linkedin_url")
+  twitterHandle     String?   @map("twitter_handle")
+  facebookUrl       String?   @map("facebook_url")
+  
+  // Overall enrichment status
+  overallEnrichmentScore Float? @default(0.0) @map("overall_enrichment_score") @db.Real // 0-100 confidence
+  lastEnrichmentDate DateTime? @map("last_enrichment_date")
+  
   // Relations
   cards        CardCompany[]
   newsArticles NewsArticle[]
+  enrichments  CompanyEnrichment[] // Multiple enrichment sources
   
   lastUpdated DateTime @default(now()) @map("last_updated")
   createdAt   DateTime @default(now()) @map("created_at")
 
   @@map("companies")
   @@index([name])
+  @@index([domain])
+}
+
+// Track enrichment from multiple sources
+model CompanyEnrichment {
+  id               String @id @default(cuid())
+  companyId        String @map("company_id")
+  source           String // 'clearbit', 'linkedin', 'crunchbase', 'manual'
+  status           String @default("pending") // 'pending', 'enriched', 'failed', 'partial'
+  confidence       Float? @default(0.0) @db.Real // 0-100 confidence for this source
+  
+  // Raw data from this source (JSON)
+  rawData          Json?  @map("raw_data")
+  
+  // Source-specific metadata
+  sourceId         String? @map("source_id") // External ID from the source
+  apiVersion       String? @map("api_version")
+  rateLimitInfo    Json?   @map("rate_limit_info")
+  
+  // Processing info
+  enrichedAt       DateTime? @map("enriched_at")
+  errorMessage     String?   @map("error_message")
+  retryCount       Int       @default(0) @map("retry_count")
+  nextRetryAt      DateTime? @map("next_retry_at")
+  
+  // Relations
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("company_enrichments")
+  @@unique([companyId, source])
+  @@index([status])
+  @@index([enrichedAt])
+}
+
+// Track card-level enrichment requests and results
+model CardEnrichment {
+  id               String @id @default(cuid())
+  cardId           String @map("card_id")
+  enrichmentType   String @map("enrichment_type") // 'company', 'person', 'social', 'news'
+  status           String @default("pending") // 'pending', 'completed', 'failed', 'skipped'
+  
+  // Enrichment results summary
+  companiesFound   Int    @default(0) @map("companies_found")
+  dataPointsAdded  Int    @default(0) @map("data_points_added")
+  confidence       Float? @default(0.0) @db.Real
+  
+  // Processing info
+  triggeredBy      String  // 'auto', 'manual', 'batch'
+  enrichedAt       DateTime? @map("enriched_at")
+  errorMessage     String?   @map("error_message")
+  processingTimeMs Int?      @map("processing_time_ms")
+  
+  // Relations
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("card_enrichments")
+  @@index([cardId])
+  @@index([status])
+  @@index([enrichmentType])
 }
 
 // Junction table for card-company relationships
