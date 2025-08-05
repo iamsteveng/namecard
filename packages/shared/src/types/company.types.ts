@@ -40,7 +40,7 @@ export interface UpdateCompanyData {
 }
 
 // Company enrichment types
-export interface CompanyEnrichmentData {
+export interface BasicCompanyEnrichmentData {
   industry?: string;
   size?: CompanySize;
   headquarters?: string;
