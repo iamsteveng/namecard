@@ -18,7 +18,12 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "db:seed": "tsx src/scripts/seed.ts"
+    "db:seed": "tsx src/scripts/seed.ts",
+    "deploy:ecr": "./scripts/deploy-ecr.sh",
+    "deploy:ecs": "./scripts/deploy-ecs.sh",
+    "deploy": "./scripts/deploy.sh",
+    "update-task-definition": "./scripts/update-task-definition.sh",
+    "create-ecs-service": "./scripts/create-ecs-service.sh"
   },
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.490.0",
