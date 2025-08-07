@@ -1,6 +1,6 @@
 import { 
   ExternalLink, Building, MapPin, Users, Calendar, DollarSign, Tag, Loader2, 
-  User, Award, BookOpen, TrendingUp, Globe, MessageSquare, News, Shield,
+  User, Award, BookOpen, TrendingUp, Globe, MessageSquare, Newspaper, Shield,
   GraduationCap, Briefcase, Star, Link, Quote
 } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -153,7 +153,7 @@ function PersonInfo({ personData }: { personData: PersonEnrichmentData }) {
               <span className="text-sm font-medium text-gray-500">Education</span>
             </div>
             <div className="space-y-2">
-              {personData.education.map((edu, index) => (
+              {personData.education.map((edu: any, index: number) => (
                 <div key={index} className="text-sm text-gray-700">
                   <strong>{edu.institution}</strong>
                   {edu.degree && <span> - {edu.degree}</span>}
@@ -173,7 +173,7 @@ function PersonInfo({ personData }: { personData: PersonEnrichmentData }) {
               <span className="text-sm font-medium text-gray-500">Experience</span>
             </div>
             <div className="space-y-3">
-              {personData.experience.slice(0, 5).map((exp, index) => (
+              {personData.experience.slice(0, 5).map((exp: any, index: number) => (
                 <div key={index} className="text-sm">
                   <div className="font-medium text-gray-900">{exp.role} at {exp.company}</div>
                   {exp.duration && <div className="text-gray-500">{exp.duration}</div>}
@@ -218,7 +218,7 @@ function PersonInfo({ personData }: { personData: PersonEnrichmentData }) {
               <span className="text-sm font-medium text-gray-500">Achievements</span>
             </div>
             <div className="space-y-1">
-              {personData.achievements.slice(0, 5).map((achievement, index) => (
+              {personData.achievements.slice(0, 5).map((achievement: string, index: number) => (
                 <div key={index} className="text-sm text-gray-700">• {achievement}</div>
               ))}
             </div>
@@ -233,7 +233,7 @@ function PersonInfo({ personData }: { personData: PersonEnrichmentData }) {
               <span className="text-sm font-medium text-gray-500">Recent Activities</span>
             </div>
             <div className="space-y-2">
-              {personData.recentActivities.slice(0, 3).map((activity, index) => (
+              {personData.recentActivities.slice(0, 3).map((activity: any, index: number) => (
                 <div key={index} className="text-sm">
                   <div className="font-medium text-gray-900">{activity.title}</div>
                   <div className="text-gray-700">{activity.description}</div>
@@ -307,7 +307,7 @@ function RecentNews({ news }: { news: Array<{ title: string; summary: string; ur
   return (
     <div className="bg-blue-50 rounded-lg p-4 mb-6">
       <div className="flex items-center gap-2 mb-4">
-        <News className="h-5 w-5 text-blue-600" />
+        <Newspaper className="h-5 w-5 text-blue-600" />
         <h4 className="text-lg font-medium text-gray-900">Recent News</h4>
       </div>
       
@@ -587,7 +587,7 @@ export default function CompanyInfo({
                 <span className="text-sm font-medium text-gray-500">Key People</span>
               </div>
               <div className="space-y-2">
-                {actualCompanyData.keyPeople.slice(0, 5).map((person, index) => (
+                {actualCompanyData.keyPeople.slice(0, 5).map((person: any, index: number) => (
                   <div key={index} className="text-sm">
                     <span className="font-medium text-gray-900">{person.name}</span>
                     <span className="text-gray-500"> - {person.role}</span>
@@ -608,7 +608,7 @@ export default function CompanyInfo({
                 <span className="text-sm font-medium text-gray-500">Recent Developments</span>
               </div>
               <div className="space-y-1">
-                {actualCompanyData.recentDevelopments.slice(0, 5).map((development, index) => (
+                {actualCompanyData.recentDevelopments.slice(0, 5).map((development: string, index: number) => (
                   <div key={index} className="text-sm text-gray-700">• {development}</div>
                 ))}
               </div>
