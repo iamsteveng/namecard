@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import cardsService, { type Card } from '../services/cards.service';
 import { useAuthStore } from '../store/auth.store';
+import { EnrichmentStatusBadge } from '../components/enrichment/EnrichmentStatusIndicator';
 
 
 export default function Cards() {
@@ -228,10 +229,19 @@ export default function Cards() {
                 </div>
 
                 <div className="space-y-3">
-                  <div>
-                    <h3 className="font-semibold text-gray-900">{card.name || 'Unknown Name'}</h3>
-                    <p className="text-sm text-gray-600">{card.title || 'No Title'}</p>
-                    <p className="text-sm font-medium text-gray-700">{card.company || 'No Company'}</p>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-gray-900">{card.name || 'Unknown Name'}</h3>
+                      <p className="text-sm text-gray-600">{card.title || 'No Title'}</p>
+                      <p className="text-sm font-medium text-gray-700">{card.company || 'No Company'}</p>
+                    </div>
+                    {card.company && (
+                      <EnrichmentStatusBadge
+                        status={card.lastEnrichmentDate ? 'enriched' : 'skipped'}
+                        confidence={card.lastEnrichmentDate ? 0.85 : undefined}
+                        size="sm"
+                      />
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -312,7 +322,16 @@ export default function Cards() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <h3 className="font-semibold text-gray-900">{card.name || 'Unknown Name'}</h3>
+                        <div className="flex items-center gap-3">
+                          <h3 className="font-semibold text-gray-900">{card.name || 'Unknown Name'}</h3>
+                          {card.company && (
+                            <EnrichmentStatusBadge
+                              status={card.lastEnrichmentDate ? 'enriched' : 'skipped'}
+                              confidence={card.lastEnrichmentDate ? 0.85 : undefined}
+                              size="sm"
+                            />
+                          )}
+                        </div>
                         <p className="text-sm text-gray-600">
                           {card.title || 'No Title'} at {card.company || 'No Company'}
                         </p>

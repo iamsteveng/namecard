@@ -228,9 +228,39 @@ router.post('/card',
           forceRefresh: false
         };
 
-        const enrichmentResult = await enrichmentService.enrichCompany(companyEnrichmentRequest);
+        let enrichmentResult;
+        let errorMessage = null;
+
+        try {
+          enrichmentResult = await enrichmentService.enrichCompany(companyEnrichmentRequest);
+        } catch (enrichmentError) {
+          console.error('Enrichment service error:', enrichmentError);
+          errorMessage = enrichmentError.message || 'Enrichment service failed';
+          
+          // Create failed enrichment record
+          await prisma.cardEnrichment.create({
+            data: {
+              cardId: request.cardId,
+              enrichmentType: 'company',
+              status: 'failed',
+              companiesFound: 0,
+              dataPointsAdded: 0,
+              confidence: 0.0,
+              triggeredBy: request.triggeredBy || 'manual',
+              enrichedAt: null,
+              errorMessage: errorMessage,
+              processingTimeMs: 0
+            }
+          });
+
+          return res.status(400).json({
+            success: false,
+            error: errorMessage,
+            message: 'Card enrichment failed'
+          });
+        }
         
-        // Create card enrichment record
+        // Create successful enrichment record
         await prisma.cardEnrichment.create({
           data: {
             cardId: request.cardId,
@@ -238,12 +268,12 @@ router.post('/card',
             status: enrichmentResult.success ? 'completed' : 'failed',
             companiesFound: enrichmentResult.success ? 1 : 0,
             dataPointsAdded: enrichmentResult.success ? 
-              Object.keys(enrichmentResult.enrichmentData).length : 0,
-            confidence: enrichmentResult.overallConfidence,
+              Object.keys(enrichmentResult.enrichmentData || {}).length : 0,
+            confidence: enrichmentResult.overallConfidence || 0.0,
             triggeredBy: request.triggeredBy || 'manual',
             enrichedAt: enrichmentResult.success ? new Date() : null,
             errorMessage: enrichmentResult.success ? null : 'Company enrichment failed',
-            processingTimeMs: enrichmentResult.processingTimeMs
+            processingTimeMs: enrichmentResult.processingTimeMs || 0
           }
         });
 
@@ -251,10 +281,12 @@ router.post('/card',
           success: true,
           data: {
             cardId: request.cardId,
-            enrichmentResult,
-            companiesFound: enrichmentResult.success ? 1 : 0,
-            dataPointsAdded: enrichmentResult.success ? 
-              Object.keys(enrichmentResult.enrichmentData).length : 0
+            companyData: enrichmentResult.enrichmentData,
+            status: enrichmentResult.success ? 'enriched' : 'failed',
+            sources: request.sources || ['clearbit'],
+            confidence: enrichmentResult.overallConfidence || 0.0,
+            processingTime: enrichmentResult.processingTimeMs || 0,
+            enrichmentDate: new Date()
           },
           message: 'Card enrichment completed'
         });
