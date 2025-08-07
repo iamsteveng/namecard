@@ -4,7 +4,13 @@
  * Types for enrichment UI components and integration
  */
 
-import type { CompanyEnrichmentData, EnrichmentStatus, EnrichmentSource } from '@namecard/shared/types/enrichment.types';
+import type { 
+  CompanyEnrichmentData, 
+  PersonEnrichmentData,
+  BusinessCardEnrichmentData,
+  EnrichmentStatus, 
+  EnrichmentSource 
+} from '@namecard/shared/types/enrichment.types';
 
 export interface EnrichmentUIState {
   isEnriching: boolean;
@@ -36,6 +42,8 @@ export interface EnrichCardResponse {
 
 export interface CompanyInfoProps {
   companyData?: CompanyEnrichmentData;
+  personData?: PersonEnrichmentData;
+  enrichmentData?: BusinessCardEnrichmentData;
   isLoading?: boolean;
   onEnrich?: () => void;
   showEnrichButton?: boolean;
