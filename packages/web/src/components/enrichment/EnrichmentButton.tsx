@@ -32,7 +32,7 @@ export default function EnrichmentButton({
 
       const request: EnrichCardRequest = {
         cardId,
-        sources: ['clearbit'], // Default to clearbit, can be configurable
+        sources: ['perplexity'], // Use Perplexity AI for enrichment
         forceRefresh: false
       };
 

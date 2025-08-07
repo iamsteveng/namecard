@@ -70,6 +70,24 @@ export function loadEnrichmentSourceConfigs(): EnrichmentSourceConfig[] {
   };
   configs.push(crunchbaseConfig);
 
+  // Perplexity AI configuration
+  const perplexityConfig: EnrichmentSourceConfig = {
+    source: 'perplexity',
+    enabled: process.env.PERPLEXITY_ENABLED === 'true',
+    apiKey: process.env.PERPLEXITY_API_KEY,
+    baseUrl: process.env.PERPLEXITY_BASE_URL || 'https://api.perplexity.ai',
+    rateLimit: {
+      requestsPerMinute: parseInt(process.env.PERPLEXITY_RATE_LIMIT_RPM || '60'), // Conservative rate limit
+      requestsPerDay: parseInt(process.env.PERPLEXITY_RATE_LIMIT_RPD || '1000')
+    },
+    timeout: parseInt(process.env.PERPLEXITY_TIMEOUT || '30000'), // 30 seconds for research
+    retryConfig: {
+      maxRetries: parseInt(process.env.PERPLEXITY_MAX_RETRIES || '2'),
+      backoffMs: parseInt(process.env.PERPLEXITY_BACKOFF_MS || '3000')
+    }
+  };
+  configs.push(perplexityConfig);
+
   return configs;
 }
 
@@ -110,6 +128,10 @@ export function loadEnrichmentSettings(): EnrichmentSettings {
       opencorporates: {
         weight: parseFloat(process.env.OPENCORPORATES_WEIGHT || '0.7'),
         trustLevel: parseInt(process.env.OPENCORPORATES_TRUST_LEVEL || '80')
+      },
+      perplexity: {
+        weight: parseFloat(process.env.PERPLEXITY_WEIGHT || '0.9'),
+        trustLevel: parseInt(process.env.PERPLEXITY_TRUST_LEVEL || '88')
       }
     }
   };
@@ -219,7 +241,8 @@ export function getDefaultDevConfig(): {
       linkedin: { weight: 0.9, trustLevel: 95 },
       crunchbase: { weight: 0.8, trustLevel: 85 },
       manual: { weight: 1.0, trustLevel: 100 },
-      opencorporates: { weight: 0.7, trustLevel: 80 }
+      opencorporates: { weight: 0.7, trustLevel: 80 },
+      perplexity: { weight: 0.9, trustLevel: 88 }
     }
   };
 

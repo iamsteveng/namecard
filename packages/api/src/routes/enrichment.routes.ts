@@ -16,6 +16,7 @@ import {
 } from '../config/enrichment.config';
 import { 
   EnrichCompanyRequest,
+  EnrichBusinessCardRequest,
   DetailedEnrichCardRequest,
   BatchEnrichmentRequest 
 } from '@namecard/shared/types/enrichment.types';
@@ -39,23 +40,45 @@ const enrichCompanySchema = z.object({
   companyName: z.string().optional(),
   domain: z.string().optional(),
   website: z.string().url().optional(),
-  sources: z.array(z.enum(['clearbit', 'linkedin', 'crunchbase', 'manual', 'opencorporates'])).optional(),
+  sources: z.array(z.enum(['clearbit', 'linkedin', 'crunchbase', 'manual', 'opencorporates', 'perplexity'])).optional(),
   forceRefresh: z.boolean().optional()
 }).refine(data => data.companyName || data.domain, {
   message: "Either companyName or domain must be provided"
 });
 
+const enrichBusinessCardSchema = z.object({
+  // Person information
+  personName: z.string().optional(),
+  personTitle: z.string().optional(),
+  
+  // Company information  
+  companyName: z.string().optional(),
+  domain: z.string().optional(),
+  website: z.string().url().optional(),
+  
+  // Card reference (optional for standalone enrichment)
+  cardId: z.string().cuid().optional(),
+  
+  // Enrichment options
+  sources: z.array(z.enum(['clearbit', 'linkedin', 'crunchbase', 'manual', 'opencorporates', 'perplexity'])).optional().default(['perplexity']),
+  forceRefresh: z.boolean().optional().default(false),
+  includePersonData: z.boolean().optional().default(true),
+  includeCompanyData: z.boolean().optional().default(true)
+}).refine(data => data.personName || data.companyName, {
+  message: "Either personName or companyName must be provided"
+});
+
 const enrichCardSchema = z.object({
   cardId: z.string().cuid(),
   enrichmentTypes: z.array(z.enum(['company', 'person', 'social', 'news', 'logo'])).optional(),
-  sources: z.array(z.enum(['clearbit', 'linkedin', 'crunchbase', 'manual', 'opencorporates'])).optional(),
+  sources: z.array(z.enum(['clearbit', 'linkedin', 'crunchbase', 'manual', 'opencorporates', 'perplexity'])).optional(),
   triggeredBy: z.enum(['auto', 'manual', 'batch']).optional().default('manual')
 });
 
 const batchEnrichmentSchema = z.object({
   cardIds: z.array(z.string().cuid()).min(1).max(50),
   enrichmentTypes: z.array(z.enum(['company', 'person', 'social', 'news', 'logo'])).optional(),
-  sources: z.array(z.enum(['clearbit', 'linkedin', 'crunchbase', 'manual', 'opencorporates'])).optional(),
+  sources: z.array(z.enum(['clearbit', 'linkedin', 'crunchbase', 'manual', 'opencorporates', 'perplexity'])).optional(),
   maxConcurrent: z.number().min(1).max(10).optional().default(3)
 });
 
@@ -187,6 +210,61 @@ router.get('/company/:companyId/status',
           error: error instanceof Error ? error.message : 'Unknown error'
         });
       }
+    }
+  }
+);
+
+/**
+ * POST /api/v1/enrichment/business-card
+ * Unified business card enrichment with combined person and company data
+ */
+router.post('/business-card',
+  authenticateToken,
+  validateRequest(enrichBusinessCardSchema),
+  async (req: Request, res: Response) => {
+    try {
+      const request: EnrichBusinessCardRequest = req.body;
+      const userId = req.user?.id;
+
+      console.log('Enriching business card with unified approach:', { 
+        personName: request.personName,
+        personTitle: request.personTitle,
+        companyName: request.companyName,
+        domain: request.domain,
+        sources: request.sources,
+        includePersonData: request.includePersonData,
+        includeCompanyData: request.includeCompanyData
+      });
+
+      const result = await enrichmentService.enrichBusinessCard(request);
+      
+      if (result.success) {
+        res.json({
+          success: true,
+          data: {
+            cardId: request.cardId,
+            enrichmentData: result.enrichmentData,
+            sources: result.sources,
+            overallConfidence: result.overallConfidence,
+            processingTimeMs: result.processingTimeMs,
+            enrichmentDate: new Date()
+          },
+          message: 'Business card enrichment completed successfully'
+        });
+      } else {
+        res.status(422).json({
+          success: false,
+          data: result,
+          message: 'Business card enrichment failed'
+        });
+      }
+    } catch (error) {
+      console.error('Business card enrichment error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error during business card enrichment',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   }
 );

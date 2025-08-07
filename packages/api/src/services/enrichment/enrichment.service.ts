@@ -10,12 +10,16 @@ import {
   EnrichmentSourceConfig, 
   EnrichCompanyRequest, 
   EnrichCompanyResponse,
+  EnrichBusinessCardRequest,
+  EnrichBusinessCardResponse,
   CompanyEnrichmentData,
+  BusinessCardEnrichmentData,
   EnrichmentSettings,
   EnrichmentError
 } from '@namecard/shared/types/enrichment.types';
 import { BaseEnrichmentService } from './base-enrichment.service';
 import { ClearbitEnrichmentService } from './clearbit-enrichment.service';
+import { PerplexityEnrichmentService } from './perplexity-enrichment.service';
 
 export class EnrichmentService {
   private prisma: PrismaClient;
@@ -57,6 +61,10 @@ export class EnrichmentService {
           case 'crunchbase':
             // this.sources.set('crunchbase', new CrunchbaseEnrichmentService(this.prisma, config));
             console.log('Crunchbase enrichment service not yet implemented');
+            break;
+            
+          case 'perplexity':
+            this.sources.set('perplexity', new PerplexityEnrichmentService(this.prisma, config));
             break;
 
           default:
@@ -189,7 +197,7 @@ export class EnrichmentService {
       'name', 'domain', 'website', 'description', 'industry', 
       'headquarters', 'location', 'size', 'employeeCount', 'founded',
       'annualRevenue', 'funding', 'linkedinUrl', 'twitterHandle', 
-      'facebookUrl', 'logoUrl'
+      'facebookUrl', 'logoUrl', 'businessModel', 'marketPosition'
     ] as const;
 
     // For each field, select the value from the source with highest confidence
@@ -212,8 +220,8 @@ export class EnrichmentService {
       }
     }
 
-    // Merge array fields (technologies, keywords) by combining unique values
-    const arrayFields = ['technologies', 'keywords'] as const;
+    // Merge array fields (technologies, keywords, competitors, recentDevelopments) by combining unique values
+    const arrayFields = ['technologies', 'keywords', 'competitors', 'recentDevelopments'] as const;
     for (const field of arrayFields) {
       const allValues: string[] = [];
       for (const data of dataArray) {
@@ -223,6 +231,43 @@ export class EnrichmentService {
       }
       if (allValues.length > 0) {
         merged[field] = [...new Set(allValues)]; // Remove duplicates
+      }
+    }
+
+    // Handle complex array fields (recentNews, keyPeople, citations) - prefer most recent/relevant data
+    const complexArrayFields = ['recentNews', 'keyPeople', 'citations'] as const;
+    for (const field of complexArrayFields) {
+      const allItems: any[] = [];
+      for (const data of dataArray) {
+        if (data[field]?.length) {
+          allItems.push(...data[field]!);
+        }
+      }
+      if (allItems.length > 0) {
+        // For news and citations, sort by relevance/recency and take top items
+        if (field === 'recentNews') {
+          merged[field] = allItems
+            .sort((a, b) => new Date(b.publishDate || '').getTime() - new Date(a.publishDate || '').getTime())
+            .slice(0, 10); // Keep top 10 most recent
+        } else if (field === 'citations') {
+          merged[field] = allItems
+            .sort((a, b) => (b.relevance || 0) - (a.relevance || 0))
+            .slice(0, 15); // Keep top 15 most relevant
+        } else {
+          merged[field] = allItems.slice(0, 8); // Limit other complex arrays
+        }
+      }
+    }
+
+    // Handle research metadata - prefer most recent
+    if (dataArray.some(d => d.researchQuery)) {
+      const mostRecent = dataArray
+        .filter(d => d.researchDate)
+        .sort((a, b) => new Date(b.researchDate!).getTime() - new Date(a.researchDate!).getTime())[0];
+      
+      if (mostRecent) {
+        merged.researchQuery = mostRecent.researchQuery;
+        merged.researchDate = mostRecent.researchDate;
       }
     }
 
@@ -305,6 +350,71 @@ export class EnrichmentService {
     return Array.from(this.sources.keys()).filter(source => 
       this.sources.get(source)!.isEnabled()
     );
+  }
+
+  /**
+   * Enrich business card data with combined person and company research
+   */
+  async enrichBusinessCard(request: EnrichBusinessCardRequest): Promise<EnrichBusinessCardResponse> {
+    const startTime = Date.now();
+    const requestedSources = request.sources || this.settings.enabledSources;
+    
+    try {
+      // For unified enrichment, we only use Perplexity for now
+      const perplexitySource = requestedSources.find(source => source === 'perplexity');
+      
+      if (!perplexitySource || !this.sources.has('perplexity')) {
+        throw new Error('Perplexity enrichment source not available for business card enrichment');
+      }
+
+      const perplexityService = this.sources.get('perplexity') as PerplexityEnrichmentService;
+      
+      if (!perplexityService.isEnabled()) {
+        throw new Error('Perplexity enrichment service is not enabled');
+      }
+
+      console.log(`Enriching business card with Perplexity:`, {
+        personName: request.personName,
+        companyName: request.companyName,
+        includePersonData: request.includePersonData,
+        includeCompanyData: request.includeCompanyData
+      });
+
+      // Call the unified business card enrichment method
+      const result = await (perplexityService as any).enrichBusinessCard(request);
+      
+      if (result.success) {
+        return {
+          success: true,
+          cardId: request.cardId,
+          enrichmentData: result.enrichmentData,
+          sources: result.sources,
+          overallConfidence: result.overallConfidence,
+          processingTimeMs: Date.now() - startTime
+        };
+      } else {
+        throw new Error('Business card enrichment failed');
+      }
+
+    } catch (error) {
+      console.error('Business card enrichment orchestration error:', error);
+      
+      return {
+        success: false,
+        cardId: request.cardId,
+        enrichmentData: {},
+        sources: {
+          perplexity: {
+            status: 'failed',
+            confidence: 0,
+            dataPoints: 0,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          }
+        },
+        overallConfidence: 0,
+        processingTimeMs: Date.now() - startTime
+      };
+    }
   }
 
   /**
