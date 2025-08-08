@@ -13,11 +13,7 @@ import {
   EnrichBusinessCardRequest,
   EnrichBusinessCardResponse,
   CompanyEnrichmentData,
-  BusinessCardEnrichmentData,
-  PerplexityCompanyResponse,
-  PerplexityBusinessCardResponse,
-  PerplexityCompanySchema,
-  PerplexityBusinessCardSchema
+  BusinessCardEnrichmentData
 } from '@namecard/shared/types/enrichment.types';
 import { BaseEnrichmentService } from './base-enrichment.service';
 
@@ -50,14 +46,14 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
   /**
    * Validate Perplexity-specific configuration
    */
-  protected hasValidConfig(): boolean {
+  protected override hasValidConfig(): boolean {
     return !!this.apiKey && !!this.baseUrl;
   }
 
   /**
    * Abstract method implementation for base class
    */
-  async enrichCompanyData(request: EnrichCompanyRequest): Promise<CompanyEnrichmentData> {
+  override async enrichCompanyData(request: EnrichCompanyRequest): Promise<CompanyEnrichmentData> {
     const response = await this.enrichCompany(request);
     return response.enrichmentData;
   }
@@ -745,7 +741,7 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
       researchDate: new Date(),
       
       // Metadata
-      confidence: response.researchMetadata?.confidence || 85,
+      confidence: (response as any).researchMetadata?.confidence || 85,
       lastUpdated: new Date()
     };
   }
@@ -834,7 +830,7 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
    * Calculate confidence score based on response quality
    */
   private calculateConfidence(response: PerplexityCompanyResponse): number {
-    let confidence = response.researchMetadata?.confidence || 85;
+    let confidence = (response as any).researchMetadata?.confidence || 85;
     
     // Boost confidence based on data richness
     if (response.citations?.length >= 5) confidence += 5;
@@ -889,7 +885,7 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
   /**
    * Count data points for metrics
    */
-  private countDataPoints(data: CompanyEnrichmentData): number {
+  protected override countDataPoints(data: CompanyEnrichmentData): number {
     let count = 0;
     
     // Count basic fields

@@ -299,6 +299,67 @@ router.post('/card',
       // For now, implement basic card enrichment by enriching the company
       // Full card enrichment with person data will be implemented later
       if (card.company) {
+        // Find or create Company record
+        let companyRecord = await prisma.company.findFirst({
+          where: {
+            OR: [
+              { name: { equals: card.company, mode: 'insensitive' } },
+              { domain: card.website ? card.website.replace(/https?:\/\//, '').replace(/\/$/, '') : undefined }
+            ]
+          }
+        });
+
+        if (!companyRecord) {
+          // Create new company record
+          const domain = card.website ? card.website.replace(/https?:\/\//, '').replace(/\/$/, '') : null;
+          companyRecord = await prisma.company.create({
+            data: {
+              name: card.company,
+              domain: domain,
+              website: card.website,
+              // Initialize with default values
+              description: null,
+              industry: null,
+              location: null,
+              size: null,
+              employeeCount: null,
+              founded: null,
+              annualRevenue: null,
+              funding: null
+            }
+          });
+
+          // Link the card to the company
+          await prisma.cardCompany.upsert({
+            where: {
+              cardId_companyId: {
+                cardId: card.id,
+                companyId: companyRecord.id
+              }
+            },
+            update: {},
+            create: {
+              cardId: card.id,
+              companyId: companyRecord.id
+            }
+          });
+        } else {
+          // Ensure card is linked to existing company
+          await prisma.cardCompany.upsert({
+            where: {
+              cardId_companyId: {
+                cardId: card.id,
+                companyId: companyRecord.id
+              }
+            },
+            update: {},
+            create: {
+              cardId: card.id,
+              companyId: companyRecord.id
+            }
+          });
+        }
+
         const companyEnrichmentRequest: EnrichCompanyRequest = {
           companyName: card.company,
           website: card.website,
@@ -313,7 +374,7 @@ router.post('/card',
           enrichmentResult = await enrichmentService.enrichCompany(companyEnrichmentRequest);
         } catch (enrichmentError) {
           console.error('Enrichment service error:', enrichmentError);
-          errorMessage = enrichmentError.message || 'Enrichment service failed';
+          errorMessage = (enrichmentError instanceof Error ? enrichmentError.message : String(enrichmentError)) || 'Enrichment service failed';
           
           // Create failed enrichment record
           await prisma.cardEnrichment.create({
@@ -335,6 +396,59 @@ router.post('/card',
             success: false,
             error: errorMessage,
             message: 'Card enrichment failed'
+          });
+        }
+        
+        // Update the company record with enrichment data if successful
+        if (enrichmentResult.success && enrichmentResult.enrichmentData) {
+          const enrichmentData = enrichmentResult.enrichmentData;
+          await prisma.company.update({
+            where: { id: companyRecord.id },
+            data: {
+              // Update company fields with enriched data
+              description: enrichmentData.description || companyRecord.description,
+              industry: enrichmentData.industry || companyRecord.industry,
+              location: enrichmentData.headquarters || enrichmentData.location || companyRecord.location,
+              size: enrichmentData.size || companyRecord.size,
+              employeeCount: enrichmentData.employeeCount || companyRecord.employeeCount,
+              founded: enrichmentData.founded || companyRecord.founded,
+              annualRevenue: enrichmentData.annualRevenue || companyRecord.annualRevenue,
+              funding: enrichmentData.funding || companyRecord.funding,
+              technologies: enrichmentData.technologies || companyRecord.technologies,
+              keywords: enrichmentData.keywords || companyRecord.keywords,
+              linkedinUrl: enrichmentData.linkedinUrl || companyRecord.linkedinUrl,
+              twitterHandle: enrichmentData.twitterHandle || companyRecord.twitterHandle,
+              facebookUrl: enrichmentData.facebookUrl || companyRecord.facebookUrl,
+              logoUrl: enrichmentData.logoUrl || companyRecord.logoUrl,
+              overallEnrichmentScore: (enrichmentResult.overallConfidence || 0) * 100,
+              lastEnrichmentDate: new Date()
+            }
+          });
+
+          // Create CompanyEnrichment record for tracking raw data
+          await prisma.companyEnrichment.upsert({
+            where: {
+              companyId_source: {
+                companyId: companyRecord.id,
+                source: 'perplexity' // or determine from request.sources
+              }
+            },
+            update: {
+              status: 'enriched',
+              confidence: (enrichmentResult.overallConfidence || 0) * 100,
+              rawData: enrichmentResult.enrichmentData as any,
+              enrichedAt: new Date(),
+              errorMessage: null,
+              retryCount: 0
+            },
+            create: {
+              companyId: companyRecord.id,
+              source: 'perplexity', // or determine from request.sources
+              status: 'enriched',
+              confidence: (enrichmentResult.overallConfidence || 0) * 100,
+              rawData: enrichmentResult.enrichmentData as any,
+              enrichedAt: new Date()
+            }
           });
         }
         

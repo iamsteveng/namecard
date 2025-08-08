@@ -1,16 +1,13 @@
 import { 
   ExternalLink, Building, MapPin, Users, Calendar, DollarSign, Tag, Loader2, 
-  User, Award, BookOpen, TrendingUp, Globe, MessageSquare, Newspaper, Shield,
-  GraduationCap, Briefcase, Star, Link, Quote
+  User, Award, TrendingUp, Globe, Newspaper, Shield,
+  GraduationCap, Briefcase, Star, Quote
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import type { CompanyInfoProps } from '../../types/enrichment.types';
 import type { 
-  CompanyEnrichmentData, 
-  PersonEnrichmentData, 
-  BusinessCardEnrichmentData 
+  PersonEnrichmentData
 } from '@namecard/shared/types/enrichment.types';
-import EnrichmentButton from './EnrichmentButton';
 
 interface CompanyFieldProps {
   label: string;
@@ -86,27 +83,7 @@ function CompanyLogo({ logoUrl, companyName }: { logoUrl?: string; companyName?:
   );
 }
 
-function ConfidenceScore({ confidence }: { confidence?: number }) {
-  if (!confidence) return null;
-
-  const getConfidenceColor = (conf: number) => {
-    if (conf >= 0.9) return 'text-green-700 bg-green-100';
-    if (conf >= 0.7) return 'text-yellow-700 bg-yellow-100';
-    return 'text-red-700 bg-red-100';
-  };
-
-  return (
-    <div className="flex justify-between items-center mb-4">
-      <span className="text-sm text-gray-500">Enrichment Confidence</span>
-      <span className={clsx(
-        'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium',
-        getConfidenceColor(confidence)
-      )}>
-        {Math.round(confidence * 100)}%
-      </span>
-    </div>
-  );
-}
+// Confidence score component removed - functionality moved inline
 
 function PersonInfo({ personData }: { personData: PersonEnrichmentData }) {
   return (
@@ -478,7 +455,10 @@ export default function CompanyInfo({
           )}
         </div>
 
-        <CompanyLogo logoUrl={actualCompanyData?.logoUrl} companyName={actualCompanyData?.name} />
+        <CompanyLogo 
+          {...(actualCompanyData?.logoUrl && { logoUrl: actualCompanyData.logoUrl })}
+          {...(actualCompanyData?.name && { companyName: actualCompanyData.name })}
+        />
 
         <div className="space-y-4">
           <CompanyField

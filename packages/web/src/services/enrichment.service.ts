@@ -127,7 +127,11 @@ class EnrichmentService {
     const response = await fetch(`${this.baseUrl}/card`, {
       method: 'POST',
       headers: this.getAuthHeaders(accessToken),
-      body: JSON.stringify(request),
+      body: JSON.stringify({
+        cardId: request.cardId,
+        sources: request.sources || ['perplexity'],
+        triggeredBy: 'manual'
+      }),
     });
 
     const data = await response.json();

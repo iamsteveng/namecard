@@ -12,6 +12,7 @@ import { authenticateToken } from '../middleware/auth.middleware.js';
 import { CardProcessingService } from '../services/card-processing.service.js';
 import prisma from '../lib/prisma.js';
 import logger from '../utils/logger.js';
+import { PersonEnrichmentData } from '@namecard/shared/types/enrichment.types';
 
 const router = Router();
 
@@ -450,7 +451,7 @@ router.get('/:id', validateId, asyncHandler(async (req: Request, res: Response) 
         },
         // For now, person data would come from separate enrichment
         // This will be populated when person enrichment is fully implemented
-        personData: null,
+        personData: null as PersonEnrichmentData | null,
         overallConfidence: company.overallEnrichmentScore ? company.overallEnrichmentScore / 100 : 0,
         lastUpdated: company.lastEnrichmentDate,
       };

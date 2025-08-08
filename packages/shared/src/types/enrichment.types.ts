@@ -219,6 +219,9 @@ export interface EnrichCompanyResponse {
 
 // Unified business card enrichment request/response
 export interface EnrichBusinessCardRequest {
+  // Card reference (optional for standalone enrichment)
+  cardId?: string;
+  
   // Person information
   personName?: string;
   personTitle?: string;

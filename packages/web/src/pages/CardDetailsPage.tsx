@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import CardDetails from '../components/cards/CardDetails';
+import EnrichmentStatusToast from '../components/EnrichmentStatusToast';
 import cardsService from '../services/cards.service';
 import { useAuthStore } from '../store/auth.store';
 
@@ -13,6 +14,7 @@ export default function CardDetailsPage() {
   const { session } = useAuthStore();
   const accessToken = session?.accessToken;
   const [isEnriching, setIsEnriching] = useState(false);
+  const [enrichmentStatus, setEnrichmentStatus] = useState<'idle' | 'enriching' | 'success' | 'error'>('idle');
 
   // Fetch card details
   const {
@@ -73,21 +75,68 @@ export default function CardDetailsPage() {
 
   const card = cardResponse?.data?.card;
 
-  // Handle enrichment (placeholder - would integrate with enrichment API)
-  const handleEnrich = async () => {
-    if (!card || !accessToken) return;
-    
-    setIsEnriching(true);
-    try {
-      // This would call the enrichment API endpoint
-      console.log('Enriching card:', card.id);
-      // For now, just refetch the card data after a delay
+  // Enrichment mutation
+  const enrichMutation = useMutation({
+    mutationFn: async () => {
+      if (!accessToken || !cardId || !card) {
+        throw new Error('Missing authentication, card ID, or card data');
+      }
+      
+      // Use the enrichment service to enrich this card
+      const enrichmentService = (await import('../services/enrichment.service')).default;
+      
+      console.log('Starting enrichment for card:', card.id, 'company:', card.company);
+      
+      const result = await enrichmentService.enrichCard({
+        cardId: card.id,
+        sources: ['perplexity'], // Use available enrichment sources
+        forceRefresh: true
+      }, accessToken);
+      
+      console.log('Enrichment result:', result);
+      return result;
+    },
+    onSuccess: (data) => {
+      console.log('Card enrichment successful:', data);
+      setEnrichmentStatus('success');
+      
+      // Refresh the card data to show new enrichment
       setTimeout(() => {
         refetch();
-        setIsEnriching(false);
-      }, 2000);
+        // Also invalidate the cards list cache to show updated enrichment status
+        queryClient.invalidateQueries({ queryKey: ['cards'] });
+      }, 1000);
+      
+      // Reset status after showing success
+      setTimeout(() => {
+        setEnrichmentStatus('idle');
+      }, 3000);
+    },
+    onError: (error) => {
+      console.error('Failed to enrich card:', error);
+      setEnrichmentStatus('error');
+      setIsEnriching(false);
+      
+      // Reset error status after a few seconds
+      setTimeout(() => {
+        setEnrichmentStatus('idle');
+      }, 3000);
+    },
+  });
+
+  // Handle enrichment
+  const handleEnrich = async () => {
+    if (!card || !accessToken || isEnriching) return;
+    
+    setIsEnriching(true);
+    setEnrichmentStatus('enriching');
+    
+    try {
+      await enrichMutation.mutateAsync();
     } catch (error) {
       console.error('Failed to enrich card:', error);
+      setEnrichmentStatus('error');
+    } finally {
       setIsEnriching(false);
     }
   };
@@ -194,16 +243,24 @@ export default function CardDetailsPage() {
   }
 
   return (
-    <div className="py-6">
-      <CardDetails
-        card={card}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-        onShare={handleShare}
-        onExport={handleExport}
-        onEnrich={handleEnrich}
-        isEnriching={isEnriching}
+    <>
+      <div className="py-6">
+        <CardDetails
+          card={card}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          onShare={handleShare}
+          onExport={handleExport}
+          onEnrich={handleEnrich}
+          isEnriching={isEnriching}
+        />
+      </div>
+      
+      {/* Enrichment Status Toast */}
+      <EnrichmentStatusToast
+        status={enrichmentStatus}
+        onDismiss={() => setEnrichmentStatus('idle')}
       />
-    </div>
+    </>
   );
 }
