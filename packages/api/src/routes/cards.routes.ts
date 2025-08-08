@@ -216,13 +216,13 @@ router.get('/tags', authenticateToken, asyncHandler(async (req: Request, res: Re
   });
   
   // Flatten and get unique tags
-  const allTags = cards.flatMap(card => card.tags);
+  const allTags = cards.flatMap((card: any) => card.tags);
   const uniqueTags = [...new Set(allTags)].sort();
   
   // Get tag counts
   const tagCounts = uniqueTags.map(tag => ({
     name: tag,
-    count: allTags.filter(t => t === tag).length,
+    count: allTags.filter((t: string) => t === tag).length,
   }));
   
   res.json({
@@ -270,7 +270,7 @@ router.get('/companies', authenticateToken, asyncHandler(async (req: Request, re
   const companyMap = new Map();
   
   // Add companies from cards
-  cardCompanies.forEach(item => {
+  cardCompanies.forEach((item: any) => {
     if (item.company) {
       companyMap.set(item.company, {
         name: item.company,
@@ -281,7 +281,7 @@ router.get('/companies', authenticateToken, asyncHandler(async (req: Request, re
   });
   
   // Add/update with registered companies
-  registeredCompanies.forEach(company => {
+  registeredCompanies.forEach((company: any) => {
     const existing = companyMap.get(company.name);
     companyMap.set(company.name, {
       id: company.id,
