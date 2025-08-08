@@ -2,8 +2,8 @@ import { clsx } from 'clsx';
 import { Search, Filter, Download, MoreVertical, Mail, Phone, Globe, Loader2, AlertCircle, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
-import cardsService, { type Card } from '../services/cards.service';
+import { Link, useNavigate } from 'react-router-dom';
+import cardsService from '../services/cards.service';
 import { useAuthStore } from '../store/auth.store';
 import { EnrichmentStatusBadge } from '../components/enrichment/EnrichmentStatusIndicator';
 
@@ -14,6 +14,7 @@ export default function Cards() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [currentPage, setCurrentPage] = useState(1);
   
+  const navigate = useNavigate();
   const { session } = useAuthStore();
   const accessToken = session?.accessToken;
 
@@ -72,6 +73,18 @@ export default function Cards() {
   const handleSearchChange = (value: string) => {
     setSearchTerm(value);
     setCurrentPage(1); // Reset to first page when searching
+  };
+
+  // Handle card click navigation
+  const handleCardClick = (cardId: string, e: React.MouseEvent) => {
+    // Don't navigate if clicking on interactive elements
+    const target = e.target as HTMLElement;
+    if (target.closest('input[type="checkbox"]') || 
+        target.closest('button') || 
+        target.closest('a[href]')) {
+      return;
+    }
+    navigate(`/cards/${cardId}`);
   };
 
   // Format date helper
@@ -208,11 +221,12 @@ export default function Cards() {
           {cards.map(card => (
             <div
               key={card.id}
+              onClick={(e) => handleCardClick(card.id, e)}
               className={clsx(
-                'bg-white rounded-lg border transition-all duration-200 hover:shadow-md',
+                'bg-white rounded-lg border transition-all duration-200 hover:shadow-md cursor-pointer',
                 selectedCards.includes(card.id)
                   ? 'border-blue-300 ring-2 ring-blue-100'
-                  : 'border-gray-200'
+                  : 'border-gray-200 hover:border-gray-300'
               )}
             >
               <div className="p-6">
@@ -238,7 +252,7 @@ export default function Cards() {
                     {card.company && (
                       <EnrichmentStatusBadge
                         status={card.lastEnrichmentDate ? 'enriched' : 'skipped'}
-                        confidence={card.lastEnrichmentDate ? 0.85 : undefined}
+                        confidence={card.lastEnrichmentDate ? 0.85 : 0}
                         size="sm"
                       />
                     )}
@@ -307,8 +321,9 @@ export default function Cards() {
             {cards.map(card => (
               <div
                 key={card.id}
+                onClick={(e) => handleCardClick(card.id, e)}
                 className={clsx(
-                  'p-6 hover:bg-gray-50 transition-colors',
+                  'p-6 hover:bg-gray-50 transition-colors cursor-pointer',
                   selectedCards.includes(card.id) && 'bg-blue-50'
                 )}
               >
@@ -327,7 +342,7 @@ export default function Cards() {
                           {card.company && (
                             <EnrichmentStatusBadge
                               status={card.lastEnrichmentDate ? 'enriched' : 'skipped'}
-                              confidence={card.lastEnrichmentDate ? 0.85 : undefined}
+                              confidence={card.lastEnrichmentDate ? 0.85 : 0}
                               size="sm"
                             />
                           )}

@@ -41,7 +41,7 @@ export interface EnrichCardResponse {
 }
 
 export interface CompanyInfoProps {
-  companyData?: CompanyEnrichmentData;
+  companyData: CompanyEnrichmentData | undefined;
   personData?: PersonEnrichmentData;
   enrichmentData?: BusinessCardEnrichmentData;
   isLoading?: boolean;
@@ -51,8 +51,8 @@ export interface CompanyInfoProps {
 
 export interface EnrichmentButtonProps {
   cardId?: string;
-  company?: string;
-  domain?: string;
+  company: string | undefined;
+  domain: string | undefined;
   onEnrichmentStart?: () => void;
   onEnrichmentComplete?: (data: CompanyEnrichmentData) => void;
   onEnrichmentError?: (error: string) => void;

@@ -5,7 +5,7 @@ import { THEMES, SORT_ORDERS, COMPANY_SIZES, CALENDAR_SOURCES } from '../constan
 
 // Base entity schema
 export const baseEntitySchema = z.object({
-  id: z.string().regex(VALIDATION_PATTERNS.UUID, 'Invalid ID format'),
+  id: z.string().regex(VALIDATION_PATTERNS.ID, 'Invalid ID format'),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -20,6 +20,14 @@ export const emailSchema = z
 export const uuidSchema = z
   .string()
   .regex(VALIDATION_PATTERNS.UUID, 'Invalid UUID format');
+
+export const cuidSchema = z
+  .string()
+  .regex(VALIDATION_PATTERNS.CUID, 'Invalid CUID format');
+
+export const idSchema = z
+  .string()
+  .regex(VALIDATION_PATTERNS.ID, 'Invalid ID format');
 
 export const urlSchema = z
   .string()

@@ -14,10 +14,10 @@ import EnrichmentButton from './EnrichmentButton';
 
 interface CompanyFieldProps {
   label: string;
-  value?: string | number;
+  value: string | number | undefined;
   icon: React.ReactNode;
   type?: 'text' | 'url' | 'array';
-  arrayValues?: string[];
+  arrayValues?: string[] | undefined;
 }
 
 function CompanyField({ label, value, icon, type = 'text', arrayValues }: CompanyFieldProps) {

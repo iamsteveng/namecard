@@ -1,4 +1,5 @@
 import type { BusinessCardData } from '@namecard/shared';
+import type { BusinessCardEnrichmentData } from '@namecard/shared/types/enrichment.types';
 
 const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3001';
 
@@ -52,6 +53,76 @@ export interface Card {
   scanDate: string;
   createdAt: string;
   updatedAt: string;
+  lastEnrichmentDate?: string;
+  // Enriched data - companies come through junction table
+  companies?: Array<{
+    cardId?: string;
+    companyId?: string;
+    company?: {
+      id: string;
+      name: string;
+      domain?: string;
+      industry?: string;
+      size?: string;
+      headquarters?: string;
+      website?: string;
+      description?: string;
+      logoUrl?: string;
+      founded?: number;
+      employeeCount?: number;
+      annualRevenue?: string;
+      funding?: string;
+      technologies?: string[];
+      keywords?: string[];
+      linkedinUrl?: string;
+      twitterHandle?: string;
+      facebookUrl?: string;
+      overallEnrichmentScore?: number;
+      lastEnrichmentDate?: string;
+    };
+  } | {
+    // Or directly as company data (fallback)
+    id: string;
+    name: string;
+    domain?: string;
+    industry?: string;
+    size?: string;
+    headquarters?: string;
+    website?: string;
+    description?: string;
+    logoUrl?: string;
+    founded?: number;
+    employeeCount?: number;
+    annualRevenue?: string;
+    funding?: string;
+    technologies?: string[];
+    keywords?: string[];
+    linkedinUrl?: string;
+    twitterHandle?: string;
+    facebookUrl?: string;
+    overallEnrichmentScore?: number;
+    lastEnrichmentDate?: string;
+  }>;
+  enrichments?: Array<{
+    id: string;
+    enrichmentType: string;
+    status: string;
+    companiesFound: number;
+    dataPointsAdded: number;
+    confidence: number;
+    enrichedAt?: string;
+    errorMessage?: string;
+  }>;
+  calendarEvents?: Array<{
+    id: string;
+    title: string;
+    eventDate?: string;
+    location?: string;
+    attendees: string[];
+    source: string;
+  }>;
+  // Full enrichment data from API
+  enrichmentData?: BusinessCardEnrichmentData;
 }
 
 export interface GetCardsResponse {
@@ -117,15 +188,7 @@ class CardsService {
     };
   }
 
-  /**
-   * Get authorization headers for file upload
-   */
-  private getFileUploadHeaders(accessToken: string) {
-    return {
-      'Authorization': `Bearer ${accessToken}`,
-      // Don't set Content-Type for file uploads - let browser set it with boundary
-    };
-  }
+  // File upload headers are set inline in the XMLHttpRequest
 
   /**
    * Scan business card image

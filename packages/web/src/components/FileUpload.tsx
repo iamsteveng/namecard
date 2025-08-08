@@ -45,7 +45,7 @@ export default function FileUpload({
     // Check file type
     if (!acceptedFormats.includes(file.type.toLowerCase())) {
       const formats = acceptedFormats
-        .map(f => f.split('/')[1].toUpperCase())
+        .map(f => f.split('/')[1]?.toUpperCase() || f.toUpperCase())
         .join(', ');
       return `Invalid file type. Supported formats: ${formats}`;
     }
@@ -108,7 +108,7 @@ export default function FileUpload({
     if (disabled) return;
 
     const files = Array.from(e.dataTransfer.files);
-    if (files.length > 0) {
+    if (files.length > 0 && files[0]) {
       handleFileSelect(files[0]);
     }
   }, [disabled, handleFileSelect]);
@@ -261,7 +261,7 @@ export default function FileUpload({
       {/* File format info */}
       <div className="text-center">
         <p className="text-xs text-gray-500">
-          Supported formats: {acceptedFormats.map(f => f.split('/')[1].toUpperCase()).join(', ')} 
+          Supported formats: {acceptedFormats.map(f => f.split('/')[1]?.toUpperCase() || f.toUpperCase()).join(', ')} 
           {' • '}
           Max size: {formatFileSize(maxSizeBytes)}
         </p>

@@ -387,9 +387,17 @@ router.get('/:id', validateId, asyncHandler(async (req: Request, res: Response) 
       companies: {
         include: {
           company: {
-            select: { id: true, name: true, industry: true, website: true },
+            include: {
+              enrichments: {
+                orderBy: { createdAt: 'desc' },
+                take: 1, // Get latest enrichment data
+              },
+            },
           },
         },
+      },
+      enrichments: {
+        orderBy: { createdAt: 'desc' },
       },
       calendarEvents: {
         orderBy: { eventDate: 'desc' },
@@ -408,10 +416,93 @@ router.get('/:id', validateId, asyncHandler(async (req: Request, res: Response) 
       timestamp: new Date().toISOString(),
     });
   }
+
+  // Build enrichment data from available sources
+  let enrichmentData = null;
+  
+  if (card.companies && card.companies.length > 0) {
+    const primaryCompany = card.companies[0];
+    const company = primaryCompany.company;
+    
+    if (company) {
+      // Create enrichment data from company information
+      enrichmentData = {
+        companyData: {
+          name: company.name,
+          domain: company.domain,
+          website: company.website,
+          description: company.description,
+          industry: company.industry,
+          headquarters: company.location,
+          size: company.size,
+          employeeCount: company.employeeCount,
+          founded: company.founded,
+          annualRevenue: company.annualRevenue,
+          funding: company.funding,
+          technologies: company.technologies || [],
+          keywords: company.keywords || [],
+          linkedinUrl: company.linkedinUrl,
+          twitterHandle: company.twitterHandle,
+          facebookUrl: company.facebookUrl,
+          logoUrl: company.logoUrl,
+          confidence: company.overallEnrichmentScore ? company.overallEnrichmentScore / 100 : 0,
+          lastUpdated: company.lastEnrichmentDate,
+        },
+        // For now, person data would come from separate enrichment
+        // This will be populated when person enrichment is fully implemented
+        personData: null,
+        overallConfidence: company.overallEnrichmentScore ? company.overallEnrichmentScore / 100 : 0,
+        lastUpdated: company.lastEnrichmentDate,
+      };
+      
+      // Add raw enrichment data if available
+      if (company.enrichments && company.enrichments.length > 0) {
+        const latestEnrichment = company.enrichments[0];
+        if (latestEnrichment.rawData && typeof latestEnrichment.rawData === 'object') {
+          const rawData = latestEnrichment.rawData as any;
+          
+          // Try to extract additional data from raw enrichment results
+          if (rawData.recentNews && Array.isArray(rawData.recentNews)) {
+            enrichmentData.companyData.recentNews = rawData.recentNews;
+          }
+          if (rawData.keyPeople && Array.isArray(rawData.keyPeople)) {
+            enrichmentData.companyData.keyPeople = rawData.keyPeople;
+          }
+          if (rawData.competitors && Array.isArray(rawData.competitors)) {
+            enrichmentData.companyData.competitors = rawData.competitors;
+          }
+          if (rawData.marketPosition) {
+            enrichmentData.companyData.marketPosition = rawData.marketPosition;
+          }
+          if (rawData.businessModel) {
+            enrichmentData.companyData.businessModel = rawData.businessModel;
+          }
+          if (rawData.recentDevelopments && Array.isArray(rawData.recentDevelopments)) {
+            enrichmentData.companyData.recentDevelopments = rawData.recentDevelopments;
+          }
+          if (rawData.citations && Array.isArray(rawData.citations)) {
+            enrichmentData.citations = rawData.citations;
+          }
+          if (rawData.researchQuery) {
+            enrichmentData.researchQuery = rawData.researchQuery;
+          }
+          if (rawData.researchDate) {
+            enrichmentData.researchDate = rawData.researchDate;
+          }
+        }
+      }
+    }
+  }
+
+  // Add enrichment data to card response
+  const cardWithEnrichment = {
+    ...card,
+    enrichmentData,
+  };
   
   res.json({
     success: true,
-    data: { card },
+    data: { card: cardWithEnrichment },
   });
 }));
 

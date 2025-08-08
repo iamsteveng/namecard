@@ -4,7 +4,7 @@ import { clsx } from 'clsx';
 import type { ScanCardResponse } from '../services/cards.service';
 import EnrichmentButton, { useEnrichmentStatus } from './enrichment/EnrichmentButton';
 import CompanyInfo from './enrichment/CompanyInfo';
-import type { CompanyEnrichmentData } from '@namecard/shared/types/enrichment.types';
+// Remove unused import
 
 interface CardResultsProps {
   result: ScanCardResponse;
@@ -30,8 +30,8 @@ export interface EditedCardData {
 
 interface FieldProps {
   label: string;
-  value?: string;
-  confidence?: number;
+  value: string | undefined;
+  confidence: number | undefined;
   icon: React.ReactNode;
   type?: 'text' | 'email' | 'tel' | 'url';
   placeholder?: string;

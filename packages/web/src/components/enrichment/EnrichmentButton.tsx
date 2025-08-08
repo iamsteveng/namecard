@@ -10,7 +10,7 @@ import { useAuthStore } from '../../store/auth.store';
 export default function EnrichmentButton({
   cardId,
   company,
-  domain,
+  // domain, // unused
   onEnrichmentStart,
   onEnrichmentComplete,
   onEnrichmentError,
@@ -147,7 +147,7 @@ export default function EnrichmentButton({
 }
 
 // Helper hook for enrichment status
-export function useEnrichmentStatus(cardId?: string) {
+export function useEnrichmentStatus(_cardId?: string) {
   const [isEnriching, setIsEnriching] = useState(false);
   const [enrichmentData, setEnrichmentData] = useState<CompanyEnrichmentData | null>(null);
   const [error, setError] = useState<string | null>(null);
