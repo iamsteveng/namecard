@@ -1,6 +1,6 @@
 # Multi-stage build for backend API service
 # Stage 1: Build stage
-FROM node:20-alpine AS builder
+FROM node:20-slim AS builder
 
 # Set working directory
 WORKDIR /app
@@ -34,16 +34,17 @@ RUN npm run build
 RUN npx prisma generate
 
 # Stage 2: Production stage
-FROM node:20-alpine AS production
+FROM node:20-slim AS production
 
 # Install security updates and required tools
-RUN apk update && apk upgrade && \
-    apk add --no-cache dumb-init && \
-    rm -rf /var/cache/apk/*
+RUN apt-get update && apt-get upgrade -y && \
+    apt-get install -y dumb-init curl && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Create non-root user for security
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S -s /bin/false -u 1001 nodejs
+RUN groupadd -g 1001 nodejs && \
+    useradd -r -u 1001 -g nodejs -s /bin/false nodejs
 
 # Set working directory
 WORKDIR /app
