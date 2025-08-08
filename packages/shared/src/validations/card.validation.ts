@@ -2,7 +2,7 @@
 import { z } from 'zod';
 import { 
   baseEntitySchema,
-  uuidSchema,
+  idSchema,
   emailSchema,
   phoneSchema,
   urlSchema,
@@ -16,7 +16,7 @@ import { EXPORT_FORMATS, IMPORT_FORMATS, ENRICHMENT_TYPES } from '../constants/a
 
 // Core card schema
 export const cardSchema = baseEntitySchema.extend({
-  userId: uuidSchema,
+  userId: idSchema,
   originalImageUrl: urlSchema,
   processedImageUrl: urlSchema.optional(),
   extractedText: z.string().max(5000).optional(),
@@ -40,7 +40,7 @@ export const cardSchema = baseEntitySchema.extend({
 
 // Card creation schema
 export const createCardSchema = z.object({
-  userId: uuidSchema,
+  userId: idSchema,
   originalImageUrl: urlSchema,
   extractedText: z.string().max(5000).optional(),
   confidence: z.number().min(0).max(1).optional(),
@@ -80,12 +80,12 @@ export const updateCardSchema = z.object({
 // Card scanning schema
 export const scanCardSchema = z.object({
   imageFile: imageFileSchema,
-  userId: uuidSchema,
+  userId: idSchema,
 });
 
 // Card enrichment schema
 export const enrichCardSchema = z.object({
-  cardId: uuidSchema,
+  cardId: idSchema,
   enrichmentType: z.enum([
     ENRICHMENT_TYPES.COMPANY,
     ENRICHMENT_TYPES.NEWS,
@@ -109,7 +109,7 @@ export const cardFiltersSchema = z.object({
 export const cardSearchParamsSchema = searchParamsSchema
   .merge(cardFiltersSchema)
   .extend({
-    userId: uuidSchema.optional(),
+    userId: idSchema.optional(),
   });
 
 export const listCardsParamsSchema = paginationParamsSchema
@@ -118,7 +118,7 @@ export const listCardsParamsSchema = paginationParamsSchema
 
 // Card export schema
 export const cardExportSchema = z.object({
-  cardIds: createArraySchema(uuidSchema, 0, 1000).optional(),
+  cardIds: createArraySchema(idSchema, 0, 1000).optional(),
   format: z.enum([EXPORT_FORMATS.JSON, EXPORT_FORMATS.CSV, EXPORT_FORMATS.VCARD]),
   includeImages: z.boolean().default(false),
 });
@@ -133,24 +133,24 @@ export const cardImportSchema = z.object({
     name: z.string().min(1, 'File name is required'),
   }),
   format: z.enum([IMPORT_FORMATS.JSON, IMPORT_FORMATS.CSV]),
-  userId: uuidSchema,
+  userId: idSchema,
 });
 
 // API request schemas
 export const getCardParamsSchema = z.object({
-  id: uuidSchema,
+  id: idSchema,
 });
 
 export const updateCardParamsSchema = z.object({
-  id: uuidSchema,
+  id: idSchema,
 });
 
 export const deleteCardParamsSchema = z.object({
-  id: uuidSchema,
+  id: idSchema,
 });
 
 export const enrichCardParamsSchema = z.object({
-  id: uuidSchema,
+  id: idSchema,
 });
 
 // Query parameter schemas for endpoints

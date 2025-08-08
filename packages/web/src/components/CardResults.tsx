@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { Edit, Save, X, User, Briefcase, Mail, Phone, Globe, MapPin, AlertTriangle, CheckCircle, Copy } from 'lucide-react';
 import { clsx } from 'clsx';
 import type { ScanCardResponse } from '../services/cards.service';
+import EnrichmentButton, { useEnrichmentStatus } from './enrichment/EnrichmentButton';
+import CompanyInfo from './enrichment/CompanyInfo';
+// Remove unused import
 
 interface CardResultsProps {
   result: ScanCardResponse;
@@ -27,8 +30,8 @@ export interface EditedCardData {
 
 interface FieldProps {
   label: string;
-  value?: string;
-  confidence?: number;
+  value: string | undefined;
+  confidence: number | undefined;
   icon: React.ReactNode;
   type?: 'text' | 'email' | 'tel' | 'url';
   placeholder?: string;
@@ -127,6 +130,17 @@ export default function CardResults({
 }: CardResultsProps) {
   const [editing, setEditing] = useState(isEditing);
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
+  
+  // Enrichment functionality
+  const {
+    isEnriching,
+    enrichmentData,
+    error: enrichmentError,
+    handleEnrichmentStart,
+    handleEnrichmentComplete,
+    handleEnrichmentError,
+    clearError
+  } = useEnrichmentStatus(result.data?.cardId);
   const [editedData, setEditedData] = useState<EditedCardData>({});
 
   // Initialize edited data from result
@@ -337,6 +351,57 @@ export default function CardResults({
             placeholder="Add any additional notes..."
             rows={3}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+      )}
+
+      {/* Enrichment Section */}
+      {(editedData.company || extractedData.company?.text) && (
+        <div className="pt-6 border-t border-gray-200">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
+            <h4 className="text-lg font-medium text-gray-900">Company Information</h4>
+            <EnrichmentButton
+              cardId={result.data?.cardId}
+              company={editedData.company || extractedData.company?.text}
+              domain={editedData.website || extractedData.normalizedWebsite || extractedData.website?.text}
+              onEnrichmentStart={handleEnrichmentStart}
+              onEnrichmentComplete={handleEnrichmentComplete}
+              onEnrichmentError={handleEnrichmentError}
+              disabled={editing || isEnriching}
+              size="md"
+              variant="primary"
+            />
+          </div>
+
+          {/* Enrichment Error Display */}
+          {enrichmentError && (
+            <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-red-500" />
+                  <span className="text-red-800 font-medium">Enrichment Failed</span>
+                </div>
+                <button
+                  onClick={clearError}
+                  className="text-red-500 hover:text-red-700"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <p className="text-red-700 text-sm mt-1">{enrichmentError}</p>
+            </div>
+          )}
+
+          {/* Company Information Display */}
+          <CompanyInfo
+            companyData={enrichmentData || undefined}
+            isLoading={isEnriching}
+            onEnrich={() => {
+              // Trigger enrichment
+              const enrichButton = document.querySelector('[data-enrichment-button]') as HTMLButtonElement;
+              enrichButton?.click();
+            }}
+            showEnrichButton={false} // We have the main button above
           />
         </div>
       )}

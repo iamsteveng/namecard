@@ -6,6 +6,7 @@ import Cards from './pages/Cards';
 import Dashboard from './pages/Dashboard';
 import Scan from './pages/Scan';
 import Settings from './pages/Settings';
+import CardDetailsPage from './pages/CardDetailsPage';
 import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
@@ -53,6 +54,13 @@ export default function App() {
             <ProtectedRoute>
               <Layout>
                 <Cards />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/cards/:cardId" element={
+            <ProtectedRoute>
+              <Layout>
+                <CardDetailsPage />
               </Layout>
             </ProtectedRoute>
           } />

@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Camera, X, RotateCcw, CheckCircle } from 'lucide-react';
+import { Camera, X, RotateCcw } from 'lucide-react';
 import { clsx } from 'clsx';
 
 interface CameraCaptureProps {

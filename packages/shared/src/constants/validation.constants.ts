@@ -38,4 +38,6 @@ export const VALIDATION_PATTERNS = {
   PHONE: /^\+?[1-9]\d{1,14}$/,
   URL: /^https?:\/\/.+\..+/,
   UUID: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+  CUID: /^c[a-z0-9]{24}$/i, // CUID format: c + 24 alphanumeric characters
+  ID: /^c[a-z0-9]{24}$/i, // Use CUID format for database IDs
 } as const;

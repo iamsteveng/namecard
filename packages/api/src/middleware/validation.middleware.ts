@@ -67,3 +67,8 @@ export const validateUserRegistration = validate({ body: userRegistrationSchema 
 export const validateUserLogin = validate({ body: userLoginSchema });
 export const validateCardCreate = validate({ body: createCardSchema });
 export const validateCardUpdate = validate({ body: updateCardSchema });
+
+// Generic validation function for request body
+export const validateRequest = (schema: ZodSchema) => {
+  return validate({ body: schema });
+};
