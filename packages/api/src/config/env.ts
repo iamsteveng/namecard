@@ -53,7 +53,7 @@ const envSchema = Joi.object({
   // Security
   RATE_LIMIT_WINDOW_MS: Joi.number().default(900000), // 15 minutes
   RATE_LIMIT_MAX_REQUESTS: Joi.number().default(100),
-  CORS_ORIGIN: Joi.string().default('http://localhost:3000'),
+  CORS_ORIGIN: Joi.string().default('http://localhost:3000,http://localhost:5173,http://localhost:8080'),
 
   // Logging
   LOG_LEVEL: Joi.string().valid('error', 'warn', 'info', 'debug').default('info'),
@@ -119,7 +119,7 @@ export const env = {
   security: {
     rateLimitWindowMs: envVars.RATE_LIMIT_WINDOW_MS,
     rateLimitMaxRequests: envVars.RATE_LIMIT_MAX_REQUESTS,
-    corsOrigin: envVars.CORS_ORIGIN,
+    corsOrigin: envVars.CORS_ORIGIN.split(',').map((origin: string) => origin.trim()),
   },
 
   logging: {

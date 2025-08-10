@@ -26,8 +26,10 @@
     "db:down": "docker-compose stop postgres",
     "db:logs": "docker-compose logs -f postgres",
     "fullstack:up": "docker-compose up -d",
-    "fullstack:logs": "docker-compose logs -f api",
-    "fullstack:test": "docker-compose up -d && sleep 10 && curl http://localhost:3001/health",
+    "fullstack:logs": "docker-compose logs -f",
+    "fullstack:test": "docker-compose up -d && sleep 15 && curl http://localhost:3001/health && curl http://localhost:8080/health",
+    "frontend:up": "docker-compose up -d frontend",
+    "frontend:logs": "docker-compose logs -f frontend",
     "prepare": "husky install"
   },
   "workspaces": [
