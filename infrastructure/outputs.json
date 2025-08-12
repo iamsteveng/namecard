@@ -1,0 +1,23 @@
+{
+  "NameCardCognito-staging": {
+    "UserPoolClientId": "5s54d0ifpt3frtvut325uglrjp",
+    "UserPoolId": "ap-southeast-1_bOA22s0Op",
+    "Region": "ap-southeast-1",
+    "UserPoolArn": "arn:aws:cognito-idp:ap-southeast-1:145006476362:userpool/ap-southeast-1_bOA22s0Op",
+    "UserPoolDomainUrl": "https://namecard-145006476362.auth.ap-southeast-1.amazoncognito.com"
+  },
+  "NameCardInfra-staging": {
+    "BucketArn": "arn:aws:s3:::namecard-images-staging-145006476362",
+    "S3BucketNameEnvVar": "namecard-images-staging-145006476362",
+    "BucketName": "namecard-images-staging-145006476362",
+    "BucketDomainName": "namecard-images-staging-145006476362.s3.amazonaws.com",
+    "CDNUrl": "https://d3pbmzui8ousng.cloudfront.net",
+    "CloudFrontDistributionId": "E90TJWTF729SA",
+    "ApiAccessPolicyArn": "arn:aws:iam::145006476362:policy/namecard-s3-api-access-staging",
+    "ApiServiceRoleArn": "arn:aws:iam::145006476362:role/namecard-api-service-role-staging",
+    "S3RegionEnvVar": "ap-southeast-1",
+    "S3CdnDomainEnvVar": "d3pbmzui8ousng.cloudfront.net",
+    "CloudFrontDomainName": "d3pbmzui8ousng.cloudfront.net",
+    "StackSummary": "{\"environment\":\"staging\",\"bucketName\":\"namecard-images-staging-145006476362\",\"cdnDomain\":\"d3pbmzui8ousng.cloudfront.net\",\"region\":\"ap-southeast-1\"}"
+  }
+}

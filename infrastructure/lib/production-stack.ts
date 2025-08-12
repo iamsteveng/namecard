@@ -12,6 +12,8 @@ import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as s3deployment from 'aws-cdk-lib/aws-s3-deployment';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import { Platform } from 'aws-cdk-lib/aws-ecr-assets';
 import { Construct } from 'constructs';
 
@@ -32,6 +34,7 @@ export class ProductionStack extends cdk.Stack {
   public readonly apiService: ecsPatterns.ApplicationLoadBalancedFargateService;
   public readonly redis: elasticache.CfnCacheCluster;
   public readonly secrets: secretsmanager.Secret;
+  public readonly migrationFunction: lambda.Function;
   
   constructor(scope: Construct, id: string, props: ProductionStackProps) {
     super(scope, id, props);
@@ -52,6 +55,9 @@ export class ProductionStack extends cdk.Stack {
 
     // Create ECS cluster
     this.ecsCluster = this.createECSCluster(environment);
+
+    // Create migration Lambda function
+    this.migrationFunction = this.createMigrationFunction(environment);
 
     // Create API service with load balancer
     this.apiService = this.createAPIService(environment, domainName, certificateArn);
@@ -441,6 +447,9 @@ export class ProductionStack extends cdk.Stack {
     // Configure security groups
     this.configureSecurityGroups(fargateService);
 
+    // Add Cognito permissions to task role
+    this.configureTaskRolePermissions(fargateService, environment);
+
     return fargateService;
   }
 
@@ -476,6 +485,57 @@ export class ProductionStack extends cdk.Stack {
       ec2.Port.tcp(443),
       'Allow HTTPS traffic'
     );
+  }
+
+  private configureTaskRolePermissions(fargateService: ecsPatterns.ApplicationLoadBalancedFargateService, environment: string): void {
+    // Add Cognito permissions to the task role
+    const cognitoPolicy = new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'cognito-idp:AdminCreateUser',
+        'cognito-idp:AdminSetUserPassword',
+        'cognito-idp:AdminInitiateAuth',
+        'cognito-idp:AdminGetUser',
+        'cognito-idp:AdminUpdateUserAttributes',
+        'cognito-idp:AdminDeleteUser',
+        'cognito-idp:AdminConfirmSignUp',
+        'cognito-idp:AdminRespondToAuthChallenge',
+        'cognito-idp:ListUsers',
+      ],
+      resources: [
+        `arn:aws:cognito-idp:${this.region}:${this.account}:userpool/ap-southeast-1_bOA22s0Op`,
+      ],
+    });
+
+    // Add S3 permissions for image storage
+    const s3Policy = new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        's3:GetObject',
+        's3:PutObject',
+        's3:DeleteObject',
+        's3:ListBucket',
+      ],
+      resources: [
+        `arn:aws:s3:::namecard-images-${environment}-${this.account}`,
+        `arn:aws:s3:::namecard-images-${environment}-${this.account}/*`,
+      ],
+    });
+
+    // Add Textract permissions for OCR processing
+    const textractPolicy = new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'textract:DetectDocumentText',
+        'textract:AnalyzeDocument',
+      ],
+      resources: ['*'], // Textract doesn't support resource-level permissions
+    });
+
+    // Add the policies to the task role
+    fargateService.taskDefinition.taskRole.addToPrincipalPolicy(cognitoPolicy);
+    fargateService.taskDefinition.taskRole.addToPrincipalPolicy(s3Policy);
+    fargateService.taskDefinition.taskRole.addToPrincipalPolicy(textractPolicy);
   }
 
   private createFrontendInfrastructure(environment: string, domainName?: string): void {
@@ -567,6 +627,67 @@ export class ProductionStack extends cdk.Stack {
     // TODO: Add SNS topics for alerts
   }
 
+  private createMigrationFunction(environment: string): lambda.Function {
+    // Create Lambda execution role
+    const migrationRole = new iam.Role(this, 'MigrationFunctionRole', {
+      roleName: `namecard-migration-lambda-role-${environment}`,
+      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaVPCAccessExecutionRole'),
+      ],
+    });
+
+    // Grant access to database secret
+    this.secrets.grantRead(migrationRole);
+
+    // Create Lambda function
+    const migrationFunction = new lambda.Function(this, 'MigrationFunction', {
+      functionName: `namecard-migration-${environment}`,
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: 'index.handler',
+      code: lambda.Code.fromAsset('lambda/migration'),
+      timeout: cdk.Duration.minutes(10), // Migrations can take time
+      memorySize: 512,
+      role: migrationRole,
+      
+      // Deploy in VPC so it can access RDS
+      vpc: this.vpc,
+      vpcSubnets: {
+        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+      },
+      securityGroups: [this.createMigrationSecurityGroup()],
+      
+      environment: {
+        NODE_ENV: environment === 'production' ? 'production' : 'development',
+        DB_SECRET_ID: this.secrets.secretName,
+        LOG_LEVEL: environment === 'production' ? 'info' : 'debug',
+      },
+      
+      description: `Database migration function for NameCard ${environment}`,
+    });
+
+    // Allow database access from migration function
+    this.database.connections.allowFrom(
+      migrationFunction,
+      ec2.Port.tcp(5432),
+      'Allow migration Lambda to access database'
+    );
+
+    return migrationFunction;
+  }
+
+  private createMigrationSecurityGroup(): ec2.SecurityGroup {
+    const migrationSG = new ec2.SecurityGroup(this, 'MigrationSecurityGroup', {
+      vpc: this.vpc,
+      securityGroupName: `namecard-migration-sg-${this.node.tryGetContext('environment') || 'staging'}`,
+      description: 'Security group for migration Lambda function',
+      allowAllOutbound: true, // Needed for npm installs and AWS API calls
+    });
+
+    return migrationSG;
+  }
+
+
   private generateRandomString(length: number): string {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
     let result = '';
@@ -616,6 +737,19 @@ export class ProductionStack extends cdk.Stack {
       value: this.secrets.secretArn,
       description: 'Database secret ARN',
       exportName: `${this.stackName}-DatabaseSecretArn`,
+    });
+
+    // Migration function outputs
+    new cdk.CfnOutput(this, 'MigrationFunctionName', {
+      value: this.migrationFunction.functionName,
+      description: 'Migration Lambda function name',
+      exportName: `${this.stackName}-MigrationFunctionName`,
+    });
+
+    new cdk.CfnOutput(this, 'MigrationFunctionArn', {
+      value: this.migrationFunction.functionArn,
+      description: 'Migration Lambda function ARN',
+      exportName: `${this.stackName}-MigrationFunctionArn`,
     });
 
     // Summary output
