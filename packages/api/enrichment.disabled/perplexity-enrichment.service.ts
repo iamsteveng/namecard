@@ -13,7 +13,11 @@ import {
   EnrichBusinessCardRequest,
   EnrichBusinessCardResponse,
   CompanyEnrichmentData,
-  BusinessCardEnrichmentData
+  BusinessCardEnrichmentData,
+  PerplexityCompanyResponse,
+  PerplexityBusinessCardResponse,
+  PerplexityBusinessCardSchema,
+  PerplexityCompanySchema
 } from '@namecard/shared/types/enrichment.types';
 import { BaseEnrichmentService } from './base-enrichment.service';
 
@@ -730,7 +734,7 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
       facebookUrl: socialMedia?.facebookUrl,
       
       // Research metadata
-      citations: response.citations?.map(citation => ({
+      citations: response.citations?.map((citation: any) => ({
         url: citation.url,
         title: citation.title,
         source: citation.source,
@@ -793,7 +797,7 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
       linkedinUrl: response.socialMedia?.linkedinUrl,
       twitterHandle: response.socialMedia?.twitterHandle,
       facebookUrl: response.socialMedia?.facebookUrl,
-      citations: response.citations?.filter(c => c.category === 'company' || c.category === 'both').map(citation => ({
+      citations: response.citations?.filter((c: any) => c.category === 'company' || c.category === 'both').map((citation: any) => ({
         url: citation.url,
         title: citation.title,
         source: citation.source,
@@ -809,7 +813,7 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
     return {
       personData,
       companyData,
-      citations: response.citations?.map(citation => ({
+      citations: response.citations?.map((citation: any) => ({
         url: citation.url,
         title: citation.title,
         source: citation.source,
@@ -871,7 +875,7 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
     
     if (response.company) {
       // Boost confidence based on data richness
-      if (response.citations?.filter(c => c.category === 'company' || c.category === 'both').length >= 3) confidence += 5;
+      if (response.citations?.filter((c: any) => c.category === 'company' || c.category === 'both').length >= 3) confidence += 5;
       if (response.recentNews?.length >= 2) confidence += 3;
       if (response.keyPeople?.length >= 2) confidence += 2;
       if (response.competitors?.length >= 2) confidence += 3;

@@ -14,9 +14,22 @@
     "diff": "cdk diff",
     "synth": "cdk synth",
     "bootstrap": "cdk bootstrap",
-    "deploy:dev": "cdk deploy --context environment=development",
-    "deploy:staging": "cdk deploy --context environment=staging",
-    "deploy:prod": "cdk deploy --context environment=production"
+    
+    "deploy:dev": "cdk deploy --context environment=development --all",
+    "deploy:staging": "cdk deploy --context environment=staging --all",
+    "deploy:prod": "cdk deploy --context environment=production --all",
+    
+    "synth:dev": "cdk synth --context environment=development",
+    "synth:staging": "cdk synth --context environment=staging",
+    "synth:prod": "cdk synth --context environment=production",
+    
+    "diff:dev": "cdk diff --context environment=development",
+    "diff:staging": "cdk diff --context environment=staging",
+    "diff:prod": "cdk diff --context environment=production",
+    
+    "destroy:dev": "cdk destroy --context environment=development --all",
+    "destroy:staging": "cdk destroy --context environment=staging --all",
+    "destroy:prod": "cdk destroy --context environment=production --all"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",

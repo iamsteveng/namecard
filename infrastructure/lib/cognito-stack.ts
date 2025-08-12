@@ -3,11 +3,14 @@ import * as cognito from 'aws-cdk-lib/aws-cognito';
 import { Construct } from 'constructs';
 
 export class CognitoStack extends cdk.Stack {
+  public readonly userPool: cognito.UserPool;
+  public readonly userPoolClient: cognito.UserPoolClient;
+
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
     // Create the User Pool
-    const userPool = new cognito.UserPool(this, 'NameCardUserPool', {
+    this.userPool = new cognito.UserPool(this, 'NameCardUserPool', {
       userPoolName: 'namecard-user-pool',
       
       // Sign-in configuration
@@ -88,7 +91,7 @@ export class CognitoStack extends cdk.Stack {
     });
 
     // Create the User Pool Client (for web application)
-    const userPoolClient = userPool.addClient('NameCardWebClient', {
+    this.userPoolClient = this.userPool.addClient('NameCardWebClient', {
       userPoolClientName: 'namecard-web-client',
       
       // Don't generate a client secret (for frontend apps)
@@ -138,7 +141,7 @@ export class CognitoStack extends cdk.Stack {
     });
 
     // Create User Pool Domain (for hosted UI - optional)
-    const userPoolDomain = userPool.addDomain('NameCardUserPoolDomain', {
+    const userPoolDomain = this.userPool.addDomain('NameCardUserPoolDomain', {
       cognitoDomain: {
         domainPrefix: `namecard-${cdk.Stack.of(this).account}`, // Unique domain prefix
       },
@@ -146,19 +149,19 @@ export class CognitoStack extends cdk.Stack {
 
     // Output the important values
     new cdk.CfnOutput(this, 'UserPoolId', {
-      value: userPool.userPoolId,
+      value: this.userPool.userPoolId,
       description: 'Cognito User Pool ID',
       exportName: 'NameCardUserPoolId',
     });
 
     new cdk.CfnOutput(this, 'UserPoolClientId', {
-      value: userPoolClient.userPoolClientId,
+      value: this.userPoolClient.userPoolClientId,
       description: 'Cognito User Pool Client ID',
       exportName: 'NameCardUserPoolClientId',
     });
 
     new cdk.CfnOutput(this, 'UserPoolArn', {
-      value: userPool.userPoolArn,
+      value: this.userPool.userPoolArn,
       description: 'Cognito User Pool ARN',
       exportName: 'NameCardUserPoolArn',
     });
