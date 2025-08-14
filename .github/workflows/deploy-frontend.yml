@@ -1,0 +1,340 @@
+name: Deploy Frontend
+
+on:
+  push:
+    branches: [cicd-pipeline-setup, main]
+    paths:
+      - 'packages/web/**'
+      - '.github/workflows/deploy-frontend.yml'
+      - 'infrastructure/lib/frontend-stack.ts'
+  workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: 'Force deploy frontend even without changes'
+        required: false
+        default: 'false'
+        type: boolean
+      environment:
+        description: 'Environment to deploy to'
+        required: false
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+
+env:
+  AWS_REGION: ap-southeast-1
+  NODE_VERSION: '18'
+
+jobs:
+  detect-changes:
+    name: Detect Frontend Changes
+    runs-on: ubuntu-latest
+    outputs:
+      frontend_changed: ${{ steps.changes.outputs.frontend_changed }}
+      should_deploy: ${{ steps.decision.outputs.should_deploy }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect frontend changes
+        id: changes
+        run: |
+          echo "🔍 Detecting frontend changes..."
+          
+          # Check if this is a manual trigger
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manual workflow trigger detected"
+            echo "frontend_changed=manual" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Check for frontend-related changes
+          FRONTEND_CHANGED=$(git diff --name-only HEAD^ HEAD | grep -E "(packages/web/|\.github/workflows/deploy-frontend\.yml|infrastructure/lib/frontend-stack\.ts)" || echo "")
+          
+          if [ -n "$FRONTEND_CHANGED" ]; then
+            echo "frontend_changed=true" >> $GITHUB_OUTPUT
+            echo "📦 Frontend changes detected:"
+            echo "$FRONTEND_CHANGED"
+          else
+            echo "frontend_changed=false" >> $GITHUB_OUTPUT
+            echo "✅ No frontend changes detected"
+          fi
+
+      - name: Deployment decision
+        id: decision
+        run: |
+          FRONTEND_CHANGED="${{ steps.changes.outputs.frontend_changed }}"
+          FORCE_DEPLOY="${{ github.event.inputs.force_deploy }}"
+          
+          if [ "$FRONTEND_CHANGED" = "true" ] || [ "$FRONTEND_CHANGED" = "manual" ] || [ "$FORCE_DEPLOY" = "true" ]; then
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+            echo "🚀 Frontend deployment will proceed"
+          else
+            echo "should_deploy=false" >> $GITHUB_OUTPUT
+            echo "⏭️  Skipping frontend deployment - no changes detected"
+          fi
+
+  build-frontend:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.should_deploy == 'true'
+    outputs:
+      build_path: ${{ steps.build.outputs.build_path }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        id: build
+        run: |
+          echo "🏗️  Building React frontend for production..."
+          
+          # Build the frontend
+          npm run build --workspace=packages/web
+          
+          # Verify build output
+          if [ ! -d "packages/web/dist" ]; then
+            echo "❌ Build failed - dist directory not found"
+            exit 1
+          fi
+          
+          # Check build size
+          BUILD_SIZE=$(du -sh packages/web/dist | cut -f1)
+          echo "📦 Build size: $BUILD_SIZE"
+          
+          # List key files
+          echo "📋 Build contents:"
+          ls -la packages/web/dist/
+          
+          echo "build_path=packages/web/dist" >> $GITHUB_OUTPUT
+          echo "✅ Frontend build completed successfully"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build-${{ github.sha }}
+          path: packages/web/dist/
+          retention-days: 7
+          compression-level: 6
+
+  deploy-frontend:
+    name: Deploy Frontend to AWS
+    runs-on: ubuntu-latest
+    needs: [detect-changes, build-frontend]
+    if: needs.detect-changes.outputs.should_deploy == 'true'
+    environment: ${{ github.event.inputs.environment || 'staging' }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build-${{ github.sha }}
+          path: packages/web/dist/
+
+      - name: Install infrastructure dependencies
+        run: |
+          cd infrastructure
+          npm ci
+
+      - name: Get deployment configuration
+        id: config
+        run: |
+          ENVIRONMENT="${{ github.event.inputs.environment || 'staging' }}"
+          echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
+          
+          # Set environment-specific configurations
+          case $ENVIRONMENT in
+            staging)
+              echo "stack_name=NameCardFrontend-staging" >> $GITHUB_OUTPUT
+              echo "api_url=http://NameCa-APISe-N5y96ivnIVEm-949793622.ap-southeast-1.elb.amazonaws.com" >> $GITHUB_OUTPUT
+              ;;
+            production)
+              echo "stack_name=NameCardFrontend-production" >> $GITHUB_OUTPUT
+              echo "api_url=https://api.namecard.app" >> $GITHUB_OUTPUT
+              ;;
+            *)
+              echo "❌ Invalid environment: $ENVIRONMENT"
+              exit 1
+              ;;
+          esac
+
+      - name: Deploy frontend infrastructure
+        run: |
+          echo "🏗️  Deploying frontend infrastructure..."
+          cd infrastructure
+          
+          npx cdk deploy ${{ steps.config.outputs.stack_name }} \
+            --context environment=${{ steps.config.outputs.environment }} \
+            --context apiUrl=${{ steps.config.outputs.api_url }} \
+            --require-approval never \
+            --outputs-file frontend-outputs.json
+          
+          echo "✅ Frontend infrastructure deployed"
+
+      - name: Get S3 bucket and CloudFront distribution
+        id: resources
+        run: |
+          cd infrastructure
+          
+          # Extract values from CDK outputs
+          BUCKET_NAME=$(jq -r '.["${{ steps.config.outputs.stack_name }}"].FrontendBucketName // empty' frontend-outputs.json)
+          DISTRIBUTION_ID=$(jq -r '.["${{ steps.config.outputs.stack_name }}"].FrontendDistributionId // empty' frontend-outputs.json)
+          FRONTEND_URL=$(jq -r '.["${{ steps.config.outputs.stack_name }}"].FrontendUrl // empty' frontend-outputs.json)
+          
+          if [ -z "$BUCKET_NAME" ] || [ "$BUCKET_NAME" = "null" ]; then
+            echo "❌ Could not get S3 bucket name from CDK outputs"
+            exit 1
+          fi
+          
+          if [ -z "$DISTRIBUTION_ID" ] || [ "$DISTRIBUTION_ID" = "null" ]; then
+            echo "❌ Could not get CloudFront distribution ID from CDK outputs"
+            exit 1
+          fi
+          
+          echo "bucket_name=$BUCKET_NAME" >> $GITHUB_OUTPUT
+          echo "distribution_id=$DISTRIBUTION_ID" >> $GITHUB_OUTPUT
+          echo "frontend_url=$FRONTEND_URL" >> $GITHUB_OUTPUT
+          
+          echo "📦 S3 Bucket: $BUCKET_NAME"
+          echo "🌐 CloudFront Distribution: $DISTRIBUTION_ID"
+          echo "🔗 Frontend URL: $FRONTEND_URL"
+
+      - name: Sync files to S3
+        run: |
+          echo "📤 Syncing frontend files to S3..."
+          
+          # Sync with appropriate cache headers
+          aws s3 sync packages/web/dist/ s3://${{ steps.resources.outputs.bucket_name }}/ \
+            --delete \
+            --cache-control "public,max-age=86400" \
+            --exclude "*.html" \
+            --region ${{ env.AWS_REGION }}
+          
+          # Upload HTML files with no cache
+          aws s3 sync packages/web/dist/ s3://${{ steps.resources.outputs.bucket_name }}/ \
+            --delete \
+            --cache-control "public,max-age=0,must-revalidate" \
+            --include "*.html" \
+            --region ${{ env.AWS_REGION }}
+          
+          echo "✅ Files synced to S3"
+
+      - name: Invalidate CloudFront cache
+        run: |
+          echo "🔄 Invalidating CloudFront cache..."
+          
+          INVALIDATION_ID=$(aws cloudfront create-invalidation \
+            --distribution-id ${{ steps.resources.outputs.distribution_id }} \
+            --paths "/*" \
+            --query 'Invalidation.Id' \
+            --output text \
+            --region ${{ env.AWS_REGION }})
+          
+          echo "📋 Invalidation ID: $INVALIDATION_ID"
+          
+          # Wait for invalidation to complete (optional, but good for verification)
+          echo "⏳ Waiting for cache invalidation to complete..."
+          aws cloudfront wait invalidation-completed \
+            --distribution-id ${{ steps.resources.outputs.distribution_id }} \
+            --id $INVALIDATION_ID \
+            --region ${{ env.AWS_REGION }}
+          
+          echo "✅ CloudFront cache invalidated"
+
+      - name: Verify deployment
+        run: |
+          FRONTEND_URL="${{ steps.resources.outputs.frontend_url }}"
+          
+          if [ -z "$FRONTEND_URL" ] || [ "$FRONTEND_URL" = "null" ]; then
+            echo "⚠️  Could not get frontend URL from outputs"
+            exit 1
+          fi
+          
+          echo "🔍 Testing frontend deployment..."
+          
+          # Health check with retry
+          for i in {1..10}; do
+            response=$(curl -s -o /dev/null -w "%{http_code}" "$FRONTEND_URL" || echo "000")
+            
+            if [ "$response" = "200" ]; then
+              echo "✅ Frontend deployment successful!"
+              echo "🚀 Frontend available at: $FRONTEND_URL"
+              
+              # Test API proxy
+              echo "🔗 Testing API proxy..."
+              api_response=$(curl -s -o /dev/null -w "%{http_code}" "$FRONTEND_URL/api/v1/" || echo "000")
+              if [ "$api_response" = "200" ]; then
+                echo "✅ API proxy working correctly"
+              else
+                echo "⚠️  API proxy returned: $api_response"
+              fi
+              exit 0
+            else
+              echo "Attempt $i: HTTP status $response, retrying in 10 seconds..."
+              sleep 10
+            fi
+          done
+          
+          echo "❌ Frontend health check failed after 10 attempts. Final HTTP status: $response"
+          exit 1
+
+      - name: Update deployment status
+        if: always()
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "🎉 Frontend deployment completed successfully!"
+            echo "🔗 Frontend URL: ${{ steps.resources.outputs.frontend_url }}"
+          else
+            echo "💥 Frontend deployment failed. Please check the logs."
+          fi
+
+  notify:
+    name: Notify Deployment Status
+    runs-on: ubuntu-latest
+    needs: [detect-changes, deploy-frontend]
+    if: always() && needs.detect-changes.outputs.should_deploy == 'true'
+    steps:
+      - name: Deployment summary
+        run: |
+          echo "📊 Frontend Deployment Summary"
+          echo "=============================="
+          echo "Environment: ${{ github.event.inputs.environment || 'staging' }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Status: ${{ needs.deploy-frontend.result }}"
+          
+          if [ "${{ needs.deploy-frontend.result }}" = "success" ]; then
+            echo "✅ Deployment successful"
+          else
+            echo "❌ Deployment failed"
+          fi
