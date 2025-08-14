@@ -112,21 +112,24 @@ jobs:
           echo "🔍 Checking workspace configuration..."
           npm run build --workspace=packages/web --dry-run || true
           
+          # Build dependencies first (shared package)
+          echo "🔨 Building shared package dependencies..."
+          npm run build --workspace=packages/shared
+          
           # Build the frontend with explicit workspace
-          echo "🔨 Starting build process..."
+          echo "🔨 Starting frontend build process..."
           npm run build --workspace=packages/web
           
           # Alternative build approaches if workspace fails
           if [ ! -d "packages/web/dist" ]; then
-            echo "⚠️  Workspace build may have failed, trying turbo build..."
+            echo "⚠️  Workspace build may have failed, trying turbo build with dependencies..."
+            npx turbo build --filter=@namecard/shared
             npx turbo build --filter=@namecard/web
           fi
           
           if [ ! -d "packages/web/dist" ]; then
-            echo "⚠️  Turbo build may have failed, trying direct build..."
-            cd packages/web
-            npm run build
-            cd ../..
+            echo "⚠️  Turbo build may have failed, trying direct build with dependencies..."
+            cd packages/shared && npm run build && cd ../web && npm run build && cd ../..
           fi
           
           # Verify build output
