@@ -58,6 +58,7 @@ if (environment === 'staging' || environment === 'production') {
     
     // Reference existing stacks
     s3Bucket: infraStack.bucket,
+    s3CdnDomain: infraStack.cloudFrontDomainName,
     cognitoUserPoolId: cognitoStack.userPool?.userPoolId,
     cognitoClientId: undefined, // Will be retrieved from stack outputs
   });

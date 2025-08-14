@@ -2,9 +2,9 @@
 
 ## Project Status: Business Name Card Scanner & Enrichment App
 
-**Current Phase**: Complete Production Deployment with CI/CD (Phase 7)  
-**Last Updated**: August 14, 2025 (06:15 UTC)  
-**Overall Progress**: Phase 1-7 Complete (100%) - Full production deployment with automated CI/CD
+**Current Phase**: Complete Production Deployment with CI/CD + Image Access Fixed (Phase 7+)  
+**Last Updated**: August 14, 2025 (15:50 UTC)  
+**Overall Progress**: Phase 1-7 Complete (100%) - Full production deployment with automated CI/CD and resolved image display issues
 
 ## Current Todo Status
 
@@ -767,6 +767,15 @@ generator client {
 - **Status**: 🎉 **FULLY DEPLOYED** - Complete business card scanner application ready for users
 
 ### Session 15 (August 14, 2025)
+- **S3 Image Access Issue Resolution (COMPLETE)**:
+  - **Root Cause**: `S3_CDN_DOMAIN` environment variable in ECS was empty, causing backend to generate invalid image URLs
+  - **Investigation**: Traced image access denied errors to missing CloudFront domain configuration in backend
+  - **CDK Infrastructure Fix**: Updated `production-stack.ts` to accept and use `s3CdnDomain` parameter from infrastructure stack
+  - **ECS Task Definition Update**: Manually registered new task definition (v13) with correct `S3_CDN_DOMAIN=d3pbmzui8ousng.cloudfront.net`
+  - **Service Deployment**: Successfully updated ECS service to use new task definition with proper CloudFront URLs
+  - **Origin Access Control**: Confirmed S3 bucket properly configured with modern OAC (not deprecated OAI)
+  - **Files Updated**: `infrastructure/lib/production-stack.ts`, `infrastructure/lib/s3-stack.ts`, `infrastructure/bin/infrastructure.ts`
+  - **Result**: Backend now generates correct CloudFront URLs for images, resolving frontend display issues
 - **Frontend CI/CD Pipeline Implementation (COMPLETE)**:
   - **GitHub Actions Workflow**: Created comprehensive `.github/workflows/deploy-frontend.yml` for automated frontend deployment
   - **Smart Change Detection**: Intelligent path-based triggers for `packages/web/**`, infrastructure, and workflow files

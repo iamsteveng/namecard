@@ -23,6 +23,7 @@ export interface ProductionStackProps extends cdk.StackProps {
   certificateArn?: string;
   // Reference existing stacks
   s3Bucket?: s3.IBucket;
+  s3CdnDomain?: string;
   cognitoUserPoolId?: string;
   cognitoClientId?: string;
 }
@@ -39,7 +40,7 @@ export class ProductionStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: ProductionStackProps) {
     super(scope, id, props);
 
-    const { environment, domainName, certificateArn } = props;
+    const { environment, domainName, certificateArn, s3CdnDomain } = props;
 
     // Create VPC with public and private subnets
     this.vpc = this.createVPC(environment);
@@ -60,7 +61,7 @@ export class ProductionStack extends cdk.Stack {
     this.migrationFunction = this.createMigrationFunction(environment);
 
     // Create API service with load balancer
-    this.apiService = this.createAPIService(environment, domainName, certificateArn);
+    this.apiService = this.createAPIService(environment, domainName, certificateArn, s3CdnDomain);
 
     // Create frontend S3 bucket and CloudFront (if not using existing)
     if (!props.s3Bucket) {
@@ -297,7 +298,7 @@ export class ProductionStack extends cdk.Stack {
     });
   }
 
-  private createAPIService(environment: string, domainName?: string, certificateArn?: string): ecsPatterns.ApplicationLoadBalancedFargateService {
+  private createAPIService(environment: string, domainName?: string, certificateArn?: string, s3CdnDomain?: string): ecsPatterns.ApplicationLoadBalancedFargateService {
     // Create log group for the service
     const logGroup = new logs.LogGroup(this, 'APIServiceLogGroup', {
       logGroupName: `/namecard/api-service/${environment}`,
@@ -352,7 +353,7 @@ export class ProductionStack extends cdk.Stack {
           // S3 Configuration
           S3_BUCKET_NAME: `namecard-images-${environment}-${this.account}`,
           S3_REGION: this.region,
-          S3_CDN_DOMAIN: '', // Will be populated by CloudFront if needed
+          S3_CDN_DOMAIN: s3CdnDomain || '', // CloudFront domain for image CDN
           
           // Cognito Configuration
           COGNITO_USER_POOL_ID: 'ap-southeast-1_bOA22s0Op',
