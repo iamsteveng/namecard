@@ -11,7 +11,7 @@ import type {
   BusinessCardData,
 } from '@namecard/shared/types/textract.types';
 
-const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3001';
+const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || '';
 
 interface CardListResponse {
   success: boolean;

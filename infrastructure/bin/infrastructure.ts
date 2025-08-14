@@ -3,6 +3,7 @@ import * as cdk from 'aws-cdk-lib';
 import { CognitoStack } from '../lib/cognito-stack';
 import { InfrastructureStack } from '../lib/infrastructure-stack';
 import { ProductionStack } from '../lib/production-stack';
+import { FrontendStack } from '../lib/frontend-stack';
 
 const app = new cdk.App();
 
@@ -64,4 +65,22 @@ if (environment === 'staging' || environment === 'production') {
   // Add dependencies
   productionStack.addDependency(cognitoStack);
   productionStack.addDependency(infraStack);
+
+  // Deploy frontend stack
+  const frontendStack = new FrontendStack(app, `NameCardFrontend-${environment}`, {
+    environment,
+    env,
+    description: `Frontend deployment for NameCard Application - ${environment}`,
+    tags: commonTags,
+    
+    // API URL from production stack
+    apiUrl: `http://${productionStack.apiService.loadBalancer.loadBalancerDnsName}`,
+    
+    // Optional domain configuration
+    domainName: domainName ? `app.${domainName}` : undefined,
+    certificateArn,
+  });
+
+  // Add dependencies
+  frontendStack.addDependency(productionStack);
 }

@@ -364,7 +364,7 @@ export class ProductionStack extends cdk.Stack {
           REDIS_PASSWORD: '',
           
           // Security Configuration
-          CORS_ORIGIN: 'http://localhost:3000,http://localhost:5173,http://localhost:8080',
+          CORS_ORIGIN: 'http://localhost:3000,http://localhost:5173,http://localhost:8080,https://d1357e576dd65p.cloudfront.net',
           RATE_LIMIT_WINDOW_MS: '900000',
           RATE_LIMIT_MAX_REQUESTS: '100',
           
@@ -686,6 +686,7 @@ export class ProductionStack extends cdk.Stack {
 
     return migrationSG;
   }
+
 
 
   private generateRandomString(length: number): string {

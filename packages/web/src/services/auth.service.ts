@@ -7,7 +7,7 @@ import type {
   UpdateUserProfileResponse,
 } from '@namecard/shared';
 
-const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3001';
+const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || '';
 
 class AuthService {
   private baseUrl = `${API_BASE_URL}/api/v1/auth`;

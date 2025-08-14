@@ -7,7 +7,7 @@
 import type { EnrichCardRequest, EnrichCardResponse } from '../types/enrichment.types';
 import type { CompanyEnrichmentData, EnrichmentSource } from '@namecard/shared/types/enrichment.types';
 
-const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3001';
+const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || '';
 
 export interface EnrichmentHealthResponse {
   status: 'healthy' | 'unhealthy';
