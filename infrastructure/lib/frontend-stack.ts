@@ -105,6 +105,9 @@ export class FrontendStack extends cdk.Stack {
       // API routes must return their natural JSON error responses
       // Frontend routing will handle 404s naturally through React Router
       
+      // Default root object for SPA
+      defaultRootObject: 'index.html',
+      
       // Domain configuration (optional)
       domainNames: domainName ? [domainName] : undefined,
       
