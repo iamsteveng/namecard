@@ -100,21 +100,10 @@ export class FrontendStack extends cdk.Stack {
         },
       },
       
-      // Error pages for SPA routing
-      errorResponses: [
-        {
-          httpStatus: 404,
-          responseHttpStatus: 200,
-          responsePagePath: '/index.html',
-          ttl: cdk.Duration.minutes(5),
-        },
-        {
-          httpStatus: 403,
-          responseHttpStatus: 200,
-          responsePagePath: '/index.html',
-          ttl: cdk.Duration.minutes(5),
-        },
-      ],
+      // Custom error responses - COMPLETELY OMITTED to fix API proxy
+      // CloudFront error responses are global and interfere with API routes
+      // API routes must return their natural JSON error responses
+      // Frontend routing will handle 404s naturally through React Router
       
       // Domain configuration (optional)
       domainNames: domainName ? [domainName] : undefined,

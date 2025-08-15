@@ -1,0 +1,38 @@
+{
+  "NameCardCognito-staging": {
+    "UserPoolClientId": "5s54d0ifpt3frtvut325uglrjp",
+    "UserPoolId": "ap-southeast-1_bOA22s0Op",
+    "Region": "ap-southeast-1",
+    "UserPoolArn": "arn:aws:cognito-idp:ap-southeast-1:145006476362:userpool/ap-southeast-1_bOA22s0Op",
+    "UserPoolDomainUrl": "https://namecard-145006476362.auth.ap-southeast-1.amazoncognito.com"
+  },
+  "NameCardInfra-staging": {
+    "BucketArn": "arn:aws:s3:::namecard-images-staging-145006476362",
+    "ExportsOutputFnGetAttNameCardImagesCDN44E30052DomainNameC5E584B2": "d3pbmzui8ousng.cloudfront.net",
+    "S3BucketNameEnvVar": "namecard-images-staging-145006476362",
+    "CloudFrontDistributionId": "E90TJWTF729SA",
+    "ApiAccessPolicyArn": "arn:aws:iam::145006476362:policy/namecard-s3-api-access-staging",
+    "ApiServiceRoleArn": "arn:aws:iam::145006476362:role/namecard-api-service-role-staging",
+    "CloudFrontDomainName": "d3pbmzui8ousng.cloudfront.net",
+    "BucketName": "namecard-images-staging-145006476362",
+    "BucketDomainName": "namecard-images-staging-145006476362.s3.amazonaws.com",
+    "CDNUrl": "https://d3pbmzui8ousng.cloudfront.net",
+    "S3RegionEnvVar": "ap-southeast-1",
+    "S3CdnDomainEnvVar": "d3pbmzui8ousng.cloudfront.net",
+    "StackSummary": "{\"environment\":\"staging\",\"bucketName\":\"namecard-images-staging-145006476362\",\"cdnDomain\":\"d3pbmzui8ousng.cloudfront.net\",\"region\":\"ap-southeast-1\"}"
+  },
+  "NameCardProd-staging": {
+    "RedisEndpoint": "namecard-redis-staging.wt8vz5.0001.apse1.cache.amazonaws.com",
+    "DatabasePort": "5432",
+    "VpcId": "vpc-02ca54e100d4fcb6d",
+    "MigrationFunctionName": "namecard-migration-staging",
+    "DatabaseSecretArn": "arn:aws:secretsmanager:ap-southeast-1:145006476362:secret:namecard/database/staging-uo7uAr",
+    "APIServiceUrl": "https://NameCa-APISe-N5y96ivnIVEm-949793622.ap-southeast-1.elb.amazonaws.com",
+    "DeploymentSummary": "{\"environment\":\"staging\",\"vpcId\":\"vpc-02ca54e100d4fcb6d\",\"databaseEndpoint\":\"namecard-db-staging.cfy8gsm40wv7.ap-southeast-1.rds.amazonaws.com\",\"apiUrl\":\"https://NameCa-APISe-N5y96ivnIVEm-949793622.ap-southeast-1.elb.amazonaws.com\",\"region\":\"ap-southeast-1\"}",
+    "APIServiceServiceURLA4BFE21D": "http://NameCa-APISe-N5y96ivnIVEm-949793622.ap-southeast-1.elb.amazonaws.com",
+    "ExportsOutputFnGetAttAPIServiceLBB9BB3EE3DNSName7DEE37C3": "NameCa-APISe-N5y96ivnIVEm-949793622.ap-southeast-1.elb.amazonaws.com",
+    "APIServiceLoadBalancerDNS6CF2FD04": "NameCa-APISe-N5y96ivnIVEm-949793622.ap-southeast-1.elb.amazonaws.com",
+    "MigrationFunctionArn": "arn:aws:lambda:ap-southeast-1:145006476362:function:namecard-migration-staging",
+    "DatabaseEndpoint": "namecard-db-staging.cfy8gsm40wv7.ap-southeast-1.rds.amazonaws.com"
+  }
+}
