@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+
 import logger from '../utils/logger.js';
 
 const prisma = new PrismaClient();
@@ -90,7 +91,8 @@ async function main() {
         data: {
           userId: testUser.id,
           originalImageUrl: 'https://example.com/card2.jpg',
-          extractedText: 'Sarah Johnson\nProduct Manager\nInnovation Ltd\nsarah@innovation.ltd\n+1-555-0456',
+          extractedText:
+            'Sarah Johnson\nProduct Manager\nInnovation Ltd\nsarah@innovation.ltd\n+1-555-0456',
           confidence: 0.92,
           name: 'Sarah Johnson',
           title: 'Product Manager',
@@ -108,7 +110,8 @@ async function main() {
         data: {
           userId: testUser.id,
           originalImageUrl: 'https://example.com/card3.jpg',
-          extractedText: 'Michael Chen\nDesign Lead\nCreative Studio\nmichael@creativestudio.com\n+1-555-0789',
+          extractedText:
+            'Michael Chen\nDesign Lead\nCreative Studio\nmichael@creativestudio.com\n+1-555-0789',
           confidence: 0.88,
           name: 'Michael Chen',
           title: 'Design Lead',
@@ -211,7 +214,7 @@ async function main() {
 }
 
 // Run the seed function
-main().catch((error) => {
+main().catch(error => {
   console.error(error);
   process.exit(1);
 });

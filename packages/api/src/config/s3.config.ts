@@ -52,11 +52,15 @@ export function validateS3Config(): S3ValidationResult {
   if (bucketName) {
     const bucketNameRegex = /^[a-z0-9][a-z0-9-]*[a-z0-9]$/;
     if (!bucketNameRegex.test(bucketName) || bucketName.length < 3 || bucketName.length > 63) {
-      errors.push('S3_BUCKET_NAME must be 3-63 characters, lowercase, and contain only letters, numbers, and hyphens');
+      errors.push(
+        'S3_BUCKET_NAME must be 3-63 characters, lowercase, and contain only letters, numbers, and hyphens'
+      );
     }
 
     if (bucketName.includes('..') || bucketName.includes('.-') || bucketName.includes('-.')) {
-      errors.push('S3_BUCKET_NAME cannot contain consecutive periods or hyphens adjacent to periods');
+      errors.push(
+        'S3_BUCKET_NAME cannot contain consecutive periods or hyphens adjacent to periods'
+      );
     }
   }
 

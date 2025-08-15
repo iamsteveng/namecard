@@ -1,5 +1,6 @@
-import ImageValidationService from '../../services/image-validation.service.js';
 import sharp from 'sharp';
+
+import ImageValidationService from '../../services/image-validation.service.js';
 
 describe('Image Validation Service Tests', () => {
   // Helper to create test PNG buffer using Sharp
@@ -9,11 +10,11 @@ describe('Image Validation Service Tests', () => {
         width,
         height,
         channels: 4,
-        background: { r: 255, g: 0, b: 0, alpha: 1 }
-      }
+        background: { r: 255, g: 0, b: 0, alpha: 1 },
+      },
     })
-    .png()
-    .toBuffer();
+      .png()
+      .toBuffer();
   };
 
   // Helper to create test JPEG buffer using Sharp
@@ -23,11 +24,11 @@ describe('Image Validation Service Tests', () => {
         width,
         height,
         channels: 3,
-        background: { r: 0, g: 255, b: 0 }
-      }
+        background: { r: 0, g: 255, b: 0 },
+      },
     })
-    .jpeg()
-    .toBuffer();
+      .jpeg()
+      .toBuffer();
   };
 
   describe('Single Image Validation', () => {
@@ -104,7 +105,7 @@ describe('Image Validation Service Tests', () => {
     it('should provide warnings for large files', async () => {
       // Create a large PNG image that will trigger size warnings
       const largeBuffer = await createTestPNG(2000, 2000); // Large dimensions to create large file
-      
+
       const result = await ImageValidationService.validateImage(largeBuffer, 'large.png');
 
       // Check that we get some kind of warning about the large image
@@ -144,22 +145,24 @@ describe('Image Validation Service Tests', () => {
 
     it('should reject too many files', async () => {
       const files = await Promise.all(
-        Array(10).fill(null).map(async (_, i) => ({
-          buffer: await createTestPNG(),
-          originalName: `test${i}.png`
-        }))
+        Array(10)
+          .fill(null)
+          .map(async (_, i) => ({
+            buffer: await createTestPNG(),
+            originalName: `test${i}.png`,
+          }))
       );
 
-      await expect(ImageValidationService.validateImages(files, { maxFiles: 5 }))
-        .rejects
-        .toThrow('Too many files');
+      await expect(ImageValidationService.validateImages(files, { maxFiles: 5 })).rejects.toThrow(
+        'Too many files'
+      );
     });
   });
 
   describe('Use Case Configurations', () => {
     it('should have business card configuration', () => {
       const config = ImageValidationService.getConfigForUseCase('business-card');
-      
+
       expect(config.maxFileSize).toBe(5 * 1024 * 1024); // 5MB
       expect(config.maxWidth).toBe(2048);
       expect(config.maxHeight).toBe(2048);
@@ -170,7 +173,7 @@ describe('Image Validation Service Tests', () => {
 
     it('should have profile avatar configuration', () => {
       const config = ImageValidationService.getConfigForUseCase('profile-avatar');
-      
+
       expect(config.maxFileSize).toBe(2 * 1024 * 1024); // 2MB
       expect(config.maxWidth).toBe(1024);
       expect(config.maxHeight).toBe(1024);
@@ -188,7 +191,7 @@ describe('Image Validation Service Tests', () => {
 
     it('should have document configuration', () => {
       const config = ImageValidationService.getConfigForUseCase('document');
-      
+
       expect(config.maxFileSize).toBe(20 * 1024 * 1024); // 20MB
       expect(config.maxWidth).toBe(8192);
       expect(config.maxHeight).toBe(8192);
@@ -201,7 +204,7 @@ describe('Image Validation Service Tests', () => {
       // Create a buffer with script tag
       const suspiciousBuffer = Buffer.concat([
         await createTestPNG(100, 100),
-        Buffer.from('<script>alert("hack")</script>', 'utf8')
+        Buffer.from('<script>alert("hack")</script>', 'utf8'),
       ]);
 
       const result = await ImageValidationService.validateImage(suspiciousBuffer, 'suspicious.png');

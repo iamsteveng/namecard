@@ -1,3 +1,6 @@
+import * as crypto from 'crypto';
+import * as path from 'path';
+
 import {
   S3Client,
   PutObjectCommand,
@@ -8,20 +11,20 @@ import {
   PutObjectCommandInput,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import logger from '../utils/logger.js';
+
 import { env } from '../config/env.js';
-import * as crypto from 'crypto';
-import * as path from 'path';
+import logger from '../utils/logger.js';
 
 // S3 client configuration
 const s3Client = new S3Client({
   region: env.s3.region,
-  ...(env.aws.accessKeyId && env.aws.secretAccessKey && {
-    credentials: {
-      accessKeyId: env.aws.accessKeyId,
-      secretAccessKey: env.aws.secretAccessKey,
-    },
-  }),
+  ...(env.aws.accessKeyId &&
+    env.aws.secretAccessKey && {
+      credentials: {
+        accessKeyId: env.aws.accessKeyId,
+        secretAccessKey: env.aws.secretAccessKey,
+      },
+    }),
 });
 
 export interface S3UploadResult {
@@ -75,36 +78,33 @@ export class S3Service {
   /**
    * Generate a unique S3 key for file storage
    */
-  private generateFileKey(
-    originalName: string,
-    options: S3UploadOptions = {}
-  ): string {
+  private generateFileKey(originalName: string, options: S3UploadOptions = {}): string {
     const { userId, purpose = 'storage', variant } = options;
-    
+
     // Extract file extension
     const ext = path.extname(originalName).toLowerCase();
     const basename = path.basename(originalName, ext);
-    
+
     // Generate unique identifier
     const timestamp = Date.now();
     const randomId = crypto.randomBytes(8).toString('hex');
     const uniqueId = `${timestamp}_${randomId}`;
-    
+
     // Construct key with organized folder structure
     let keyPath = 'images';
-    
+
     if (userId) {
       keyPath += `/users/${userId}`;
     }
-    
+
     keyPath += `/${purpose}`;
-    
+
     if (variant) {
       keyPath += `/${variant}`;
     }
-    
+
     keyPath += `/${uniqueId}_${basename}${ext}`;
-    
+
     return keyPath;
   }
 
@@ -117,11 +117,11 @@ export class S3Service {
     options: S3UploadOptions = {}
   ): Promise<S3UploadResult> {
     const startTime = Date.now();
-    
+
     try {
       const key = this.generateFileKey(originalName, options);
       const contentType = options.contentType || this.getContentTypeFromExtension(originalName);
-      
+
       logger.info('Starting S3 upload', {
         key,
         size: buffer.length,
@@ -137,8 +137,8 @@ export class S3Service {
         'upload-timestamp': new Date().toISOString(),
         'file-size': buffer.length.toString(),
         ...(options.userId && { 'user-id': options.userId }),
-        ...(options.purpose && { 'purpose': options.purpose }),
-        ...(options.variant && { 'variant': options.variant }),
+        ...(options.purpose && { purpose: options.purpose }),
+        ...(options.variant && { variant: options.variant }),
         ...(options.metadata || {}),
       };
 
@@ -158,9 +158,9 @@ export class S3Service {
       // Execute upload
       const command = new PutObjectCommand(uploadParams);
       const response = await s3Client.send(command);
-      
+
       const uploadTime = Date.now() - startTime;
-      
+
       // Construct file URL (prefer CDN URL if available)
       const url = this.getCDNUrl(key);
 
@@ -184,7 +184,7 @@ export class S3Service {
       return result;
     } catch (error) {
       const uploadTime = Date.now() - startTime;
-      
+
       logger.error('S3 upload failed', {
         error: error instanceof Error ? error.message : 'Unknown error',
         fileName: originalName,
@@ -192,7 +192,9 @@ export class S3Service {
         uploadTime: `${uploadTime}ms`,
       });
 
-      throw new Error(`S3 upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `S3 upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -210,8 +212,8 @@ export class S3Service {
 
     for (let i = 0; i < files.length; i += concurrencyLimit) {
       const batch = files.slice(i, i + concurrencyLimit);
-      
-      const batchPromises = batch.map(async (file) => {
+
+      const batchPromises = batch.map(async file => {
         try {
           const result = await this.uploadFile(file.buffer, file.name, file.options || {});
           return { name: file.name, result };
@@ -255,7 +257,7 @@ export class S3Service {
       });
 
       const signedUrl = await getSignedUrl(s3Client, command, { expiresIn });
-      
+
       logger.debug('Generated signed download URL', {
         key,
         expiresIn: `${expiresIn}s`,
@@ -268,7 +270,9 @@ export class S3Service {
         key,
       });
 
-      throw new Error(`Failed to generate signed download URL: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to generate signed download URL: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -298,7 +302,9 @@ export class S3Service {
         key,
       });
 
-      throw new Error(`Failed to get file info: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to get file info: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -321,17 +327,16 @@ export class S3Service {
         key,
       });
 
-      throw new Error(`Failed to delete file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to delete file: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
   /**
    * List files in a specific folder/prefix
    */
-  async listFiles(
-    prefix?: string,
-    maxKeys: number = 1000
-  ): Promise<S3FileInfo[]> {
+  async listFiles(prefix?: string, maxKeys: number = 1000): Promise<S3FileInfo[]> {
     try {
       const command = new ListObjectsV2Command({
         Bucket: this.bucketName,
@@ -361,7 +366,9 @@ export class S3Service {
         prefix,
       });
 
-      throw new Error(`Failed to list files: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to list files: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -407,7 +414,7 @@ export class S3Service {
    */
   private getContentTypeFromExtension(filename: string): string {
     const ext = path.extname(filename).toLowerCase();
-    
+
     const mimeTypes: Record<string, string> = {
       '.jpg': 'image/jpeg',
       '.jpeg': 'image/jpeg',

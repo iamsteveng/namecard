@@ -58,7 +58,9 @@ const envSchema = Joi.object({
   // Security
   RATE_LIMIT_WINDOW_MS: Joi.number().default(900000), // 15 minutes
   RATE_LIMIT_MAX_REQUESTS: Joi.number().default(100),
-  CORS_ORIGIN: Joi.string().default('http://localhost:3000,http://localhost:5173,http://localhost:8080'),
+  CORS_ORIGIN: Joi.string().default(
+    'http://localhost:3000,http://localhost:5173,http://localhost:8080'
+  ),
 
   // Logging
   LOG_LEVEL: Joi.string().valid('error', 'warn', 'info', 'debug').default('info'),
@@ -77,12 +79,21 @@ if (error) {
 
 // Construct DATABASE_URL from individual components if needed
 let databaseUrl = envVars.DATABASE_URL;
-if (!databaseUrl && envVars.DB_HOST && envVars.DB_PORT && envVars.DB_NAME && envVars.DB_USER && envVars.DB_PASS) {
+if (
+  !databaseUrl &&
+  envVars.DB_HOST &&
+  envVars.DB_PORT &&
+  envVars.DB_NAME &&
+  envVars.DB_USER &&
+  envVars.DB_PASS
+) {
   databaseUrl = `postgresql://${envVars.DB_USER}:${envVars.DB_PASS}@${envVars.DB_HOST}:${envVars.DB_PORT}/${envVars.DB_NAME}`;
 }
 
 if (!databaseUrl) {
-  throw new Error('Database configuration error: Either DATABASE_URL or individual DB_* components (DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASS) must be provided');
+  throw new Error(
+    'Database configuration error: Either DATABASE_URL or individual DB_* components (DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASS) must be provided'
+  );
 }
 
 export const env = {

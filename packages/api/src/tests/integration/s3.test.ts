@@ -1,5 +1,6 @@
-import s3Service from '../../services/s3.service.js';
 import sharp from 'sharp';
+
+import s3Service from '../../services/s3.service.js';
 
 describe('S3 Service Tests', () => {
   // Use the singleton instance directly
@@ -15,8 +16,8 @@ describe('S3 Service Tests', () => {
         width,
         height,
         channels: format === 'png' ? 4 : 3,
-        background: { r: 100, g: 150, b: 200, alpha: format === 'png' ? 1 : undefined }
-      }
+        background: { r: 100, g: 150, b: 200, alpha: format === 'png' ? 1 : undefined },
+      },
     });
 
     return format === 'png' ? image.png().toBuffer() : image.jpeg().toBuffer();
@@ -31,7 +32,7 @@ describe('S3 Service Tests', () => {
 
     it('should have correct bucket configuration', () => {
       const bucketInfo = s3Service.getBucketInfo();
-      
+
       expect(bucketInfo.name).toBeDefined();
       expect(bucketInfo.region).toBeDefined();
       expect(bucketInfo.baseUrl).toContain('s3');
@@ -42,11 +43,11 @@ describe('S3 Service Tests', () => {
   describe('Health Check', () => {
     it('should perform health check', async () => {
       const healthResult = await s3Service.healthCheck();
-      
+
       expect(healthResult).toHaveProperty('status');
       expect(healthResult).toHaveProperty('details');
       expect(['healthy', 'unhealthy']).toContain(healthResult.status);
-      
+
       if (healthResult.status === 'healthy') {
         expect(healthResult.details).toHaveProperty('bucket');
         expect(healthResult.details).toHaveProperty('region');
@@ -73,7 +74,7 @@ describe('S3 Service Tests', () => {
     it('should upload a single JPEG image', async () => {
       const imageBuffer = await createTestImage(800, 600, 'jpeg');
       const originalName = 'test-image.jpg';
-      
+
       const result = await s3Service.uploadFile(imageBuffer, originalName, {
         userId: 'test-user-123',
         purpose: 'storage',
@@ -95,7 +96,7 @@ describe('S3 Service Tests', () => {
       expect(result.metadata).toMatchObject({
         'original-name': originalName,
         'user-id': 'test-user-123',
-        'purpose': 'storage',
+        purpose: 'storage',
         'file-size': imageBuffer.length.toString(),
       });
     }, 15000);
@@ -103,7 +104,7 @@ describe('S3 Service Tests', () => {
     it('should upload a PNG image with variant', async () => {
       const imageBuffer = await createTestImage(400, 400, 'png');
       const originalName = 'avatar.png';
-      
+
       const result = await s3Service.uploadFile(imageBuffer, originalName, {
         userId: 'test-user-456',
         purpose: 'avatar',
@@ -123,7 +124,7 @@ describe('S3 Service Tests', () => {
     it('should upload file without user ID', async () => {
       const imageBuffer = await createTestImage(600, 400, 'jpeg');
       const originalName = 'public-image.jpg';
-      
+
       const result = await s3Service.uploadFile(imageBuffer, originalName, {
         purpose: 'web-display',
         contentType: 'image/jpeg',
@@ -139,13 +140,13 @@ describe('S3 Service Tests', () => {
     it('should upload file with custom metadata', async () => {
       const imageBuffer = await createTestImage(300, 200, 'jpeg');
       const originalName = 'business-card.jpg';
-      
+
       const customMetadata = {
         'card-type': 'business',
         'extraction-confidence': '95.5',
         'processing-version': '1.0',
       };
-      
+
       const result = await s3Service.uploadFile(imageBuffer, originalName, {
         userId: 'test-user-789',
         purpose: 'ocr',
@@ -158,7 +159,7 @@ describe('S3 Service Tests', () => {
       expect(result.metadata).toMatchObject({
         'original-name': originalName,
         'user-id': 'test-user-789',
-        'purpose': 'ocr',
+        purpose: 'ocr',
         ...customMetadata,
       });
     }, 15000);
@@ -166,7 +167,7 @@ describe('S3 Service Tests', () => {
     it('should handle upload errors gracefully', async () => {
       // Test with invalid buffer
       const invalidBuffer = Buffer.alloc(0);
-      
+
       await expect(
         s3Service.uploadFile(invalidBuffer, 'empty.jpg', {
           contentType: 'image/jpeg',
@@ -220,7 +221,7 @@ describe('S3 Service Tests', () => {
 
       expect(results).toHaveLength(3);
       expect(results.every(r => r.result && !r.error)).toBe(true);
-      
+
       results.forEach((result, index) => {
         expect(result.name).toBe(files[index].name);
         expect(result.result?.key).toContain(`${files[index].options.purpose}/`);
@@ -314,9 +315,9 @@ describe('S3 Service Tests', () => {
     it('should handle file info for non-existent file', async () => {
       const nonExistentKey = 'non-existent-file.jpg';
 
-      await expect(
-        s3Service.getFileInfo(nonExistentKey)
-      ).rejects.toThrow('Failed to get file info');
+      await expect(s3Service.getFileInfo(nonExistentKey)).rejects.toThrow(
+        'Failed to get file info'
+      );
     });
   });
 
@@ -326,7 +327,7 @@ describe('S3 Service Tests', () => {
     beforeAll(async () => {
       // Upload multiple test files with the same prefix
       const prefix = 'test-listing';
-      
+
       for (let i = 1; i <= 3; i++) {
         const imageBuffer = await createTestImage(200, 200, 'jpeg');
         const result = await s3Service.uploadFile(imageBuffer, `${prefix}-${i}.jpg`, {
@@ -353,7 +354,7 @@ describe('S3 Service Tests', () => {
       const files = await s3Service.listFiles(prefix, 10);
 
       expect(files.length).toBeGreaterThanOrEqual(3);
-      
+
       files.forEach(file => {
         expect(file.key).toContain(prefix);
         expect(file.size).toBeGreaterThan(0);
@@ -372,35 +373,35 @@ describe('S3 Service Tests', () => {
   describe('Content Type Detection', () => {
     it('should detect JPEG content type', async () => {
       const imageBuffer = await createTestImage(100, 100, 'jpeg');
-      
+
       const result = await s3Service.uploadFile(imageBuffer, 'test.jpg');
-      
+
       expect(result.contentType).toBe('image/jpeg');
-      
+
       // Cleanup
       await s3Service.deleteFile(result.key);
     }, 10000);
 
     it('should detect PNG content type', async () => {
       const imageBuffer = await createTestImage(100, 100, 'png');
-      
+
       const result = await s3Service.uploadFile(imageBuffer, 'test.png');
-      
+
       expect(result.contentType).toBe('image/png');
-      
+
       // Cleanup
       await s3Service.deleteFile(result.key);
     }, 10000);
 
     it('should use provided content type', async () => {
       const imageBuffer = await createTestImage(100, 100, 'jpeg');
-      
+
       const result = await s3Service.uploadFile(imageBuffer, 'test.unknown', {
         contentType: 'image/webp',
       });
-      
+
       expect(result.contentType).toBe('image/webp');
-      
+
       // Cleanup
       await s3Service.deleteFile(result.key);
     }, 10000);
@@ -417,13 +418,11 @@ describe('S3 Service Tests', () => {
     it('should handle invalid keys in operations', async () => {
       const invalidKey = 'invalid/key/that/does/not/exist.jpg';
 
-      await expect(
-        s3Service.getFileInfo(invalidKey)
-      ).rejects.toThrow('Failed to get file info');
+      await expect(s3Service.getFileInfo(invalidKey)).rejects.toThrow('Failed to get file info');
 
-      await expect(
-        s3Service.getSignedDownloadUrl(invalidKey)
-      ).rejects.toThrow('Failed to generate signed download URL');
+      await expect(s3Service.getSignedDownloadUrl(invalidKey)).rejects.toThrow(
+        'Failed to generate signed download URL'
+      );
     });
   });
 });

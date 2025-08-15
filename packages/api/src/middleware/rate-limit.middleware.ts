@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+
 import { env } from '../config/env.js';
 import logger from '../utils/logger.js';
 
@@ -16,14 +17,16 @@ class InMemoryRateLimitStore {
 
   get(key: string): { count: number; resetTime: number } | null {
     const record = this.store[key];
-    if (!record) return null;
-    
+    if (!record) {
+      return null;
+    }
+
     // Clean up expired records
     if (Date.now() > record.resetTime) {
       delete this.store[key];
       return null;
     }
-    
+
     return record;
   }
 
@@ -38,7 +41,7 @@ class InMemoryRateLimitStore {
       this.set(key, 1, resetTime);
       return 1;
     }
-    
+
     record.count++;
     this.store[key] = record;
     return record.count;
@@ -62,9 +65,12 @@ const store = new InMemoryRateLimitStore();
 let cleanupInterval: NodeJS.Timeout | null = null;
 
 if (process.env['NODE_ENV'] !== 'test') {
-  cleanupInterval = setInterval(() => {
-    store.cleanup();
-  }, 10 * 60 * 1000);
+  cleanupInterval = setInterval(
+    () => {
+      store.cleanup();
+    },
+    10 * 60 * 1000
+  );
 }
 
 // Export cleanup function for test teardown
@@ -97,7 +103,7 @@ export const rateLimit = (options: RateLimitOptions = {}) => {
     const key = keyGenerator(req);
     const currentCount = store.increment(key);
     const record = store.get(key);
-    
+
     if (!record) {
       next();
       return;
@@ -135,16 +141,16 @@ export const rateLimit = (options: RateLimitOptions = {}) => {
     // Handle response to potentially skip counting
     if (skipSuccessfulRequests || skipFailedRequests) {
       const originalJson = res.json.bind(res);
-      res.json = function(body: any) {
-        const shouldSkip = 
+      res.json = function (body: any) {
+        const shouldSkip =
           (skipSuccessfulRequests && res.statusCode < 400) ||
           (skipFailedRequests && res.statusCode >= 400);
-        
+
         if (shouldSkip && record) {
           record.count = Math.max(0, record.count - 1);
           store.set(key, record.count, record.resetTime);
         }
-        
+
         return originalJson(body);
       };
     }

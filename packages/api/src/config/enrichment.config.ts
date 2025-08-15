@@ -1,13 +1,13 @@
 /**
  * Enrichment Configuration
- * 
+ *
  * Configuration for company data enrichment sources and settings
  */
 
-import { 
-  EnrichmentSourceConfig, 
+import {
+  EnrichmentSourceConfig,
   EnrichmentSettings,
-  EnrichmentSource 
+  EnrichmentSource,
 } from '@namecard/shared/types/enrichment.types';
 
 /**
@@ -24,13 +24,13 @@ export function loadEnrichmentSourceConfigs(): EnrichmentSourceConfig[] {
     baseUrl: process.env.CLEARBIT_BASE_URL || 'https://company-stream.clearbit.com/v2',
     rateLimit: {
       requestsPerMinute: parseInt(process.env.CLEARBIT_RATE_LIMIT_RPM || '100'),
-      requestsPerDay: parseInt(process.env.CLEARBIT_RATE_LIMIT_RPD || '1000')
+      requestsPerDay: parseInt(process.env.CLEARBIT_RATE_LIMIT_RPD || '1000'),
     },
     timeout: parseInt(process.env.CLEARBIT_TIMEOUT || '10000'),
     retryConfig: {
       maxRetries: parseInt(process.env.CLEARBIT_MAX_RETRIES || '3'),
-      backoffMs: parseInt(process.env.CLEARBIT_BACKOFF_MS || '1000')
-    }
+      backoffMs: parseInt(process.env.CLEARBIT_BACKOFF_MS || '1000'),
+    },
   };
   configs.push(clearbitConfig);
 
@@ -42,13 +42,13 @@ export function loadEnrichmentSourceConfigs(): EnrichmentSourceConfig[] {
     baseUrl: process.env.LINKEDIN_BASE_URL || 'https://api.linkedin.com/v2',
     rateLimit: {
       requestsPerMinute: parseInt(process.env.LINKEDIN_RATE_LIMIT_RPM || '60'),
-      requestsPerDay: parseInt(process.env.LINKEDIN_RATE_LIMIT_RPD || '500')
+      requestsPerDay: parseInt(process.env.LINKEDIN_RATE_LIMIT_RPD || '500'),
     },
     timeout: parseInt(process.env.LINKEDIN_TIMEOUT || '15000'),
     retryConfig: {
       maxRetries: parseInt(process.env.LINKEDIN_MAX_RETRIES || '2'),
-      backoffMs: parseInt(process.env.LINKEDIN_BACKOFF_MS || '2000')
-    }
+      backoffMs: parseInt(process.env.LINKEDIN_BACKOFF_MS || '2000'),
+    },
   };
   configs.push(linkedinConfig);
 
@@ -60,13 +60,13 @@ export function loadEnrichmentSourceConfigs(): EnrichmentSourceConfig[] {
     baseUrl: process.env.CRUNCHBASE_BASE_URL || 'https://api.crunchbase.com/api/v4',
     rateLimit: {
       requestsPerMinute: parseInt(process.env.CRUNCHBASE_RATE_LIMIT_RPM || '200'),
-      requestsPerDay: parseInt(process.env.CRUNCHBASE_RATE_LIMIT_RPD || '5000')
+      requestsPerDay: parseInt(process.env.CRUNCHBASE_RATE_LIMIT_RPD || '5000'),
     },
     timeout: parseInt(process.env.CRUNCHBASE_TIMEOUT || '12000'),
     retryConfig: {
       maxRetries: parseInt(process.env.CRUNCHBASE_MAX_RETRIES || '3'),
-      backoffMs: parseInt(process.env.CRUNCHBASE_BACKOFF_MS || '1500')
-    }
+      backoffMs: parseInt(process.env.CRUNCHBASE_BACKOFF_MS || '1500'),
+    },
   };
   configs.push(crunchbaseConfig);
 
@@ -78,13 +78,13 @@ export function loadEnrichmentSourceConfigs(): EnrichmentSourceConfig[] {
     baseUrl: process.env.PERPLEXITY_BASE_URL || 'https://api.perplexity.ai',
     rateLimit: {
       requestsPerMinute: parseInt(process.env.PERPLEXITY_RATE_LIMIT_RPM || '60'), // Conservative rate limit
-      requestsPerDay: parseInt(process.env.PERPLEXITY_RATE_LIMIT_RPD || '1000')
+      requestsPerDay: parseInt(process.env.PERPLEXITY_RATE_LIMIT_RPD || '1000'),
     },
     timeout: parseInt(process.env.PERPLEXITY_TIMEOUT || '30000'), // 30 seconds for research
     retryConfig: {
       maxRetries: parseInt(process.env.PERPLEXITY_MAX_RETRIES || '2'),
-      backoffMs: parseInt(process.env.PERPLEXITY_BACKOFF_MS || '3000')
-    }
+      backoffMs: parseInt(process.env.PERPLEXITY_BACKOFF_MS || '3000'),
+    },
   };
   configs.push(perplexityConfig);
 
@@ -107,33 +107,33 @@ export function loadEnrichmentSettings(): EnrichmentSettings {
     retryFailedJobsAfterMs: parseInt(process.env.ENRICHMENT_RETRY_DELAY || '300000'), // 5 minutes
     cleanupCompletedJobsAfterMs: parseInt(process.env.ENRICHMENT_CLEANUP_DELAY || '86400000'), // 24 hours
     defaultConfidenceThreshold: parseFloat(process.env.ENRICHMENT_MIN_CONFIDENCE || '0.7'),
-    
+
     sourcePreferences: {
       clearbit: {
         weight: parseFloat(process.env.CLEARBIT_WEIGHT || '1.0'),
-        trustLevel: parseInt(process.env.CLEARBIT_TRUST_LEVEL || '90')
+        trustLevel: parseInt(process.env.CLEARBIT_TRUST_LEVEL || '90'),
       },
       linkedin: {
         weight: parseFloat(process.env.LINKEDIN_WEIGHT || '0.9'),
-        trustLevel: parseInt(process.env.LINKEDIN_TRUST_LEVEL || '95')
+        trustLevel: parseInt(process.env.LINKEDIN_TRUST_LEVEL || '95'),
       },
       crunchbase: {
         weight: parseFloat(process.env.CRUNCHBASE_WEIGHT || '0.8'),
-        trustLevel: parseInt(process.env.CRUNCHBASE_TRUST_LEVEL || '85')
+        trustLevel: parseInt(process.env.CRUNCHBASE_TRUST_LEVEL || '85'),
       },
       manual: {
         weight: parseFloat(process.env.MANUAL_WEIGHT || '1.0'),
-        trustLevel: parseInt(process.env.MANUAL_TRUST_LEVEL || '100')
+        trustLevel: parseInt(process.env.MANUAL_TRUST_LEVEL || '100'),
       },
       opencorporates: {
         weight: parseFloat(process.env.OPENCORPORATES_WEIGHT || '0.7'),
-        trustLevel: parseInt(process.env.OPENCORPORATES_TRUST_LEVEL || '80')
+        trustLevel: parseInt(process.env.OPENCORPORATES_TRUST_LEVEL || '80'),
       },
       perplexity: {
         weight: parseFloat(process.env.PERPLEXITY_WEIGHT || '0.9'),
-        trustLevel: parseInt(process.env.PERPLEXITY_TRUST_LEVEL || '88')
-      }
-    }
+        trustLevel: parseInt(process.env.PERPLEXITY_TRUST_LEVEL || '88'),
+      },
+    },
   };
 }
 
@@ -141,7 +141,7 @@ export function loadEnrichmentSettings(): EnrichmentSettings {
  * Validate enrichment configuration
  */
 export function validateEnrichmentConfig(
-  sourceConfigs: EnrichmentSourceConfig[], 
+  sourceConfigs: EnrichmentSourceConfig[],
   settings: EnrichmentSettings
 ): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
@@ -157,7 +157,7 @@ export function validateEnrichmentConfig(
     if (!config.apiKey && config.source !== 'manual') {
       errors.push(`Missing API key for ${config.source}`);
     }
-    
+
     if (!config.baseUrl) {
       errors.push(`Missing base URL for ${config.source}`);
     }
@@ -199,7 +199,7 @@ export function validateEnrichmentConfig(
 
   return {
     valid: errors.length === 0,
-    errors
+    errors,
   };
 }
 
@@ -218,14 +218,14 @@ export function getDefaultDevConfig(): {
       baseUrl: 'https://company-stream.clearbit.com/v2',
       rateLimit: {
         requestsPerMinute: 10,
-        requestsPerDay: 100
+        requestsPerDay: 100,
       },
       timeout: 5000,
       retryConfig: {
         maxRetries: 2,
-        backoffMs: 1000
-      }
-    }
+        backoffMs: 1000,
+      },
+    },
   ];
 
   const settings: EnrichmentSettings = {
@@ -242,8 +242,8 @@ export function getDefaultDevConfig(): {
       crunchbase: { weight: 0.8, trustLevel: 85 },
       manual: { weight: 1.0, trustLevel: 100 },
       opencorporates: { weight: 0.7, trustLevel: 80 },
-      perplexity: { weight: 0.9, trustLevel: 88 }
-    }
+      perplexity: { weight: 0.9, trustLevel: 88 },
+    },
   };
 
   return { sourceConfigs, settings };

@@ -1,32 +1,33 @@
 /**
  * Clearbit Enrichment Service
- * 
+ *
  * Implements company data enrichment using Clearbit API
  */
 
-import axios, { AxiosInstance } from 'axios';
-import { PrismaClient } from '@prisma/client';
-import { BaseEnrichmentService } from './base-enrichment.service';
-import { 
+import {
   EnrichCompanyRequest,
   CompanyEnrichmentData,
   ClearbitCompanyResponse,
-  EnrichmentSourceConfig
+  EnrichmentSourceConfig,
 } from '@namecard/shared/types/enrichment.types';
+import { PrismaClient } from '@prisma/client';
+import axios, { AxiosInstance } from 'axios';
+
+import { BaseEnrichmentService } from './base-enrichment.service';
 
 export class ClearbitEnrichmentService extends BaseEnrichmentService {
   private client: AxiosInstance;
 
   constructor(prisma: PrismaClient, config: EnrichmentSourceConfig) {
     super(prisma, 'clearbit', config);
-    
+
     this.client = axios.create({
       baseURL: config.baseUrl || 'https://company-stream.clearbit.com/v2',
       timeout: config.timeout || 10000,
       headers: {
-        'Authorization': `Bearer ${config.apiKey}`,
+        Authorization: `Bearer ${config.apiKey}`,
         'Content-Type': 'application/json',
-      }
+      },
     });
 
     // Add request interceptor for rate limiting
@@ -41,28 +42,27 @@ export class ClearbitEnrichmentService extends BaseEnrichmentService {
     try {
       // Clearbit requires domain for company lookup
       const domain = request.domain || this.extractDomainFromWebsite(request.website);
-      
+
       if (!domain) {
         throw new Error('Domain is required for Clearbit enrichment');
       }
 
       const response = await this.client.get<ClearbitCompanyResponse>(`/companies/find`, {
-        params: { domain }
+        params: { domain },
       });
 
       const clearbitData = response.data;
-      
-      return this.transformClearbitData(clearbitData);
 
+      return this.transformClearbitData(clearbitData);
     } catch (error: any) {
       if (error.response?.status === 404) {
         // Company not found in Clearbit - return empty data with low confidence
         return {
           confidence: 0,
-          lastUpdated: new Date()
+          lastUpdated: new Date(),
         };
       }
-      
+
       throw error;
     }
   }
@@ -72,7 +72,7 @@ export class ClearbitEnrichmentService extends BaseEnrichmentService {
    */
   private transformClearbitData(data: ClearbitCompanyResponse): CompanyEnrichmentData {
     const confidence = this.calculateConfidence(data);
-    
+
     return {
       name: data.name,
       domain: data.domain,
@@ -87,12 +87,16 @@ export class ClearbitEnrichmentService extends BaseEnrichmentService {
       annualRevenue: data.metrics?.estimatedAnnualRevenue,
       technologies: data.tech || [],
       keywords: data.tags || [],
-      linkedinUrl: data.linkedin?.handle ? `https://linkedin.com/company/${data.linkedin.handle}` : undefined,
+      linkedinUrl: data.linkedin?.handle
+        ? `https://linkedin.com/company/${data.linkedin.handle}`
+        : undefined,
       twitterHandle: data.twitter?.handle,
-      facebookUrl: data.facebook?.handle ? `https://facebook.com/${data.facebook.handle}` : undefined,
+      facebookUrl: data.facebook?.handle
+        ? `https://facebook.com/${data.facebook.handle}`
+        : undefined,
       logoUrl: data.logo,
       confidence,
-      lastUpdated: new Date()
+      lastUpdated: new Date(),
     };
   }
 
@@ -109,7 +113,7 @@ export class ClearbitEnrichmentService extends BaseEnrichmentService {
       { field: data.domain, weight: 15 },
       { field: data.description, weight: 10 },
       { field: data.category?.industry, weight: 10 },
-      { field: data.logo, weight: 8 }
+      { field: data.logo, weight: 8 },
     ];
 
     // Additional fields (lower weight)
@@ -121,7 +125,7 @@ export class ClearbitEnrichmentService extends BaseEnrichmentService {
       { field: data.linkedin?.handle, weight: 3 },
       { field: data.twitter?.handle, weight: 3 },
       { field: data.tech?.length, weight: 2 },
-      { field: data.tags?.length, weight: 2 }
+      { field: data.tags?.length, weight: 2 },
     ];
 
     const allFields = [...coreFields, ...additionalFields];
@@ -140,12 +144,20 @@ export class ClearbitEnrichmentService extends BaseEnrichmentService {
    * Format geographic location from Clearbit geo data
    */
   private formatLocation(geo?: ClearbitCompanyResponse['geo']): string | undefined {
-    if (!geo) return undefined;
+    if (!geo) {
+      return undefined;
+    }
 
     const parts = [];
-    if (geo.city) parts.push(geo.city);
-    if (geo.state) parts.push(geo.state);
-    if (geo.country) parts.push(geo.country);
+    if (geo.city) {
+      parts.push(geo.city);
+    }
+    if (geo.state) {
+      parts.push(geo.state);
+    }
+    if (geo.country) {
+      parts.push(geo.country);
+    }
 
     return parts.length > 0 ? parts.join(', ') : undefined;
   }
@@ -154,7 +166,9 @@ export class ClearbitEnrichmentService extends BaseEnrichmentService {
    * Extract domain from website URL
    */
   private extractDomainFromWebsite(website?: string): string | undefined {
-    if (!website) return undefined;
+    if (!website) {
+      return undefined;
+    }
 
     try {
       const url = new URL(website.startsWith('http') ? website : `https://${website}`);
@@ -169,14 +183,16 @@ export class ClearbitEnrichmentService extends BaseEnrichmentService {
    */
   private setupRateLimiting(): void {
     const rateLimit = this.config.rateLimit;
-    if (!rateLimit) return;
+    if (!rateLimit) {
+      return;
+    }
 
     let requestCount = 0;
     let resetTime = Date.now() + 60 * 1000; // Reset every minute
 
-    this.client.interceptors.request.use((config) => {
+    this.client.interceptors.request.use(config => {
       const now = Date.now();
-      
+
       // Reset counter if time window has passed
       if (now > resetTime) {
         requestCount = 0;
@@ -195,8 +211,8 @@ export class ClearbitEnrichmentService extends BaseEnrichmentService {
 
     // Handle rate limit responses
     this.client.interceptors.response.use(
-      (response) => response,
-      (error) => {
+      response => response,
+      error => {
         if (error.response?.status === 429) {
           const retryAfter = error.response.headers['retry-after'];
           if (retryAfter) {

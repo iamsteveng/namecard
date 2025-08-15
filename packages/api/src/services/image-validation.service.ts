@@ -1,4 +1,5 @@
 import sharp from 'sharp';
+
 import { AppError } from '../middleware/error.middleware.js';
 import logger from '../utils/logger.js';
 
@@ -134,7 +135,7 @@ export class ImageValidationService {
         );
       }
 
-      if (validationConfig.maxAspectRatio && (1 / aspectRatio) > validationConfig.maxAspectRatio) {
+      if (validationConfig.maxAspectRatio && 1 / aspectRatio > validationConfig.maxAspectRatio) {
         result.errors.push(
           `Image aspect ratio 1:${(1 / aspectRatio).toFixed(2)} exceeds maximum allowed ratio of 1:${validationConfig.maxAspectRatio}`
         );
@@ -155,13 +156,16 @@ export class ImageValidationService {
       }
 
       // Warn about very high resolution images
-      if (width * height > 16 * 1024 * 1024) { // 16MP
+      if (width * height > 16 * 1024 * 1024) {
+        // 16MP
         result.warnings.push('Very high resolution image may require significant processing time');
       }
 
       // Warn about unusual color spaces
       if (metadata.space && !['srgb', 'rgb'].includes(metadata.space.toLowerCase())) {
-        result.warnings.push(`Unusual color space detected: ${metadata.space}. Image may be converted to sRGB`);
+        result.warnings.push(
+          `Unusual color space detected: ${metadata.space}. Image may be converted to sRGB`
+        );
       }
 
       // Step 8: Security checks
@@ -192,7 +196,6 @@ export class ImageValidationService {
       });
 
       return result;
-
     } catch (error) {
       logger.error('Image validation failed', {
         fileName: originalName,
@@ -213,7 +216,7 @@ export class ImageValidationService {
     config: Partial<ImageValidationConfig> = {}
   ): Promise<{ results: ImageValidationResult[]; overallValid: boolean; summary: string }> {
     const validationConfig = { ...this.DEFAULT_CONFIG, ...config };
-    
+
     // Check file count limit
     if (files.length > validationConfig.maxFiles) {
       throw new AppError(
@@ -231,7 +234,7 @@ export class ImageValidationService {
     for (const file of files) {
       const result = await this.validateImage(file.buffer, file.originalName, config);
       results.push(result);
-      
+
       if (result.isValid) {
         totalValid++;
       }
@@ -269,7 +272,7 @@ export class ImageValidationService {
     try {
       // Check 1: Look for suspicious file signatures in header only (first 512 bytes)
       const header = buffer.subarray(0, Math.min(512, buffer.length));
-      
+
       // Check for embedded scripts or suspicious patterns only in header/metadata areas
       // This reduces false positives from binary image data
       const suspiciousPatterns = [
@@ -285,10 +288,15 @@ export class ImageValidationService {
         const headerToCheck = buffer.subarray(0, Math.min(512, buffer.length));
         for (const pattern of suspiciousPatterns) {
           if (headerToCheck.includes(pattern)) {
-            result.warnings.push('Potential suspicious pattern detected in image header (likely false positive for business card)');
-            logger.debug('Suspicious pattern detected in business card image header (lenient mode)', {
-              pattern: pattern.toString(),
-            });
+            result.warnings.push(
+              'Potential suspicious pattern detected in image header (likely false positive for business card)'
+            );
+            logger.debug(
+              'Suspicious pattern detected in business card image header (lenient mode)',
+              {
+                pattern: pattern.toString(),
+              }
+            );
             break; // Only warn once
           }
         }
@@ -297,7 +305,9 @@ export class ImageValidationService {
         const headerToCheck = buffer.subarray(0, Math.min(1024, buffer.length));
         for (const pattern of suspiciousPatterns) {
           if (headerToCheck.includes(pattern)) {
-            result.warnings.push('Potential suspicious pattern detected in image header (may be false positive)');
+            result.warnings.push(
+              'Potential suspicious pattern detected in image header (may be false positive)'
+            );
             logger.warn('Suspicious pattern detected in image header', {
               pattern: pattern.toString(),
             });
@@ -316,22 +326,23 @@ export class ImageValidationService {
 
       // Check 2: Validate file signature matches format
       const formatSignatures: Record<string, Buffer[]> = {
-        jpeg: [Buffer.from([0xFF, 0xD8, 0xFF])],
-        png: [Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])],
+        jpeg: [Buffer.from([0xff, 0xd8, 0xff])],
+        png: [Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])],
         gif: [Buffer.from('GIF87a', 'ascii'), Buffer.from('GIF89a', 'ascii')],
-        bmp: [Buffer.from([0x42, 0x4D])],
+        bmp: [Buffer.from([0x42, 0x4d])],
         webp: [Buffer.from('WEBP', 'ascii')],
       };
 
       if (metadata.format && formatSignatures[metadata.format]) {
         const expectedSignatures = formatSignatures[metadata.format];
-        const matchesSignature = expectedSignatures.some(sig => 
-          buffer.subarray(0, sig.length).equals(sig) || 
-          buffer.includes(sig)
+        const matchesSignature = expectedSignatures.some(
+          sig => buffer.subarray(0, sig.length).equals(sig) || buffer.includes(sig)
         );
 
         if (!matchesSignature) {
-          result.warnings.push(`File signature doesn't match expected format for ${metadata.format}`);
+          result.warnings.push(
+            `File signature doesn't match expected format for ${metadata.format}`
+          );
         }
       }
 
@@ -339,7 +350,7 @@ export class ImageValidationService {
       if (metadata.width && metadata.height) {
         const pixelCount = metadata.width * metadata.height;
         const bytesPerPixel = buffer.length / pixelCount;
-        
+
         // Warn if compression seems unusual (too high or too low)
         if (bytesPerPixel < 0.1) {
           result.warnings.push('Unusually high compression detected');
@@ -347,7 +358,6 @@ export class ImageValidationService {
           result.warnings.push('Unusually low compression detected');
         }
       }
-
     } catch (error) {
       logger.warn('Security check failed', {
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -359,7 +369,9 @@ export class ImageValidationService {
   /**
    * Get validation config for different use cases
    */
-  static getConfigForUseCase(useCase: 'business-card' | 'profile-avatar' | 'document' | 'general'): ImageValidationConfig {
+  static getConfigForUseCase(
+    useCase: 'business-card' | 'profile-avatar' | 'document' | 'general'
+  ): ImageValidationConfig {
     const baseConfig = { ...this.DEFAULT_CONFIG };
 
     switch (useCase) {

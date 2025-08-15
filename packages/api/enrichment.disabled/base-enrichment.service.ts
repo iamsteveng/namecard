@@ -1,29 +1,25 @@
 /**
  * Base Enrichment Service
- * 
+ *
  * Core service for managing multi-source company data enrichment
  */
 
-import { PrismaClient } from '@prisma/client';
-import { 
-  EnrichmentSource, 
-  EnrichmentStatus, 
-  CompanyEnrichmentData, 
+import {
+  EnrichmentSource,
+  EnrichmentStatus,
+  CompanyEnrichmentData,
   EnrichCompanyRequest,
   EnrichCompanyResponse,
-  EnrichmentSourceConfig
+  EnrichmentSourceConfig,
 } from '@namecard/shared/types/enrichment.types';
+import { PrismaClient } from '@prisma/client';
 
 export abstract class BaseEnrichmentService {
   protected prisma: PrismaClient;
   protected source: EnrichmentSource;
   protected config: EnrichmentSourceConfig;
 
-  constructor(
-    prisma: PrismaClient, 
-    source: EnrichmentSource, 
-    config: EnrichmentSourceConfig
-  ) {
+  constructor(prisma: PrismaClient, source: EnrichmentSource, config: EnrichmentSourceConfig) {
     this.prisma = prisma;
     this.source = source;
     this.config = config;
@@ -51,7 +47,7 @@ export abstract class BaseEnrichmentService {
    */
   async enrichCompany(request: EnrichCompanyRequest): Promise<EnrichCompanyResponse> {
     const startTime = Date.now();
-    
+
     try {
       // Check if source is enabled
       if (!this.isEnabled()) {
@@ -59,13 +55,13 @@ export abstract class BaseEnrichmentService {
           code: 'SOURCE_DISABLED',
           message: `Enrichment source ${this.source} is disabled or misconfigured`,
           source: this.source,
-          retryable: false
+          retryable: false,
         });
       }
 
       // Find or create company record
       const company = await this.findOrCreateCompany(request);
-      
+
       // Check if we need to refresh data
       const existingEnrichment = await this.getExistingEnrichment(company.id);
       if (existingEnrichment && !request.forceRefresh && this.isDataFresh(existingEnrichment)) {
@@ -74,10 +70,10 @@ export abstract class BaseEnrichmentService {
 
       // Perform enrichment
       const enrichmentData = await this.enrichCompanyData(request);
-      
+
       // Save enrichment results
       await this.saveEnrichmentResults(company.id, enrichmentData, 'enriched');
-      
+
       // Update company with merged data
       const updatedCompany = await this.updateCompanyWithEnrichedData(company.id, enrichmentData);
 
@@ -90,15 +86,14 @@ export abstract class BaseEnrichmentService {
             status: 'enriched' as EnrichmentStatus,
             confidence: enrichmentData.confidence || 0,
             dataPoints: this.countDataPoints(enrichmentData),
-          }
+          },
         },
         overallConfidence: enrichmentData.confidence || 0,
-        processingTimeMs: Date.now() - startTime
+        processingTimeMs: Date.now() - startTime,
       };
-
     } catch (error) {
       const enrichmentError = this.handleError(error);
-      
+
       // Try to save error state if we have a company
       if (request.companyName || request.domain) {
         try {
@@ -118,11 +113,11 @@ export abstract class BaseEnrichmentService {
             status: 'failed' as EnrichmentStatus,
             confidence: 0,
             dataPoints: 0,
-            error: enrichmentError.message
-          }
+            error: enrichmentError.message,
+          },
         },
         overallConfidence: 0,
-        processingTimeMs: Date.now() - startTime
+        processingTimeMs: Date.now() - startTime,
       };
     }
   }
@@ -134,26 +129,33 @@ export abstract class BaseEnrichmentService {
     // Try to find by domain first
     if (request.domain) {
       const existing = await this.prisma.company.findUnique({
-        where: { domain: request.domain }
+        where: { domain: request.domain },
       });
-      if (existing) return existing;
+      if (existing) {
+        return existing;
+      }
     }
 
     // Try to find by name
     if (request.companyName) {
       const existing = await this.prisma.company.findUnique({
-        where: { name: request.companyName }
+        where: { name: request.companyName },
       });
-      if (existing) return existing;
+      if (existing) {
+        return existing;
+      }
     }
 
     // Create new company
     return await this.prisma.company.create({
       data: {
-        name: request.companyName || this.extractCompanyNameFromDomain(request.domain) || 'Unknown Company',
+        name:
+          request.companyName ||
+          this.extractCompanyNameFromDomain(request.domain) ||
+          'Unknown Company',
         domain: request.domain,
         website: request.website,
-      }
+      },
     });
   }
 
@@ -165,9 +167,9 @@ export abstract class BaseEnrichmentService {
       where: {
         companyId_source: {
           companyId,
-          source: this.source
-        }
-      }
+          source: this.source,
+        },
+      },
     });
   }
 
@@ -175,11 +177,13 @@ export abstract class BaseEnrichmentService {
    * Check if existing enrichment data is still fresh
    */
   protected isDataFresh(enrichment: any): boolean {
-    if (!enrichment.enrichedAt) return false;
-    
+    if (!enrichment.enrichedAt) {
+      return false;
+    }
+
     const ageMs = Date.now() - enrichment.enrichedAt.getTime();
     const maxAgeMs = 7 * 24 * 60 * 60 * 1000; // 7 days
-    
+
     return ageMs < maxAgeMs;
   }
 
@@ -187,8 +191,8 @@ export abstract class BaseEnrichmentService {
    * Save enrichment results to database
    */
   protected async saveEnrichmentResults(
-    companyId: string, 
-    data: CompanyEnrichmentData | null, 
+    companyId: string,
+    data: CompanyEnrichmentData | null,
     status: EnrichmentStatus,
     errorMessage?: string
   ) {
@@ -196,8 +200,8 @@ export abstract class BaseEnrichmentService {
       where: {
         companyId_source: {
           companyId,
-          source: this.source
-        }
+          source: this.source,
+        },
       },
       create: {
         companyId,
@@ -215,7 +219,7 @@ export abstract class BaseEnrichmentService {
         enrichedAt: status === 'enriched' ? new Date() : undefined,
         errorMessage,
         retryCount: status === 'failed' ? { increment: 1 } : undefined,
-      }
+      },
     });
   }
 
@@ -225,7 +229,7 @@ export abstract class BaseEnrichmentService {
   protected async updateCompanyWithEnrichedData(companyId: string, data: CompanyEnrichmentData) {
     // Get current company data to merge
     const currentCompany = await this.prisma.company.findUnique({
-      where: { id: companyId }
+      where: { id: companyId },
     });
 
     if (!currentCompany) {
@@ -241,7 +245,7 @@ export abstract class BaseEnrichmentService {
         ...mergedData,
         lastEnrichmentDate: new Date(),
         overallEnrichmentScore: data.confidence || 0,
-      }
+      },
     });
   }
 
@@ -280,27 +284,42 @@ export abstract class BaseEnrichmentService {
   }
 
   protected extractCompanyNameFromDomain(domain?: string): string | null {
-    if (!domain) return null;
-    
+    if (!domain) {
+      return null;
+    }
+
     // Remove www. and extract company name
     const cleanDomain = domain.replace(/^www\./, '');
     const parts = cleanDomain.split('.');
-    
+
     if (parts.length > 0) {
       // Capitalize first letter
       const name = parts[0];
       return name.charAt(0).toUpperCase() + name.slice(1);
     }
-    
+
     return null;
   }
 
   protected countDataPoints(data: CompanyEnrichmentData): number {
     let count = 0;
     const fields = [
-      'name', 'domain', 'website', 'description', 'industry', 'headquarters',
-      'location', 'size', 'employeeCount', 'founded', 'annualRevenue', 'funding',
-      'linkedinUrl', 'twitterHandle', 'facebookUrl', 'logoUrl'
+      'name',
+      'domain',
+      'website',
+      'description',
+      'industry',
+      'headquarters',
+      'location',
+      'size',
+      'employeeCount',
+      'founded',
+      'annualRevenue',
+      'funding',
+      'linkedinUrl',
+      'twitterHandle',
+      'facebookUrl',
+      'logoUrl',
     ];
 
     for (const field of fields) {
@@ -310,15 +329,23 @@ export abstract class BaseEnrichmentService {
     }
 
     // Count array fields
-    if (data.technologies?.length) count += data.technologies.length;
-    if (data.keywords?.length) count += data.keywords.length;
+    if (data.technologies?.length) {
+      count += data.technologies.length;
+    }
+    if (data.keywords?.length) {
+      count += data.keywords.length;
+    }
 
     return count;
   }
 
-  protected buildResponseFromExisting(company: any, enrichment: any, startTime: number): EnrichCompanyResponse {
+  protected buildResponseFromExisting(
+    company: any,
+    enrichment: any,
+    startTime: number
+  ): EnrichCompanyResponse {
     const enrichmentData: CompanyEnrichmentData = enrichment.rawData || {};
-    
+
     return {
       success: true,
       companyId: company.id,
@@ -328,10 +355,10 @@ export abstract class BaseEnrichmentService {
           status: enrichment.status as EnrichmentStatus,
           confidence: enrichment.confidence || 0,
           dataPoints: this.countDataPoints(enrichmentData),
-        }
+        },
       },
       overallConfidence: enrichment.confidence || 0,
-      processingTimeMs: Date.now() - startTime
+      processingTimeMs: Date.now() - startTime,
     };
   }
 
@@ -346,7 +373,7 @@ export abstract class BaseEnrichmentService {
         code: 'NETWORK_ERROR',
         message: `Network error connecting to ${this.source}: ${error.message}`,
         source: this.source,
-        retryable: true
+        retryable: true,
       });
     }
 
@@ -357,8 +384,8 @@ export abstract class BaseEnrichmentService {
         source: this.source,
         retryable: true,
         details: {
-          retryAfter: error.response.headers['retry-after']
-        }
+          retryAfter: error.response.headers['retry-after'],
+        },
       });
     }
 
@@ -367,7 +394,7 @@ export abstract class BaseEnrichmentService {
         code: 'AUTHENTICATION_ERROR',
         message: `Authentication failed for ${this.source}`,
         source: this.source,
-        retryable: false
+        retryable: false,
       });
     }
 
@@ -376,7 +403,7 @@ export abstract class BaseEnrichmentService {
       code: 'UNKNOWN_ERROR',
       message: `Unknown error in ${this.source}: ${error.message}`,
       source: this.source,
-      retryable: true
+      retryable: true,
     });
   }
 }

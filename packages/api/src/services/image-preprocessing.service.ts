@@ -1,4 +1,5 @@
 import sharp from 'sharp';
+
 import logger from '../utils/logger.js';
 
 export interface PreprocessingOptions {
@@ -155,7 +156,8 @@ export class ImagePreprocessingService {
       const processedMetadata = await sharp(outputBuffer).metadata();
 
       const processingTime = Date.now() - startTime;
-      const compressionRatio = ((inputBuffer.length - outputBuffer.length) / inputBuffer.length) * 100;
+      const compressionRatio =
+        ((inputBuffer.length - outputBuffer.length) / inputBuffer.length) * 100;
 
       logger.info('Image preprocessing completed', {
         purpose: finalOptions.purpose,
@@ -187,14 +189,15 @@ export class ImagePreprocessingService {
         optimizations,
         warnings,
       };
-
     } catch (error) {
       const processingTime = Date.now() - startTime;
       logger.error('Image preprocessing failed', {
         error: error instanceof Error ? error.message : 'Unknown error',
         processingTime: `${processingTime}ms`,
       });
-      throw new Error(`Image preprocessing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Image preprocessing failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -205,13 +208,17 @@ export class ImagePreprocessingService {
     image: sharp.Sharp,
     metadata: sharp.Metadata,
     options: PreprocessingOptions
-  ): Promise<{ resizedImage: sharp.Sharp; resizeApplied: boolean; actualDimensions?: { width: number; height: number } }> {
+  ): Promise<{
+    resizedImage: sharp.Sharp;
+    resizeApplied: boolean;
+    actualDimensions?: { width: number; height: number };
+  }> {
     if (!metadata.width || !metadata.height || !options.maxWidth || !options.maxHeight) {
       return { resizedImage: image, resizeApplied: false };
     }
 
     const needsResize = metadata.width > options.maxWidth || metadata.height > options.maxHeight;
-    
+
     if (!needsResize) {
       return { resizedImage: image, resizeApplied: false };
     }
@@ -225,9 +232,9 @@ export class ImagePreprocessingService {
     // Calculate actual dimensions based on aspect ratio preservation
     const originalAspectRatio = metadata.width / metadata.height;
     const maxAspectRatio = options.maxWidth / options.maxHeight;
-    
+
     let actualWidth: number, actualHeight: number;
-    
+
     if (originalAspectRatio > maxAspectRatio) {
       // Width is the limiting factor
       actualWidth = options.maxWidth;
@@ -237,7 +244,7 @@ export class ImagePreprocessingService {
       actualHeight = options.maxHeight;
       actualWidth = Math.round(options.maxHeight * originalAspectRatio);
     }
-    
+
     const actualDimensions = { width: actualWidth, height: actualHeight };
 
     return { resizedImage, resizeApplied: true, actualDimensions };
@@ -250,17 +257,15 @@ export class ImagePreprocessingService {
     image: sharp.Sharp,
     options: PreprocessingOptions,
     optimizations: string[],
-    warnings: string[]
+    // eslint-disable-next-line no-unused-vars
+    _warnings: string[]
   ): Promise<sharp.Sharp> {
     let processedImage = image;
 
     switch (options.purpose) {
       case 'ocr':
         // Optimize for OCR readability
-        processedImage = processedImage
-          .grayscale()
-          .normalize()
-          .sharpen(1, 1, 2);
+        processedImage = processedImage.grayscale().normalize().sharpen(1, 1, 2);
         optimizations.push('Applied OCR optimizations (grayscale, normalize, sharpen)');
         break;
 
@@ -274,23 +279,20 @@ export class ImagePreprocessingService {
 
       case 'thumbnail':
         // Optimize for small previews
-        processedImage = processedImage
-          .sharpen(0.8, 1, 2); // Extra sharpening for small images
+        processedImage = processedImage.sharpen(0.8, 1, 2); // Extra sharpening for small images
         optimizations.push('Applied thumbnail sharpening for clarity at small sizes');
         break;
 
       case 'web-display':
         // Optimize for web viewing
-        processedImage = processedImage
-          .sharpen(0.5, 1, 2);
+        processedImage = processedImage.sharpen(0.5, 1, 2);
         optimizations.push('Applied web display optimizations');
         break;
 
       case 'storage':
       default:
         // Minimal processing for archival storage
-        processedImage = processedImage
-          .sharpen(0.3, 1, 1); // Light sharpening
+        processedImage = processedImage.sharpen(0.3, 1, 1); // Light sharpening
         optimizations.push('Applied storage optimizations (light sharpening)');
         break;
     }
@@ -308,7 +310,7 @@ export class ImagePreprocessingService {
     optimizations: string[]
   ): Promise<{ finalImage: sharp.Sharp; outputFormat: string }> {
     let outputFormat = options.format || 'auto';
-    
+
     // Auto-select format if requested
     if (outputFormat === 'auto') {
       outputFormat = this.selectOptimalFormat(originalFormat, options.purpose);
@@ -351,7 +353,10 @@ export class ImagePreprocessingService {
   /**
    * Select optimal format based on purpose and original format
    */
-  private static selectOptimalFormat(originalFormat: string, purpose: string): 'jpeg' | 'png' | 'webp' {
+  private static selectOptimalFormat(
+    originalFormat: string,
+    purpose: string
+  ): 'jpeg' | 'png' | 'webp' {
     // For OCR, always use JPEG for consistency
     if (purpose === 'ocr') {
       return 'jpeg';
@@ -378,7 +383,7 @@ export class ImagePreprocessingService {
     images: Array<{ buffer: Buffer; name: string }>,
     options: Partial<PreprocessingOptions> = {}
   ): Promise<Array<{ name: string; result: PreprocessingResult; error?: string }>> {
-    const results: Array<{ name: string; result?: PreprocessingResult; error?: string }> = 
+    const results: Array<{ name: string; result?: PreprocessingResult; error?: string }> =
       new Array(images.length);
 
     logger.info('Starting batch image preprocessing', {
@@ -415,7 +420,9 @@ export class ImagePreprocessingService {
   /**
    * Get preprocessing options for specific use case
    */
-  static getOptionsForUseCase(useCase: keyof typeof ImagePreprocessingService.DEFAULT_OPTIONS): PreprocessingOptions {
+  static getOptionsForUseCase(
+    useCase: keyof typeof ImagePreprocessingService.DEFAULT_OPTIONS
+  ): PreprocessingOptions {
     return { ...this.DEFAULT_OPTIONS[useCase] };
   }
 
@@ -434,7 +441,7 @@ export class ImagePreprocessingService {
     });
 
     // Process variants in parallel
-    const promises = variants.map(async (variant) => {
+    const promises = variants.map(async variant => {
       try {
         const result = await this.processImage(inputBuffer, variant.options);
         results[variant.name] = result;

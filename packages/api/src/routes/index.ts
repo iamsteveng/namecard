@@ -1,11 +1,13 @@
 import { Router } from 'express';
+
+import { env } from '../config/env.js';
+
 import authRoutes from './auth.routes.js';
 import cardsRoutes from './cards.routes.js';
+import s3Routes from './s3.routes.js';
 import scanRoutes from './scan.routes.js';
 import uploadRoutes from './upload.routes.js';
-import s3Routes from './s3.routes.js';
 // import enrichmentRoutes from './enrichment.routes.js'; // Temporarily disabled for deployment
-import { env } from '../config/env.js';
 
 const router = Router();
 

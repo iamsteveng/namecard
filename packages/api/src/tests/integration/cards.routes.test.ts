@@ -1,6 +1,7 @@
-import request from 'supertest';
-import { app } from '../../app.js';
 import sharp from 'sharp';
+import request from 'supertest';
+
+import { app } from '../../app.js';
 
 // Mock the card processing service
 jest.mock('../../services/card-processing.service.js', () => ({
@@ -53,7 +54,7 @@ describe('Cards Routes Integration Tests', () => {
           cardId: 'card-123',
           extractedData: {
             name: { text: 'John Doe', confidence: 0.95 },
-            jobTitle: { text: 'Software Engineer', confidence: 0.90 },
+            jobTitle: { text: 'Software Engineer', confidence: 0.9 },
             company: { text: 'Tech Corp', confidence: 0.92 },
             email: { text: 'john.doe@techcorp.com', confidence: 0.98 },
             phone: { text: '+1-555-123-4567', confidence: 0.88 },
@@ -149,7 +150,12 @@ describe('Cards Routes Integration Tests', () => {
     it('should require authentication', async () => {
       // Temporarily override the mock to simulate authentication failure
       const originalAuth = require('../../middleware/auth.middleware.js').authenticateToken;
-      require('../../middleware/auth.middleware.js').authenticateToken = (req: any, res: any, next: any) => {
+      require('../../middleware/auth.middleware.js').authenticateToken = (
+        req: any,
+        res: any,
+        // eslint-disable-next-line no-unused-vars
+        _next: any
+      ) => {
         res.status(401).json({ success: false, error: 'Unauthorized' });
       };
 
@@ -165,9 +171,7 @@ describe('Cards Routes Integration Tests', () => {
     });
 
     it('should reject requests without image file', async () => {
-      const response = await request(app)
-        .post('/api/v1/cards/scan')
-        .expect(400);
+      const response = await request(app).post('/api/v1/cards/scan').expect(400);
 
       expect(response.body).toMatchObject({
         success: false,
@@ -233,9 +237,7 @@ describe('Cards Routes Integration Tests', () => {
         mostRecentScan: new Date('2025-08-04T10:00:00Z'),
       });
 
-      const response = await request(app)
-        .get('/api/v1/cards/stats')
-        .expect(200);
+      const response = await request(app).get('/api/v1/cards/stats').expect(200);
 
       expect(response.body).toMatchObject({
         success: true,
@@ -259,9 +261,7 @@ describe('Cards Routes Integration Tests', () => {
 
       mockGetProcessingStats.mockRejectedValue(new Error('Database connection failed'));
 
-      const response = await request(app)
-        .get('/api/v1/cards/stats')
-        .expect(500);
+      const response = await request(app).get('/api/v1/cards/stats').expect(500);
 
       expect(response.body).toMatchObject({
         success: false,
@@ -467,7 +467,7 @@ describe('Cards Routes Integration Tests', () => {
     it('should handle malformed request data', async () => {
       const testImage = await createTestImage();
 
-      const response = await request(app)
+      await request(app)
         .post('/api/v1/cards/scan')
         .attach('image', testImage, 'test.jpg')
         .field('minConfidence', 'invalid-number')
@@ -476,7 +476,7 @@ describe('Cards Routes Integration Tests', () => {
       // The service should be called with default minConfidence
       const { CardProcessingService } = require('../../services/card-processing.service.js');
       const mockProcessBusinessCard = CardProcessingService.mock.instances[0].processBusinessCard;
-      
+
       expect(mockProcessBusinessCard).toHaveBeenCalledWith(
         expect.any(Buffer),
         'test.jpg',
