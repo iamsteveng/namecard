@@ -1,7 +1,17 @@
 import { clsx } from 'clsx';
-import { LayoutDashboard, ScanLine, CreditCard, Settings, Menu, X, User, LogOut } from 'lucide-react';
+import {
+  LayoutDashboard,
+  ScanLine,
+  CreditCard,
+  Settings,
+  Menu,
+  X,
+  User,
+  LogOut,
+} from 'lucide-react';
 import { useState, ReactNode, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+
 import { useAuthStore } from '../store/auth.store';
 
 interface LayoutProps {
@@ -40,7 +50,7 @@ export default function Layout({ children }: LayoutProps) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
-    
+
     return undefined;
   }, [userMenuOpen]);
 
@@ -87,7 +97,7 @@ export default function Layout({ children }: LayoutProps) {
               })}
             </ul>
           </nav>
-          
+
           {/* User menu - Mobile */}
           <div className="mt-auto pt-6 border-t border-gray-200">
             <div className="flex items-center gap-3 px-3 py-2">
@@ -97,12 +107,8 @@ export default function Layout({ children }: LayoutProps) {
                 </span>
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900">
-                  {user?.name || 'User'}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {user?.email}
-                </p>
+                <p className="text-sm font-medium text-gray-900">{user?.name || 'User'}</p>
+                <p className="text-xs text-gray-500">{user?.email}</p>
               </div>
             </div>
             <div className="mt-3 space-y-1">
@@ -160,7 +166,7 @@ export default function Layout({ children }: LayoutProps) {
             })}
           </ul>
         </nav>
-        
+
         {/* User menu - Desktop */}
         <div className="absolute bottom-6 left-6 right-6">
           <div className="relative" ref={userMenuRef}>
@@ -174,15 +180,11 @@ export default function Layout({ children }: LayoutProps) {
                 </span>
               </div>
               <div className="flex-1 text-left">
-                <p className="truncate text-sm font-medium text-gray-900">
-                  {user?.name || 'User'}
-                </p>
-                <p className="truncate text-xs text-gray-500">
-                  {user?.email}
-                </p>
+                <p className="truncate text-sm font-medium text-gray-900">{user?.name || 'User'}</p>
+                <p className="truncate text-xs text-gray-500">{user?.email}</p>
               </div>
             </button>
-            
+
             {userMenuOpen && (
               <div className="absolute bottom-full left-0 right-0 mb-2 rounded-lg bg-white py-2 shadow-lg ring-1 ring-black ring-opacity-5">
                 <Link

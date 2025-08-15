@@ -1,19 +1,30 @@
-import { clsx } from 'clsx';
-import { Search, Filter, Download, MoreVertical, Mail, Phone, Globe, Loader2, AlertCircle, Plus } from 'lucide-react';
-import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { clsx } from 'clsx';
+import {
+  Search,
+  Filter,
+  Download,
+  MoreVertical,
+  Mail,
+  Phone,
+  Globe,
+  Loader2,
+  AlertCircle,
+  Plus,
+} from 'lucide-react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+
+import { EnrichmentStatusBadge } from '../components/enrichment/EnrichmentStatusIndicator';
 import cardsService from '../services/cards.service';
 import { useAuthStore } from '../store/auth.store';
-import { EnrichmentStatusBadge } from '../components/enrichment/EnrichmentStatusIndicator';
-
 
 export default function Cards() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCards, setSelectedCards] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [currentPage, setCurrentPage] = useState(1);
-  
+
   const navigate = useNavigate();
   const { session } = useAuthStore();
   const accessToken = session?.accessToken;
@@ -23,29 +34,29 @@ export default function Cards() {
     data: cardsResponse,
     isLoading,
     error,
-    refetch
+    refetch,
   } = useQuery({
     queryKey: ['cards', currentPage, searchTerm],
     queryFn: () => {
       if (!accessToken) {
         throw new Error('Not authenticated');
       }
-      
+
       const params: any = {
         page: currentPage,
         limit: 20,
         sort: 'desc',
-        sortBy: 'createdAt'
+        sortBy: 'createdAt',
       };
-      
+
       if (searchTerm.trim()) {
         return cardsService.searchCards(searchTerm.trim(), accessToken, {
           ...params,
           page: currentPage,
-          limit: 20
+          limit: 20,
         });
       }
-      
+
       return cardsService.getCards(accessToken, params);
     },
     enabled: !!accessToken,
@@ -79,9 +90,11 @@ export default function Cards() {
   const handleCardClick = (cardId: string, e: React.MouseEvent) => {
     // Don't navigate if clicking on interactive elements
     const target = e.target as HTMLElement;
-    if (target.closest('input[type="checkbox"]') || 
-        target.closest('button') || 
-        target.closest('a[href]')) {
+    if (
+      target.closest('input[type="checkbox"]') ||
+      target.closest('button') ||
+      target.closest('a[href]')
+    ) {
       return;
     }
     navigate(`/cards/${cardId}`);
@@ -103,7 +116,9 @@ export default function Cards() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Business Cards</h1>
           <p className="text-gray-600">
-            {isLoading ? 'Loading...' : `${pagination?.total || 0} card${(pagination?.total || 0) !== 1 ? 's' : ''} found`}
+            {isLoading
+              ? 'Loading...'
+              : `${pagination?.total || 0} card${(pagination?.total || 0) !== 1 ? 's' : ''} found`}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -215,185 +230,189 @@ export default function Cards() {
       )}
 
       {/* Cards Grid/List */}
-      {!isLoading && !error && (
-        viewMode === 'grid' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {cards.map(card => (
-            <div
-              key={card.id}
-              onClick={(e) => handleCardClick(card.id, e)}
-              className={clsx(
-                'bg-white rounded-lg border transition-all duration-200 hover:shadow-md cursor-pointer',
-                selectedCards.includes(card.id)
-                  ? 'border-blue-300 ring-2 ring-blue-100'
-                  : 'border-gray-200 hover:border-gray-300'
-              )}
-            >
-              <div className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <input
-                    type="checkbox"
-                    checked={selectedCards.includes(card.id)}
-                    onChange={() => toggleCardSelection(card.id)}
-                    className="mt-1 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                  />
-                  <button className="text-gray-400 hover:text-gray-600">
-                    <MoreVertical className="h-5 w-5" />
-                  </button>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900">{card.name || 'Unknown Name'}</h3>
-                      <p className="text-sm text-gray-600">{card.title || 'No Title'}</p>
-                      <p className="text-sm font-medium text-gray-700">{card.company || 'No Company'}</p>
-                    </div>
-                    {card.company && (
-                      <EnrichmentStatusBadge
-                        status={card.lastEnrichmentDate ? 'enriched' : 'skipped'}
-                        confidence={card.lastEnrichmentDate ? 0.85 : 0}
-                        size="sm"
-                      />
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    {card.email && (
-                      <div className="flex items-center gap-2">
-                        <Mail className="h-4 w-4 text-gray-400" />
-                        <a
-                          href={`mailto:${card.email}`}
-                          className="text-sm text-blue-600 hover:text-blue-700 truncate"
-                        >
-                          {card.email}
-                        </a>
-                      </div>
-                    )}
-                    {card.phone && (
-                      <div className="flex items-center gap-2">
-                        <Phone className="h-4 w-4 text-gray-400" />
-                        <a
-                          href={`tel:${card.phone}`}
-                          className="text-sm text-gray-600 hover:text-gray-700"
-                        >
-                          {card.phone}
-                        </a>
-                      </div>
-                    )}
-                    {card.website && (
-                      <div className="flex items-center gap-2">
-                        <Globe className="h-4 w-4 text-gray-400" />
-                        <a
-                          href={card.website}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm text-blue-600 hover:text-blue-700 truncate"
-                        >
-                          {card.website.replace(/^https?:\/\//, '')}
-                        </a>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    {card.tags.map(tag => (
-                      <span
-                        key={tag}
-                        className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-
-                  <p className="text-xs text-gray-500">
-                    Scanned on {formatDate(card.scanDate)}
-                  </p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="bg-white rounded-lg border border-gray-200">
-          <div className="divide-y divide-gray-200">
+      {!isLoading &&
+        !error &&
+        (viewMode === 'grid' ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {cards.map(card => (
               <div
                 key={card.id}
-                onClick={(e) => handleCardClick(card.id, e)}
+                onClick={e => handleCardClick(card.id, e)}
                 className={clsx(
-                  'p-6 hover:bg-gray-50 transition-colors cursor-pointer',
-                  selectedCards.includes(card.id) && 'bg-blue-50'
+                  'bg-white rounded-lg border transition-all duration-200 hover:shadow-md cursor-pointer',
+                  selectedCards.includes(card.id)
+                    ? 'border-blue-300 ring-2 ring-blue-100'
+                    : 'border-gray-200 hover:border-gray-300'
                 )}
               >
-                <div className="flex items-start gap-4">
-                  <input
-                    type="checkbox"
-                    checked={selectedCards.includes(card.id)}
-                    onChange={() => toggleCardSelection(card.id)}
-                    className="mt-1 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                  />
-                  <div className="flex-1 min-w-0">
+                <div className="p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <input
+                      type="checkbox"
+                      checked={selectedCards.includes(card.id)}
+                      onChange={() => toggleCardSelection(card.id)}
+                      className="mt-1 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                    />
+                    <button className="text-gray-400 hover:text-gray-600">
+                      <MoreVertical className="h-5 w-5" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <div className="flex items-center gap-3">
-                          <h3 className="font-semibold text-gray-900">{card.name || 'Unknown Name'}</h3>
-                          {card.company && (
-                            <EnrichmentStatusBadge
-                              status={card.lastEnrichmentDate ? 'enriched' : 'skipped'}
-                              confidence={card.lastEnrichmentDate ? 0.85 : 0}
-                              size="sm"
-                            />
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-600">
-                          {card.title || 'No Title'} at {card.company || 'No Company'}
+                        <h3 className="font-semibold text-gray-900">
+                          {card.name || 'Unknown Name'}
+                        </h3>
+                        <p className="text-sm text-gray-600">{card.title || 'No Title'}</p>
+                        <p className="text-sm font-medium text-gray-700">
+                          {card.company || 'No Company'}
                         </p>
                       </div>
-                      <button className="text-gray-400 hover:text-gray-600">
-                        <MoreVertical className="h-5 w-5" />
-                      </button>
+                      {card.company && (
+                        <EnrichmentStatusBadge
+                          status={card.lastEnrichmentDate ? 'enriched' : 'skipped'}
+                          confidence={card.lastEnrichmentDate ? 0.85 : 0}
+                          size="sm"
+                        />
+                      )}
                     </div>
-                    <div className="mt-3 flex flex-wrap gap-4">
+
+                    <div className="space-y-2">
                       {card.email && (
-                        <a
-                          href={`mailto:${card.email}`}
-                          className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
-                        >
-                          <Mail className="h-4 w-4" />
-                          {card.email}
-                        </a>
+                        <div className="flex items-center gap-2">
+                          <Mail className="h-4 w-4 text-gray-400" />
+                          <a
+                            href={`mailto:${card.email}`}
+                            className="text-sm text-blue-600 hover:text-blue-700 truncate"
+                          >
+                            {card.email}
+                          </a>
+                        </div>
                       )}
                       {card.phone && (
-                        <a
-                          href={`tel:${card.phone}`}
-                          className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-700"
-                        >
-                          <Phone className="h-4 w-4" />
-                          {card.phone}
-                        </a>
+                        <div className="flex items-center gap-2">
+                          <Phone className="h-4 w-4 text-gray-400" />
+                          <a
+                            href={`tel:${card.phone}`}
+                            className="text-sm text-gray-600 hover:text-gray-700"
+                          >
+                            {card.phone}
+                          </a>
+                        </div>
                       )}
                       {card.website && (
-                        <a
-                          href={card.website}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
-                        >
-                          <Globe className="h-4 w-4" />
-                          {card.website.replace(/^https?:\/\//, '')}
-                        </a>
+                        <div className="flex items-center gap-2">
+                          <Globe className="h-4 w-4 text-gray-400" />
+                          <a
+                            href={card.website}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm text-blue-600 hover:text-blue-700 truncate"
+                          >
+                            {card.website.replace(/^https?:\/\//, '')}
+                          </a>
+                        </div>
                       )}
                     </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {card.tags.map(tag => (
+                        <span
+                          key={tag}
+                          className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+
+                    <p className="text-xs text-gray-500">Scanned on {formatDate(card.scanDate)}</p>
                   </div>
                 </div>
               </div>
             ))}
           </div>
-        </div>
-      )
-      )}
+        ) : (
+          <div className="bg-white rounded-lg border border-gray-200">
+            <div className="divide-y divide-gray-200">
+              {cards.map(card => (
+                <div
+                  key={card.id}
+                  onClick={e => handleCardClick(card.id, e)}
+                  className={clsx(
+                    'p-6 hover:bg-gray-50 transition-colors cursor-pointer',
+                    selectedCards.includes(card.id) && 'bg-blue-50'
+                  )}
+                >
+                  <div className="flex items-start gap-4">
+                    <input
+                      type="checkbox"
+                      checked={selectedCards.includes(card.id)}
+                      onChange={() => toggleCardSelection(card.id)}
+                      className="mt-1 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3">
+                            <h3 className="font-semibold text-gray-900">
+                              {card.name || 'Unknown Name'}
+                            </h3>
+                            {card.company && (
+                              <EnrichmentStatusBadge
+                                status={card.lastEnrichmentDate ? 'enriched' : 'skipped'}
+                                confidence={card.lastEnrichmentDate ? 0.85 : 0}
+                                size="sm"
+                              />
+                            )}
+                          </div>
+                          <p className="text-sm text-gray-600">
+                            {card.title || 'No Title'} at {card.company || 'No Company'}
+                          </p>
+                        </div>
+                        <button className="text-gray-400 hover:text-gray-600">
+                          <MoreVertical className="h-5 w-5" />
+                        </button>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-4">
+                        {card.email && (
+                          <a
+                            href={`mailto:${card.email}`}
+                            className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
+                          >
+                            <Mail className="h-4 w-4" />
+                            {card.email}
+                          </a>
+                        )}
+                        {card.phone && (
+                          <a
+                            href={`tel:${card.phone}`}
+                            className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-700"
+                          >
+                            <Phone className="h-4 w-4" />
+                            {card.phone}
+                          </a>
+                        )}
+                        {card.website && (
+                          <a
+                            href={card.website}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
+                          >
+                            <Globe className="h-4 w-4" />
+                            {card.website.replace(/^https?:\/\//, '')}
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
 
       {/* Empty State */}
       {!isLoading && !error && cards.length === 0 && (
@@ -440,31 +459,49 @@ export default function Cards() {
             <div>
               <p className="text-sm text-gray-700">
                 Showing{' '}
-                <span className="font-medium">{Math.min((currentPage - 1) * (pagination.limit || 20) + 1, pagination.total)}</span>
-                {' '}to{' '}
-                <span className="font-medium">{Math.min(currentPage * (pagination.limit || 20), pagination.total)}</span>
-                {' '}of{' '}
-                <span className="font-medium">{pagination.total}</span> results
+                <span className="font-medium">
+                  {Math.min((currentPage - 1) * (pagination.limit || 20) + 1, pagination.total)}
+                </span>{' '}
+                to{' '}
+                <span className="font-medium">
+                  {Math.min(currentPage * (pagination.limit || 20), pagination.total)}
+                </span>{' '}
+                of <span className="font-medium">{pagination.total}</span> results
               </p>
             </div>
             <div>
-              <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+              <nav
+                className="isolate inline-flex -space-x-px rounded-md shadow-sm"
+                aria-label="Pagination"
+              >
                 <button
                   onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                   disabled={!pagination.hasPrev}
                   className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span className="sr-only">Previous</span>
-                  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                    <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
+                  <svg
+                    className="h-5 w-5"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z"
+                      clipRule="evenodd"
+                    />
                   </svg>
                 </button>
 
                 {/* Page numbers */}
                 {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
-                  const pageNum = Math.max(1, Math.min(pagination.totalPages - 4, currentPage - 2)) + i;
-                  if (pageNum > pagination.totalPages) return null;
-                  
+                  const pageNum =
+                    Math.max(1, Math.min(pagination.totalPages - 4, currentPage - 2)) + i;
+                  if (pageNum > pagination.totalPages) {
+                    return null;
+                  }
+
                   return (
                     <button
                       key={pageNum}
@@ -487,8 +524,17 @@ export default function Cards() {
                   className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span className="sr-only">Next</span>
-                  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                    <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+                  <svg
+                    className="h-5 w-5"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
+                      clipRule="evenodd"
+                    />
                   </svg>
                 </button>
               </nav>

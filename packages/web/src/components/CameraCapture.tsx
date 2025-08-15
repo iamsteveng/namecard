@@ -1,6 +1,6 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
-import { Camera, X, RotateCcw } from 'lucide-react';
 import { clsx } from 'clsx';
+import { Camera, X, RotateCcw } from 'lucide-react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 
 interface CameraCaptureProps {
   onCapture: (file: File) => void;
@@ -20,7 +20,7 @@ export default function CameraCapture({ onCapture, onClose, className }: CameraC
   const initializeCamera = useCallback(async () => {
     try {
       setError(null);
-      
+
       // Stop existing stream if any
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
@@ -36,13 +36,13 @@ export default function CameraCapture({ onCapture, onClose, className }: CameraC
       });
 
       setStream(mediaStream);
-      
+
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
       }
     } catch (err) {
       console.error('Camera initialization error:', err);
-      
+
       if (err instanceof Error) {
         if (err.name === 'NotAllowedError') {
           setError('Camera access denied. Please allow camera permissions and try again.');
@@ -62,7 +62,7 @@ export default function CameraCapture({ onCapture, onClose, className }: CameraC
   // Initialize camera on mount
   useEffect(() => {
     initializeCamera();
-    
+
     // Cleanup on unmount
     return () => {
       if (stream) {
@@ -73,7 +73,7 @@ export default function CameraCapture({ onCapture, onClose, className }: CameraC
 
   // Flip camera between front and back
   const flipCamera = useCallback(() => {
-    setFacingMode(prev => prev === 'user' ? 'environment' : 'user');
+    setFacingMode(prev => (prev === 'user' ? 'environment' : 'user'));
   }, []);
 
   // Capture photo
@@ -102,13 +102,17 @@ export default function CameraCapture({ onCapture, onClose, className }: CameraC
 
       // Convert canvas to blob
       const blob = await new Promise<Blob>((resolve, reject) => {
-        canvas.toBlob((blob) => {
-          if (blob) {
-            resolve(blob);
-          } else {
-            reject(new Error('Failed to capture image'));
-          }
-        }, 'image/jpeg', 0.9);
+        canvas.toBlob(
+          blob => {
+            if (blob) {
+              resolve(blob);
+            } else {
+              reject(new Error('Failed to capture image'));
+            }
+          },
+          'image/jpeg',
+          0.9
+        );
       });
 
       // Create file from blob
@@ -151,9 +155,9 @@ export default function CameraCapture({ onCapture, onClose, className }: CameraC
         >
           <X className="h-6 w-6" />
         </button>
-        
+
         <h2 className="text-lg font-medium text-white">Scan Business Card</h2>
-        
+
         <button
           onClick={flipCamera}
           className="p-2 text-white hover:bg-white/20 rounded-full transition-colors"
@@ -188,7 +192,7 @@ export default function CameraCapture({ onCapture, onClose, className }: CameraC
               muted
               className="w-full h-full object-cover"
             />
-            
+
             {/* Overlay guide for business card positioning */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none px-4">
               <div className="relative">
@@ -232,7 +236,7 @@ export default function CameraCapture({ onCapture, onClose, className }: CameraC
               )}
             </button>
           </div>
-          
+
           <p className="text-white text-sm text-center mt-4 opacity-90">
             Tap the camera button or press Space to capture
           </p>

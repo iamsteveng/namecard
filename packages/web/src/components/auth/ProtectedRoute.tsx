@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
+
 import { useAuthStore } from '../../store/auth.store';
 
 interface ProtectedRouteProps {
@@ -7,9 +8,9 @@ interface ProtectedRouteProps {
   redirectTo?: string;
 }
 
-export default function ProtectedRoute({ 
-  children, 
-  redirectTo = '/auth/login' 
+export default function ProtectedRoute({
+  children,
+  redirectTo = '/auth/login',
 }: ProtectedRouteProps) {
   const { isAuthenticated, session, refreshToken } = useAuthStore();
   const location = useLocation();
@@ -27,13 +28,7 @@ export default function ProtectedRoute({
 
   if (!isAuthenticated || !session) {
     // Redirect to login with the current location so we can redirect back after login
-    return (
-      <Navigate 
-        to={redirectTo} 
-        state={{ from: location }} 
-        replace 
-      />
-    );
+    return <Navigate to={redirectTo} state={{ from: location }} replace />;
   }
 
   return <>{children}</>;

@@ -1,11 +1,16 @@
-import { useState } from 'react';
-import { Sparkles, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
-import { clsx } from 'clsx';
-import { useMutation } from '@tanstack/react-query';
-import type { EnrichmentButtonProps, EnrichCardRequest, EnrichCardResponse } from '../../types/enrichment.types';
 import type { CompanyEnrichmentData } from '@namecard/shared/types/enrichment.types';
+import { useMutation } from '@tanstack/react-query';
+import { clsx } from 'clsx';
+import { Sparkles, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
+import { useState } from 'react';
+
 import enrichmentService from '../../services/enrichment.service';
 import { useAuthStore } from '../../store/auth.store';
+import type {
+  EnrichmentButtonProps,
+  EnrichCardRequest,
+  EnrichCardResponse,
+} from '../../types/enrichment.types';
 
 export default function EnrichmentButton({
   cardId,
@@ -16,11 +21,11 @@ export default function EnrichmentButton({
   onEnrichmentError,
   disabled = false,
   size = 'md',
-  variant = 'primary'
+  variant = 'primary',
 }: EnrichmentButtonProps) {
   const [lastEnrichment, setLastEnrichment] = useState<Date | null>(null);
   const [enrichmentData, setEnrichmentData] = useState<CompanyEnrichmentData | null>(null);
-  
+
   const { session } = useAuthStore();
   const accessToken = session?.accessToken;
 
@@ -33,7 +38,7 @@ export default function EnrichmentButton({
       const request: EnrichCardRequest = {
         cardId,
         sources: ['perplexity'], // Use Perplexity AI for enrichment
-        forceRefresh: false
+        forceRefresh: false,
       };
 
       return enrichmentService.enrichCard(request, accessToken);
@@ -52,7 +57,7 @@ export default function EnrichmentButton({
     },
     onError: (error: Error) => {
       onEnrichmentError?.(error.message);
-    }
+    },
   });
 
   const handleEnrich = () => {
@@ -65,9 +70,12 @@ export default function EnrichmentButton({
 
   const getSizeClasses = () => {
     switch (size) {
-      case 'sm': return 'px-3 py-1.5 text-sm';
-      case 'lg': return 'px-6 py-3 text-lg';
-      default: return 'px-4 py-2 text-base';
+      case 'sm':
+        return 'px-3 py-1.5 text-sm';
+      case 'lg':
+        return 'px-6 py-3 text-lg';
+      default:
+        return 'px-4 py-2 text-base';
     }
   };
 
@@ -88,16 +96,19 @@ export default function EnrichmentButton({
 
   const getIconSize = () => {
     switch (size) {
-      case 'sm': return 'h-4 w-4';
-      case 'lg': return 'h-6 w-6';
-      default: return 'h-5 w-5';
+      case 'sm':
+        return 'h-4 w-4';
+      case 'lg':
+        return 'h-6 w-6';
+      default:
+        return 'h-5 w-5';
     }
   };
 
   // If we have recent enrichment data, show success state
   if (lastEnrichment && enrichmentData && !enrichMutation.isPending) {
-    const isRecent = (Date.now() - lastEnrichment.getTime()) < 60000; // Within 1 minute
-    
+    const isRecent = Date.now() - lastEnrichment.getTime() < 60000; // Within 1 minute
+
     if (isRecent) {
       return (
         <button
@@ -147,7 +158,7 @@ export default function EnrichmentButton({
 }
 
 // Helper hook for enrichment status
-export function useEnrichmentStatus(_cardId?: string) {
+export function useEnrichmentStatus() {
   const [isEnriching, setIsEnriching] = useState(false);
   const [enrichmentData, setEnrichmentData] = useState<CompanyEnrichmentData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -175,6 +186,6 @@ export function useEnrichmentStatus(_cardId?: string) {
     handleEnrichmentStart,
     handleEnrichmentComplete,
     handleEnrichmentError,
-    clearError: () => setError(null)
+    clearError: () => setError(null),
   };
 }

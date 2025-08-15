@@ -7,9 +7,7 @@ import type {
   CardExportRequest,
   CardExportResponse,
 } from '@namecard/shared/types/card.types';
-import type {
-  BusinessCardData,
-} from '@namecard/shared/types/textract.types';
+import type { BusinessCardData } from '@namecard/shared/types/textract.types';
 
 const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || '';
 
@@ -23,7 +21,6 @@ interface CardListResponse {
   };
   error?: string;
 }
-
 
 interface UploadResponse {
   success: boolean;
@@ -44,10 +41,10 @@ interface UploadResponse {
 
 class CardService {
   private baseUrl = `${API_BASE_URL}/api/v1`;
-  
+
   private getAuthHeaders(accessToken: string) {
     return {
-      'Authorization': `Bearer ${accessToken}`,
+      Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
     };
   }
@@ -66,7 +63,7 @@ class CardService {
     const uploadResponse = await fetch(`${this.baseUrl}/upload/image`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
+        Authorization: `Bearer ${accessToken}`,
       },
       body: formData,
     });
@@ -79,18 +76,18 @@ class CardService {
 
     // Then, process with OCR using the OCR variant URL
     const ocrImageUrl = uploadData.data.files[0].variants.ocr;
-    
+
     // Convert URL to blob for OCR processing
     const imageResponse = await fetch(ocrImageUrl);
     const imageBlob = await imageResponse.blob();
-    
+
     const ocrFormData = new FormData();
     ocrFormData.append('image', imageBlob);
 
     const ocrResponse = await fetch(`${this.baseUrl}/scan/business-card`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
+        Authorization: `Bearer ${accessToken}`,
       },
       body: ocrFormData,
     });
@@ -110,10 +107,7 @@ class CardService {
   /**
    * Create a new business card from validated data
    */
-  async createCard(
-    cardData: Omit<CreateCardData, 'userId'>,
-    accessToken: string
-  ): Promise<Card> {
+  async createCard(cardData: Omit<CreateCardData, 'userId'>, accessToken: string): Promise<Card> {
     const response = await fetch(`${this.baseUrl}/cards`, {
       method: 'POST',
       headers: this.getAuthHeaders(accessToken),
@@ -192,11 +186,7 @@ class CardService {
   /**
    * Update a business card
    */
-  async updateCard(
-    cardId: string,
-    updates: UpdateCardData,
-    accessToken: string
-  ): Promise<Card> {
+  async updateCard(cardId: string, updates: UpdateCardData, accessToken: string): Promise<Card> {
     const response = await fetch(`${this.baseUrl}/cards/${cardId}`, {
       method: 'PUT',
       headers: this.getAuthHeaders(accessToken),
@@ -235,7 +225,7 @@ class CardService {
     accessToken: string
   ): Promise<CardListResponse['data']> {
     const params = new URLSearchParams();
-    
+
     Object.entries(searchParams).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
         if (Array.isArray(value)) {
@@ -325,7 +315,10 @@ class CardService {
    */
   async scanAndSaveCard(
     file: File,
-    validatedData: Omit<CreateCardData, 'userId' | 'originalImageUrl' | 'extractedText' | 'confidence' | 'scanDate'>,
+    validatedData: Omit<
+      CreateCardData,
+      'userId' | 'originalImageUrl' | 'extractedText' | 'confidence' | 'scanDate'
+    >,
     accessToken: string
   ): Promise<Card> {
     try {
@@ -346,7 +339,9 @@ class CardService {
 
       return savedCard;
     } catch (error) {
-      throw new Error(`Failed to scan and save card: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to scan and save card: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 }

@@ -1,11 +1,17 @@
 // Remove unused React import
-import { 
-  ArrowLeft, 
-  Mail, 
-  Phone, 
-  Globe, 
-  MapPin, 
-  Building2, 
+import type {
+  PersonEnrichmentData,
+  CompanyEnrichmentData,
+} from '@namecard/shared/types/enrichment.types';
+import { clsx } from 'clsx';
+import { format } from 'date-fns';
+import {
+  ArrowLeft,
+  Mail,
+  Phone,
+  Globe,
+  MapPin,
+  Building2,
   Calendar,
   ExternalLink,
   User,
@@ -36,13 +42,11 @@ import {
   Star,
   Quote,
   FileText,
-  Link as LinkIcon
+  Link as LinkIcon,
 } from 'lucide-react';
-import { format } from 'date-fns';
-import { clsx } from 'clsx';
 import { Link } from 'react-router-dom';
+
 import type { Card } from '../../services/cards.service';
-import type { PersonEnrichmentData, CompanyEnrichmentData } from '@namecard/shared/types/enrichment.types';
 import { EnrichmentStatusBadge } from '../enrichment/EnrichmentStatusIndicator';
 
 export interface CardDetailsProps {
@@ -58,37 +62,39 @@ export interface CardDetailsProps {
 
 // The Card interface already includes enriched data, no need for extension
 
-export default function CardDetails({ 
-  card, 
-  onEdit, 
-  onDelete, 
-  onShare, 
-  onExport, 
+export default function CardDetails({
+  card,
+  onEdit,
+  onDelete,
+  onShare,
+  onExport,
   onEnrich,
   isEnriching,
-  className 
+  className,
 }: CardDetailsProps) {
-  
   // Get the primary company data (handle junction table structure)
-  const primaryCompany = card.companies?.[0]?.hasOwnProperty('company') ? 
-    (card.companies[0] as any).company : 
-    card.companies?.[0];
+  const primaryCompany =
+    card.companies?.[0] && 'company' in card.companies[0]
+      ? (card.companies[0] as unknown as { company: unknown }).company
+      : card.companies?.[0];
   const hasEnrichmentData = primaryCompany && Object.keys(primaryCompany).length > 3;
   const enrichmentScore = primaryCompany?.overallEnrichmentScore || 0;
-  
+
   // Get enriched data from API response
   const enrichmentData = card.enrichmentData;
-  
+
   const personData = enrichmentData?.personData;
   const companyData = enrichmentData?.companyData;
   const citations = enrichmentData?.citations || [];
-  
+
   // Merge company data (prioritize enriched data over basic company data)
   const fullCompanyData = companyData || primaryCompany;
-  
+
   // Format dates
   const formatDate = (dateString?: string) => {
-    if (!dateString) return 'Not available';
+    if (!dateString) {
+      return 'Not available';
+    }
     try {
       return format(new Date(dateString), 'MMM d, yyyy');
     } catch {
@@ -97,7 +103,9 @@ export default function CardDetails({
   };
 
   const formatDateTime = (dateString?: string) => {
-    if (!dateString) return 'Not available';
+    if (!dateString) {
+      return 'Not available';
+    }
     try {
       return format(new Date(dateString), 'MMM d, yyyy h:mm a');
     } catch {
@@ -109,14 +117,14 @@ export default function CardDetails({
     <div className={clsx('max-w-4xl mx-auto space-y-6', className)}>
       {/* Header */}
       <div className="flex items-center justify-between">
-        <Link 
-          to="/cards" 
+        <Link
+          to="/cards"
           className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to Cards
         </Link>
-        
+
         <div className="flex items-center gap-2">
           {onEdit && (
             <button
@@ -183,14 +191,10 @@ export default function CardDetails({
                   <h1 className="text-2xl font-bold text-gray-900">
                     {card.name || 'Unknown Name'}
                   </h1>
-                  <p className="text-lg text-gray-600">
-                    {card.title || 'No Title'}
-                  </p>
+                  <p className="text-lg text-gray-600">{card.title || 'No Title'}</p>
                   <div className="flex items-center gap-2 mt-1">
                     <Building2 className="h-4 w-4 text-gray-400" />
-                    <p className="text-gray-700 font-medium">
-                      {card.company || 'No Company'}
-                    </p>
+                    <p className="text-gray-700 font-medium">{card.company || 'No Company'}</p>
                     {hasEnrichmentData && (
                       <EnrichmentStatusBadge
                         status={enrichmentScore > 0 ? 'enriched' : 'skipped'}
@@ -234,10 +238,7 @@ export default function CardDetails({
                 {card.phone && (
                   <div className="flex items-center gap-2">
                     <Phone className="h-4 w-4 text-gray-400" />
-                    <a
-                      href={`tel:${card.phone}`}
-                      className="text-gray-700 hover:text-gray-900"
-                    >
+                    <a href={`tel:${card.phone}`} className="text-gray-700 hover:text-gray-900">
                       {card.phone}
                     </a>
                   </div>
@@ -268,7 +269,7 @@ export default function CardDetails({
               {card.tags.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-4">
                   <Tag className="h-4 w-4 text-gray-400 mt-1" />
-                  {card.tags.map((tag) => (
+                  {card.tags.map(tag => (
                     <span
                       key={tag}
                       className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700"
@@ -311,7 +312,7 @@ export default function CardDetails({
               <Building2 className="h-5 w-5" />
               Company Information
             </h2>
-            
+
             <div className="space-y-6">
               {/* Company Overview */}
               <div>
@@ -455,7 +456,7 @@ export default function CardDetails({
               <User className="h-5 w-5" />
               Professional Profile
             </h2>
-            
+
             <div className="space-y-6">
               {/* Professional Background */}
               {personData.experience && personData.experience.length > 0 && (
@@ -465,18 +466,20 @@ export default function CardDetails({
                     Work Experience
                   </h3>
                   <div className="space-y-3">
-                    {personData.experience.map((exp: NonNullable<PersonEnrichmentData['experience']>[0], index: number) => (
-                      <div key={index} className="border-l-2 border-blue-100 pl-4 py-2">
-                        <div className="font-medium text-gray-900">{exp.role}</div>
-                        <div className="text-blue-600 font-medium">{exp.company}</div>
-                        {exp.duration && (
-                          <div className="text-sm text-gray-500">{exp.duration}</div>
-                        )}
-                        {exp.description && (
-                          <div className="text-sm text-gray-700 mt-1">{exp.description}</div>
-                        )}
-                      </div>
-                    ))}
+                    {personData.experience.map(
+                      (exp: NonNullable<PersonEnrichmentData['experience']>[0], index: number) => (
+                        <div key={index} className="border-l-2 border-blue-100 pl-4 py-2">
+                          <div className="font-medium text-gray-900">{exp.role}</div>
+                          <div className="text-blue-600 font-medium">{exp.company}</div>
+                          {exp.duration && (
+                            <div className="text-sm text-gray-500">{exp.duration}</div>
+                          )}
+                          {exp.description && (
+                            <div className="text-sm text-gray-700 mt-1">{exp.description}</div>
+                          )}
+                        </div>
+                      )
+                    )}
                   </div>
                 </div>
               )}
@@ -489,20 +492,16 @@ export default function CardDetails({
                     Education
                   </h3>
                   <div className="space-y-3">
-                    {personData.education.map((edu: NonNullable<PersonEnrichmentData['education']>[0], index: number) => (
-                      <div key={index} className="border-l-2 border-green-100 pl-4 py-2">
-                        <div className="font-medium text-gray-900">{edu.institution}</div>
-                        {edu.degree && (
-                          <div className="text-green-600">{edu.degree}</div>
-                        )}
-                        {edu.field && (
-                          <div className="text-sm text-gray-600">{edu.field}</div>
-                        )}
-                        {edu.year && (
-                          <div className="text-sm text-gray-500">{edu.year}</div>
-                        )}
-                      </div>
-                    ))}
+                    {personData.education.map(
+                      (edu: NonNullable<PersonEnrichmentData['education']>[0], index: number) => (
+                        <div key={index} className="border-l-2 border-green-100 pl-4 py-2">
+                          <div className="font-medium text-gray-900">{edu.institution}</div>
+                          {edu.degree && <div className="text-green-600">{edu.degree}</div>}
+                          {edu.field && <div className="text-sm text-gray-600">{edu.field}</div>}
+                          {edu.year && <div className="text-sm text-gray-500">{edu.year}</div>}
+                        </div>
+                      )
+                    )}
                   </div>
                 </div>
               )}
@@ -561,7 +560,9 @@ export default function CardDetails({
                         <h4 className="text-sm font-medium text-gray-700 mb-2">Achievements</h4>
                         <ul className="list-disc list-inside space-y-1">
                           {personData.achievements.map((achievement: string, index: number) => (
-                            <li key={index} className="text-sm text-gray-600">{achievement}</li>
+                            <li key={index} className="text-sm text-gray-600">
+                              {achievement}
+                            </li>
                           ))}
                         </ul>
                       </div>
@@ -571,19 +572,29 @@ export default function CardDetails({
                       <div>
                         <h4 className="text-sm font-medium text-gray-700 mb-2">Awards</h4>
                         <div className="space-y-2">
-                          {personData.awards.map((award: NonNullable<PersonEnrichmentData['awards']>[0], index: number) => (
-                            <div key={index} className="flex items-center justify-between p-2 bg-yellow-50 rounded-lg border border-yellow-200">
-                              <div>
-                                <span className="font-medium text-gray-900">{award.title}</span>
-                                {award.organization && (
-                                  <span className="text-sm text-gray-600 ml-2">- {award.organization}</span>
+                          {personData.awards.map(
+                            (
+                              award: NonNullable<PersonEnrichmentData['awards']>[0],
+                              index: number
+                            ) => (
+                              <div
+                                key={index}
+                                className="flex items-center justify-between p-2 bg-yellow-50 rounded-lg border border-yellow-200"
+                              >
+                                <div>
+                                  <span className="font-medium text-gray-900">{award.title}</span>
+                                  {award.organization && (
+                                    <span className="text-sm text-gray-600 ml-2">
+                                      - {award.organization}
+                                    </span>
+                                  )}
+                                </div>
+                                {award.year && (
+                                  <span className="text-sm text-gray-500">{award.year}</span>
                                 )}
                               </div>
-                              {award.year && (
-                                <span className="text-sm text-gray-500">{award.year}</span>
-                              )}
-                            </div>
-                          ))}
+                            )
+                          )}
                         </div>
                       </div>
                     )}
@@ -620,71 +631,92 @@ export default function CardDetails({
                       <div>
                         <h4 className="text-sm font-medium text-gray-700 mb-2">Publications</h4>
                         <div className="space-y-3">
-                          {personData.publications.map((pub: NonNullable<PersonEnrichmentData['publications']>[0], index: number) => (
-                            <div key={index} className="border-l-2 border-indigo-100 pl-4 py-2">
-                              <div className="font-medium text-gray-900">{pub.title}</div>
-                              {pub.venue && (
-                                <div className="text-sm text-indigo-600">{pub.venue}</div>
-                              )}
-                              <div className="flex items-center gap-4 mt-1">
-                                {pub.publishDate && (
-                                  <span className="text-sm text-gray-500">{formatDate(pub.publishDate)}</span>
+                          {personData.publications.map(
+                            (
+                              pub: NonNullable<PersonEnrichmentData['publications']>[0],
+                              index: number
+                            ) => (
+                              <div key={index} className="border-l-2 border-indigo-100 pl-4 py-2">
+                                <div className="font-medium text-gray-900">{pub.title}</div>
+                                {pub.venue && (
+                                  <div className="text-sm text-indigo-600">{pub.venue}</div>
                                 )}
-                                {pub.url && (
-                                  <a
-                                    href={pub.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
-                                  >
-                                    <LinkIcon className="h-3 w-3" />
-                                    View
-                                  </a>
-                                )}
+                                <div className="flex items-center gap-4 mt-1">
+                                  {pub.publishDate && (
+                                    <span className="text-sm text-gray-500">
+                                      {formatDate(pub.publishDate)}
+                                    </span>
+                                  )}
+                                  {pub.url && (
+                                    <a
+                                      href={pub.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                                    >
+                                      <LinkIcon className="h-3 w-3" />
+                                      View
+                                    </a>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            )
+                          )}
                         </div>
                       </div>
                     )}
 
-                    {personData.speakingEngagements && personData.speakingEngagements.length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">Speaking Engagements</h4>
-                        <div className="space-y-3">
-                          {personData.speakingEngagements.map((speaking: NonNullable<PersonEnrichmentData['speakingEngagements']>[0], index: number) => (
-                            <div key={index} className="border-l-2 border-orange-100 pl-4 py-2">
-                              <div className="font-medium text-gray-900">{speaking.event}</div>
-                              {speaking.topic && (
-                                <div className="text-sm text-orange-600">{speaking.topic}</div>
-                              )}
-                              <div className="flex items-center gap-4 mt-1">
-                                {speaking.date && (
-                                  <span className="text-sm text-gray-500">{formatDate(speaking.date)}</span>
-                                )}
-                                {speaking.url && (
-                                  <a
-                                    href={speaking.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
-                                  >
-                                    <Mic className="h-3 w-3" />
-                                    View
-                                  </a>
-                                )}
-                              </div>
-                            </div>
-                          ))}
+                    {personData.speakingEngagements &&
+                      personData.speakingEngagements.length > 0 && (
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-700 mb-2">
+                            Speaking Engagements
+                          </h4>
+                          <div className="space-y-3">
+                            {personData.speakingEngagements.map(
+                              (
+                                speaking: NonNullable<
+                                  PersonEnrichmentData['speakingEngagements']
+                                >[0],
+                                index: number
+                              ) => (
+                                <div key={index} className="border-l-2 border-orange-100 pl-4 py-2">
+                                  <div className="font-medium text-gray-900">{speaking.event}</div>
+                                  {speaking.topic && (
+                                    <div className="text-sm text-orange-600">{speaking.topic}</div>
+                                  )}
+                                  <div className="flex items-center gap-4 mt-1">
+                                    {speaking.date && (
+                                      <span className="text-sm text-gray-500">
+                                        {formatDate(speaking.date)}
+                                      </span>
+                                    )}
+                                    {speaking.url && (
+                                      <a
+                                        href={speaking.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                                      >
+                                        <Mic className="h-3 w-3" />
+                                        View
+                                      </a>
+                                    )}
+                                  </div>
+                                </div>
+                              )
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
                   </div>
                 </div>
               )}
 
               {/* Professional Activities */}
-              {(personData.boardMemberships || personData.advisoryRoles || personData.professionalMemberships) && (
+              {(personData.boardMemberships ||
+                personData.advisoryRoles ||
+                personData.professionalMemberships) && (
                 <div>
                   <h3 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
                     <Users className="h-4 w-4" />
@@ -693,10 +725,15 @@ export default function CardDetails({
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {personData.boardMemberships && personData.boardMemberships.length > 0 && (
                       <div>
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">Board Memberships</h4>
+                        <h4 className="text-sm font-medium text-gray-700 mb-2">
+                          Board Memberships
+                        </h4>
                         <ul className="space-y-1">
                           {personData.boardMemberships.map((board: string, index: number) => (
-                            <li key={index} className="text-sm text-gray-600 bg-gray-50 px-2 py-1 rounded">
+                            <li
+                              key={index}
+                              className="text-sm text-gray-600 bg-gray-50 px-2 py-1 rounded"
+                            >
                               {board}
                             </li>
                           ))}
@@ -709,7 +746,10 @@ export default function CardDetails({
                         <h4 className="text-sm font-medium text-gray-700 mb-2">Advisory Roles</h4>
                         <ul className="space-y-1">
                           {personData.advisoryRoles.map((role: string, index: number) => (
-                            <li key={index} className="text-sm text-gray-600 bg-gray-50 px-2 py-1 rounded">
+                            <li
+                              key={index}
+                              className="text-sm text-gray-600 bg-gray-50 px-2 py-1 rounded"
+                            >
                               {role}
                             </li>
                           ))}
@@ -717,18 +757,24 @@ export default function CardDetails({
                       </div>
                     )}
 
-                    {personData.professionalMemberships && personData.professionalMemberships.length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">Memberships</h4>
-                        <ul className="space-y-1">
-                          {personData.professionalMemberships.map((membership: string, index: number) => (
-                            <li key={index} className="text-sm text-gray-600 bg-gray-50 px-2 py-1 rounded">
-                              {membership}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                    {personData.professionalMemberships &&
+                      personData.professionalMemberships.length > 0 && (
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-700 mb-2">Memberships</h4>
+                          <ul className="space-y-1">
+                            {personData.professionalMemberships.map(
+                              (membership: string, index: number) => (
+                                <li
+                                  key={index}
+                                  className="text-sm text-gray-600 bg-gray-50 px-2 py-1 rounded"
+                                >
+                                  {membership}
+                                </li>
+                              )
+                            )}
+                          </ul>
+                        </div>
+                      )}
                   </div>
                 </div>
               )}
@@ -808,39 +854,56 @@ export default function CardDetails({
                   <div className="space-y-4">
                     {personData.recentActivities && personData.recentActivities.length > 0 && (
                       <div>
-                        <h4 className="text-sm font-medium text-gray-700 mb-3">Recent Activities</h4>
+                        <h4 className="text-sm font-medium text-gray-700 mb-3">
+                          Recent Activities
+                        </h4>
                         <div className="space-y-3">
-                          {personData.recentActivities.map((activity: NonNullable<PersonEnrichmentData['recentActivities']>[0], index: number) => (
-                            <div key={index} className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                              <div className="font-medium text-gray-900 mb-2">{activity.title}</div>
-                              <p className="text-sm text-gray-700 mb-2">{activity.description}</p>
-                              <div className="flex items-center justify-between text-xs text-gray-500">
-                                <span>{activity.source}</span>
-                                {activity.date && <span>{formatDate(activity.date)}</span>}
+                          {personData.recentActivities.map(
+                            (
+                              activity: NonNullable<PersonEnrichmentData['recentActivities']>[0],
+                              index: number
+                            ) => (
+                              <div
+                                key={index}
+                                className="p-4 bg-blue-50 rounded-lg border border-blue-200"
+                              >
+                                <div className="font-medium text-gray-900 mb-2">
+                                  {activity.title}
+                                </div>
+                                <p className="text-sm text-gray-700 mb-2">{activity.description}</p>
+                                <div className="flex items-center justify-between text-xs text-gray-500">
+                                  <span>{activity.source}</span>
+                                  {activity.date && <span>{formatDate(activity.date)}</span>}
+                                </div>
+                                {activity.url && (
+                                  <a
+                                    href={activity.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 mt-2"
+                                  >
+                                    <LinkIcon className="h-3 w-3" />
+                                    View Details
+                                  </a>
+                                )}
                               </div>
-                              {activity.url && (
-                                <a
-                                  href={activity.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 mt-2"
-                                >
-                                  <LinkIcon className="h-3 w-3" />
-                                  View Details
-                                </a>
-                              )}
-                            </div>
-                          ))}
+                            )
+                          )}
                         </div>
                       </div>
                     )}
 
                     {personData.thoughtLeadership && personData.thoughtLeadership.length > 0 && (
                       <div>
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">Thought Leadership</h4>
+                        <h4 className="text-sm font-medium text-gray-700 mb-2">
+                          Thought Leadership
+                        </h4>
                         <div className="space-y-2">
                           {personData.thoughtLeadership.map((thought: string, index: number) => (
-                            <div key={index} className="p-3 bg-yellow-50 rounded-lg border-l-4 border-yellow-400">
+                            <div
+                              key={index}
+                              className="p-3 bg-yellow-50 rounded-lg border-l-4 border-yellow-400"
+                            >
                               <Quote className="h-4 w-4 text-yellow-600 mb-2" />
                               <p className="text-sm text-gray-700 italic">"{thought}"</p>
                             </div>
@@ -851,7 +914,9 @@ export default function CardDetails({
 
                     {personData.industryInfluence && (
                       <div>
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">Industry Influence</h4>
+                        <h4 className="text-sm font-medium text-gray-700 mb-2">
+                          Industry Influence
+                        </h4>
                         <p className="text-sm text-gray-700 p-3 bg-indigo-50 rounded-lg border border-indigo-200">
                           {personData.industryInfluence}
                         </p>
@@ -873,7 +938,7 @@ export default function CardDetails({
               <Building2 className="h-5 w-5" />
               Company Intelligence
             </h2>
-            
+
             <div className="space-y-6">
               {/* Recent News and Developments */}
               {companyData?.recentNews && companyData.recentNews.length > 0 && (
@@ -883,25 +948,33 @@ export default function CardDetails({
                     Recent News
                   </h3>
                   <div className="space-y-4">
-                    {companyData.recentNews.map((news: NonNullable<CompanyEnrichmentData['recentNews']>[0], index: number) => (
-                      <div key={index} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                        <h4 className="font-medium text-gray-900 mb-2">{news.title}</h4>
-                        <p className="text-sm text-gray-700 mb-3">{news.summary}</p>
-                        <div className="flex items-center justify-between text-xs text-gray-500">
-                          <span>{news.source}</span>
-                          {news.publishDate && <span>{formatDate(news.publishDate)}</span>}
-                        </div>
-                        <a
-                          href={news.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 mt-2"
+                    {companyData.recentNews.map(
+                      (
+                        news: NonNullable<CompanyEnrichmentData['recentNews']>[0],
+                        index: number
+                      ) => (
+                        <div
+                          key={index}
+                          className="p-4 bg-gray-50 rounded-lg border border-gray-200"
                         >
-                          <ExternalLink className="h-3 w-3" />
-                          Read Article
-                        </a>
-                      </div>
-                    ))}
+                          <h4 className="font-medium text-gray-900 mb-2">{news.title}</h4>
+                          <p className="text-sm text-gray-700 mb-3">{news.summary}</p>
+                          <div className="flex items-center justify-between text-xs text-gray-500">
+                            <span>{news.source}</span>
+                            {news.publishDate && <span>{formatDate(news.publishDate)}</span>}
+                          </div>
+                          <a
+                            href={news.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 mt-2"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            Read Article
+                          </a>
+                        </div>
+                      )
+                    )}
                   </div>
                 </div>
               )}
@@ -914,21 +987,31 @@ export default function CardDetails({
                     Key People
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {companyData.keyPeople.map((person: NonNullable<CompanyEnrichmentData['keyPeople']>[0], index: number) => (
-                      <div key={index} className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                        <div className="font-medium text-gray-900">{person.name}</div>
-                        <div className="text-sm text-blue-600 font-medium">{person.role}</div>
-                        {person.description && (
-                          <p className="text-sm text-gray-700 mt-2">{person.description}</p>
-                        )}
-                      </div>
-                    ))}
+                    {companyData.keyPeople.map(
+                      (
+                        person: NonNullable<CompanyEnrichmentData['keyPeople']>[0],
+                        index: number
+                      ) => (
+                        <div
+                          key={index}
+                          className="p-4 bg-blue-50 rounded-lg border border-blue-200"
+                        >
+                          <div className="font-medium text-gray-900">{person.name}</div>
+                          <div className="text-sm text-blue-600 font-medium">{person.role}</div>
+                          {person.description && (
+                            <p className="text-sm text-gray-700 mt-2">{person.description}</p>
+                          )}
+                        </div>
+                      )
+                    )}
                   </div>
                 </div>
               )}
 
               {/* Market Analysis */}
-              {(companyData?.competitors || companyData?.marketPosition || companyData?.businessModel) && (
+              {(companyData?.competitors ||
+                companyData?.marketPosition ||
+                companyData?.businessModel) && (
                 <div>
                   <h3 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
                     <Target className="h-4 w-4" />
@@ -1002,7 +1085,7 @@ export default function CardDetails({
               <FileText className="h-5 w-5" />
               Research Sources & Citations
             </h2>
-            
+
             <div className="space-y-3">
               {citations.map((citation: any, index: number) => (
                 <div key={index} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
@@ -1014,12 +1097,16 @@ export default function CardDetails({
                         <span className="text-xs text-gray-500">
                           Accessed: {formatDate(citation.accessDate)}
                         </span>
-                        <span className={clsx(
-                          'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium',
-                          citation.category === 'person' ? 'bg-blue-100 text-blue-700' :
-                          citation.category === 'company' ? 'bg-green-100 text-green-700' :
-                          'bg-purple-100 text-purple-700'
-                        )}>
+                        <span
+                          className={clsx(
+                            'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium',
+                            citation.category === 'person'
+                              ? 'bg-blue-100 text-blue-700'
+                              : citation.category === 'company'
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-purple-100 text-purple-700'
+                          )}
+                        >
                           {citation.category}
                         </span>
                         <div className="flex items-center gap-1">
@@ -1067,10 +1154,14 @@ export default function CardDetails({
                   )}
                   <div className="flex items-center gap-4">
                     {enrichmentData.personConfidence && (
-                      <span>Person Confidence: {Math.round(enrichmentData.personConfidence * 100)}%</span>
+                      <span>
+                        Person Confidence: {Math.round(enrichmentData.personConfidence * 100)}%
+                      </span>
                     )}
                     {enrichmentData.companyConfidence && (
-                      <span>Company Confidence: {Math.round(enrichmentData.companyConfidence * 100)}%</span>
+                      <span>
+                        Company Confidence: {Math.round(enrichmentData.companyConfidence * 100)}%
+                      </span>
                     )}
                     {enrichmentData.overallConfidence && (
                       <span className="font-medium">
@@ -1093,9 +1184,9 @@ export default function CardDetails({
               <TrendingUp className="h-5 w-5" />
               Enrichment History
             </h2>
-            
+
             <div className="space-y-3">
-              {card.enrichments.map((enrichment) => (
+              {card.enrichments.map(enrichment => (
                 <div
                   key={enrichment.id}
                   className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
@@ -1112,7 +1203,8 @@ export default function CardDetails({
                       </span>
                       {enrichment.companiesFound > 0 && (
                         <p className="text-sm text-gray-600">
-                          {enrichment.companiesFound} companies found, {enrichment.dataPointsAdded} data points added
+                          {enrichment.companiesFound} companies found, {enrichment.dataPointsAdded}{' '}
+                          data points added
                         </p>
                       )}
                     </div>
@@ -1137,13 +1229,10 @@ export default function CardDetails({
               <Calendar className="h-5 w-5" />
               Related Calendar Events
             </h2>
-            
+
             <div className="space-y-3">
-              {card.calendarEvents.map((event) => (
-                <div
-                  key={event.id}
-                  className="p-3 border border-gray-200 rounded-lg"
-                >
+              {card.calendarEvents.map(event => (
+                <div key={event.id} className="p-3 border border-gray-200 rounded-lg">
                   <div className="flex items-start justify-between">
                     <div>
                       <h3 className="font-medium text-gray-900">{event.title}</h3>
@@ -1161,13 +1250,9 @@ export default function CardDetails({
                     </div>
                     <div className="text-right">
                       {event.eventDate && (
-                        <p className="text-sm text-gray-600">
-                          {formatDateTime(event.eventDate)}
-                        </p>
+                        <p className="text-sm text-gray-600">{formatDateTime(event.eventDate)}</p>
                       )}
-                      <span className="text-xs text-gray-500 capitalize">
-                        {event.source}
-                      </span>
+                      <span className="text-xs text-gray-500 capitalize">{event.source}</span>
                     </div>
                   </div>
                 </div>
@@ -1191,9 +1276,7 @@ export default function CardDetails({
       {!hasEnrichmentData && onEnrich && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6 text-center">
           <TrendingUp className="h-12 w-12 text-yellow-600 mx-auto mb-3" />
-          <h3 className="text-lg font-medium text-yellow-900 mb-2">
-            No Enrichment Data Available
-          </h3>
+          <h3 className="text-lg font-medium text-yellow-900 mb-2">No Enrichment Data Available</h3>
           <p className="text-yellow-700 mb-4">
             Enrich this card to get additional company information, recent news, and insights.
           </p>

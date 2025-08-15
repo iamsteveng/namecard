@@ -1,13 +1,27 @@
-import { 
-  ExternalLink, Building, MapPin, Users, Calendar, DollarSign, Tag, Loader2, 
-  User, Award, TrendingUp, Globe, Newspaper, Shield,
-  GraduationCap, Briefcase, Star, Quote
-} from 'lucide-react';
+import type { PersonEnrichmentData } from '@namecard/shared/types/enrichment.types';
 import { clsx } from 'clsx';
+import {
+  ExternalLink,
+  Building,
+  MapPin,
+  Users,
+  Calendar,
+  DollarSign,
+  Tag,
+  Loader2,
+  User,
+  Award,
+  TrendingUp,
+  Globe,
+  Newspaper,
+  Shield,
+  GraduationCap,
+  Briefcase,
+  Star,
+  Quote,
+} from 'lucide-react';
+
 import type { CompanyInfoProps } from '../../types/enrichment.types';
-import type { 
-  PersonEnrichmentData
-} from '@namecard/shared/types/enrichment.types';
 
 interface CompanyFieldProps {
   label: string;
@@ -18,7 +32,9 @@ interface CompanyFieldProps {
 }
 
 function CompanyField({ label, value, icon, type = 'text', arrayValues }: CompanyFieldProps) {
-  if (!value && !arrayValues?.length) return null;
+  if (!value && !arrayValues?.length) {
+    return null;
+  }
 
   const renderValue = () => {
     if (type === 'url' && value) {
@@ -58,16 +74,16 @@ function CompanyField({ label, value, icon, type = 'text', arrayValues }: Compan
       <div className="text-gray-400 mt-0.5">{icon}</div>
       <div className="flex-1 min-w-0">
         <div className="text-sm font-medium text-gray-500">{label}</div>
-        <div className="text-sm text-gray-900 break-words">
-          {renderValue()}
-        </div>
+        <div className="text-sm text-gray-900 break-words">{renderValue()}</div>
       </div>
     </div>
   );
 }
 
 function CompanyLogo({ logoUrl, companyName }: { logoUrl?: string; companyName?: string }) {
-  if (!logoUrl) return null;
+  if (!logoUrl) {
+    return null;
+  }
 
   return (
     <div className="flex justify-center mb-4">
@@ -75,7 +91,7 @@ function CompanyLogo({ logoUrl, companyName }: { logoUrl?: string; companyName?:
         src={logoUrl}
         alt={`${companyName} logo`}
         className="h-16 w-16 object-contain rounded-lg border border-gray-200"
-        onError={(e) => {
+        onError={e => {
           (e.target as HTMLImageElement).style.display = 'none';
         }}
       />
@@ -92,24 +108,24 @@ function PersonInfo({ personData }: { personData: PersonEnrichmentData }) {
         <User className="h-5 w-5 text-blue-600" />
         <h4 className="text-lg font-medium text-gray-900">Person Information</h4>
         {personData.confidence && (
-          <span className={clsx(
-            'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ml-auto',
-            personData.confidence >= 0.9 ? 'text-green-700 bg-green-100' :
-            personData.confidence >= 0.7 ? 'text-yellow-700 bg-yellow-100' :
-            'text-red-700 bg-red-100'
-          )}>
+          <span
+            className={clsx(
+              'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ml-auto',
+              personData.confidence >= 0.9
+                ? 'text-green-700 bg-green-100'
+                : personData.confidence >= 0.7
+                  ? 'text-yellow-700 bg-yellow-100'
+                  : 'text-red-700 bg-red-100'
+            )}
+          >
             {Math.round(personData.confidence * 100)}% confidence
           </span>
         )}
       </div>
 
       <div className="space-y-3">
-        <CompanyField
-          label="Name"
-          value={personData.name}
-          icon={<User className="h-4 w-4" />}
-        />
-        
+        <CompanyField label="Name" value={personData.name} icon={<User className="h-4 w-4" />} />
+
         <CompanyField
           label="Title"
           value={personData.title}
@@ -152,7 +168,9 @@ function PersonInfo({ personData }: { personData: PersonEnrichmentData }) {
             <div className="space-y-3">
               {personData.experience.slice(0, 5).map((exp: any, index: number) => (
                 <div key={index} className="text-sm">
-                  <div className="font-medium text-gray-900">{exp.role} at {exp.company}</div>
+                  <div className="font-medium text-gray-900">
+                    {exp.role} at {exp.company}
+                  </div>
                   {exp.duration && <div className="text-gray-500">{exp.duration}</div>}
                   {exp.description && <div className="text-gray-700 mt-1">{exp.description}</div>}
                 </div>
@@ -196,7 +214,9 @@ function PersonInfo({ personData }: { personData: PersonEnrichmentData }) {
             </div>
             <div className="space-y-1">
               {personData.achievements.slice(0, 5).map((achievement: string, index: number) => (
-                <div key={index} className="text-sm text-gray-700">• {achievement}</div>
+                <div key={index} className="text-sm text-gray-700">
+                  • {achievement}
+                </div>
               ))}
             </div>
           </div>
@@ -218,8 +238,12 @@ function PersonInfo({ personData }: { personData: PersonEnrichmentData }) {
                     {activity.date && <span>{activity.date}</span>}
                     <span>Source: {activity.source}</span>
                     {activity.url && (
-                      <a href={activity.url} target="_blank" rel="noopener noreferrer" 
-                         className="text-blue-600 hover:text-blue-800">
+                      <a
+                        href={activity.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:text-blue-800"
+                      >
                         <ExternalLink className="h-3 w-3" />
                       </a>
                     )}
@@ -231,7 +255,10 @@ function PersonInfo({ personData }: { personData: PersonEnrichmentData }) {
         )}
 
         {/* Social Media */}
-        {(personData.linkedinUrl || personData.twitterHandle || personData.personalWebsite || personData.githubUrl) && (
+        {(personData.linkedinUrl ||
+          personData.twitterHandle ||
+          personData.personalWebsite ||
+          personData.githubUrl) && (
           <div className="pt-3 border-t border-gray-200">
             <div className="flex items-center gap-2 mb-3">
               <Globe className="h-4 w-4 text-gray-400" />
@@ -278,8 +305,20 @@ function PersonInfo({ personData }: { personData: PersonEnrichmentData }) {
   );
 }
 
-function RecentNews({ news }: { news: Array<{ title: string; summary: string; url: string; publishDate?: string; source: string }> }) {
-  if (!news || news.length === 0) return null;
+function RecentNews({
+  news,
+}: {
+  news: Array<{
+    title: string;
+    summary: string;
+    url: string;
+    publishDate?: string;
+    source: string;
+  }>;
+}) {
+  if (!news || news.length === 0) {
+    return null;
+  }
 
   return (
     <div className="bg-blue-50 rounded-lg p-4 mb-6">
@@ -287,7 +326,7 @@ function RecentNews({ news }: { news: Array<{ title: string; summary: string; ur
         <Newspaper className="h-5 w-5 text-blue-600" />
         <h4 className="text-lg font-medium text-gray-900">Recent News</h4>
       </div>
-      
+
       <div className="space-y-4">
         {news.slice(0, 3).map((article, index) => (
           <div key={index} className="border-b border-blue-200 last:border-b-0 pb-3 last:pb-0">
@@ -296,9 +335,9 @@ function RecentNews({ news }: { news: Array<{ title: string; summary: string; ur
             <div className="flex items-center gap-2 text-xs text-gray-500">
               <span>{article.source}</span>
               {article.publishDate && <span>• {article.publishDate}</span>}
-              <a 
-                href={article.url} 
-                target="_blank" 
+              <a
+                href={article.url}
+                target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
               >
@@ -312,12 +351,22 @@ function RecentNews({ news }: { news: Array<{ title: string; summary: string; ur
   );
 }
 
-function CitationsList({ citations }: { citations: Array<{ url: string; title: string; source: string; category: string; relevance: number }> }) {
-  if (!citations || citations.length === 0) return null;
+function CitationsList({
+  citations,
+}: {
+  citations: Array<{
+    url: string;
+    title: string;
+    source: string;
+    category: string;
+    relevance: number;
+  }>;
+}) {
+  if (!citations || citations.length === 0) {
+    return null;
+  }
 
-  const sortedCitations = [...citations]
-    .sort((a, b) => b.relevance - a.relevance)
-    .slice(0, 8); // Show top 8 citations
+  const sortedCitations = [...citations].sort((a, b) => b.relevance - a.relevance).slice(0, 8); // Show top 8 citations
 
   return (
     <div className="bg-yellow-50 rounded-lg p-4 mb-6">
@@ -326,7 +375,7 @@ function CitationsList({ citations }: { citations: Array<{ url: string; title: s
         <h4 className="text-lg font-medium text-gray-900">Research Citations</h4>
         <span className="text-xs text-gray-500 ml-auto">{citations.length} sources</span>
       </div>
-      
+
       <div className="space-y-2">
         {sortedCitations.map((citation, index) => (
           <div key={index} className="flex items-center gap-2 text-sm">
@@ -334,9 +383,9 @@ function CitationsList({ citations }: { citations: Array<{ url: string; title: s
               {index + 1}
             </span>
             <div className="flex-1 min-w-0">
-              <a 
-                href={citation.url} 
-                target="_blank" 
+              <a
+                href={citation.url}
+                target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-600 hover:text-blue-800 truncate block"
                 title={citation.title}
@@ -345,12 +394,16 @@ function CitationsList({ citations }: { citations: Array<{ url: string; title: s
               </a>
               <div className="text-xs text-gray-500 flex items-center gap-2">
                 <span>{citation.source}</span>
-                <span className={clsx(
-                  'px-1.5 py-0.5 rounded text-xs font-medium',
-                  citation.category === 'person' ? 'bg-green-100 text-green-800' :
-                  citation.category === 'company' ? 'bg-blue-100 text-blue-800' :
-                  'bg-purple-100 text-purple-800'
-                )}>
+                <span
+                  className={clsx(
+                    'px-1.5 py-0.5 rounded text-xs font-medium',
+                    citation.category === 'person'
+                      ? 'bg-green-100 text-green-800'
+                      : citation.category === 'company'
+                        ? 'bg-blue-100 text-blue-800'
+                        : 'bg-purple-100 text-purple-800'
+                  )}
+                >
                   {citation.category}
                 </span>
                 <span>Relevance: {Math.round(citation.relevance * 100)}%</span>
@@ -370,7 +423,7 @@ export default function CompanyInfo({
   enrichmentData,
   isLoading = false,
   onEnrich,
-  showEnrichButton = true
+  showEnrichButton = true,
 }: CompanyInfoProps) {
   if (isLoading) {
     return (
@@ -444,18 +497,22 @@ export default function CompanyInfo({
             )}
           </h3>
           {displayConfidence && (
-            <span className={clsx(
-              'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium',
-              displayConfidence >= 0.9 ? 'text-green-700 bg-green-100' :
-              displayConfidence >= 0.7 ? 'text-yellow-700 bg-yellow-100' :
-              'text-red-700 bg-red-100'
-            )}>
+            <span
+              className={clsx(
+                'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium',
+                displayConfidence >= 0.9
+                  ? 'text-green-700 bg-green-100'
+                  : displayConfidence >= 0.7
+                    ? 'text-yellow-700 bg-yellow-100'
+                    : 'text-red-700 bg-red-100'
+              )}
+            >
               {Math.round(displayConfidence * 100)}% confidence
             </span>
           )}
         </div>
 
-        <CompanyLogo 
+        <CompanyLogo
           {...(actualCompanyData?.logoUrl && { logoUrl: actualCompanyData.logoUrl })}
           {...(actualCompanyData?.name && { companyName: actualCompanyData.name })}
         />
@@ -494,7 +551,11 @@ export default function CompanyInfo({
 
           <CompanyField
             label="Company Size"
-            value={actualCompanyData?.employeeCount ? `${actualCompanyData.employeeCount} employees` : actualCompanyData?.size}
+            value={
+              actualCompanyData?.employeeCount
+                ? `${actualCompanyData.employeeCount} employees`
+                : actualCompanyData?.size
+            }
             icon={<Users className="h-4 w-4" />}
           />
 
@@ -581,22 +642,29 @@ export default function CompanyInfo({
           )}
 
           {/* Recent Developments */}
-          {actualCompanyData?.recentDevelopments && actualCompanyData.recentDevelopments.length > 0 && (
-            <div className="pt-4 border-t border-gray-200">
-              <div className="flex items-center gap-2 mb-3">
-                <TrendingUp className="h-4 w-4 text-gray-400" />
-                <span className="text-sm font-medium text-gray-500">Recent Developments</span>
+          {actualCompanyData?.recentDevelopments &&
+            actualCompanyData.recentDevelopments.length > 0 && (
+              <div className="pt-4 border-t border-gray-200">
+                <div className="flex items-center gap-2 mb-3">
+                  <TrendingUp className="h-4 w-4 text-gray-400" />
+                  <span className="text-sm font-medium text-gray-500">Recent Developments</span>
+                </div>
+                <div className="space-y-1">
+                  {actualCompanyData.recentDevelopments
+                    .slice(0, 5)
+                    .map((development: string, index: number) => (
+                      <div key={index} className="text-sm text-gray-700">
+                        • {development}
+                      </div>
+                    ))}
+                </div>
               </div>
-              <div className="space-y-1">
-                {actualCompanyData.recentDevelopments.slice(0, 5).map((development: string, index: number) => (
-                  <div key={index} className="text-sm text-gray-700">• {development}</div>
-                ))}
-              </div>
-            </div>
-          )}
+            )}
 
           {/* Social Media Links */}
-          {(actualCompanyData?.linkedinUrl || actualCompanyData?.twitterHandle || actualCompanyData?.facebookUrl) && (
+          {(actualCompanyData?.linkedinUrl ||
+            actualCompanyData?.twitterHandle ||
+            actualCompanyData?.facebookUrl) && (
             <div className="pt-4 border-t border-gray-200">
               <div className="text-sm font-medium text-gray-500 mb-3">Social Media</div>
               <div className="space-y-2">
@@ -632,7 +700,9 @@ export default function CompanyInfo({
           {enrichmentData?.researchDate && (
             <div className="pt-4 border-t border-gray-200">
               <div className="text-xs text-gray-500 flex items-center gap-2">
-                <span>AI Research Date: {new Date(enrichmentData.researchDate).toLocaleDateString()}</span>
+                <span>
+                  AI Research Date: {new Date(enrichmentData.researchDate).toLocaleDateString()}
+                </span>
                 {enrichmentData.citations && (
                   <span>• {enrichmentData.citations.length} citations</span>
                 )}

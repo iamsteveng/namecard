@@ -1,5 +1,5 @@
-import { CheckCircle2, Loader2, AlertCircle, X } from 'lucide-react';
 import { clsx } from 'clsx';
+import { CheckCircle2, Loader2, AlertCircle, X } from 'lucide-react';
 
 interface EnrichmentStatusToastProps {
   status: 'idle' | 'enriching' | 'success' | 'error';
@@ -7,12 +7,14 @@ interface EnrichmentStatusToastProps {
   className?: string;
 }
 
-export default function EnrichmentStatusToast({ 
-  status, 
-  onDismiss, 
-  className 
+export default function EnrichmentStatusToast({
+  status,
+  onDismiss,
+  className,
 }: EnrichmentStatusToastProps) {
-  if (status === 'idle') return null;
+  if (status === 'idle') {
+    return null;
+  }
 
   const getStatusConfig = () => {
     switch (status) {
@@ -23,7 +25,7 @@ export default function EnrichmentStatusToast({
           message: 'Gathering company information and insights...',
           bgColor: 'bg-blue-50',
           borderColor: 'border-blue-200',
-          textColor: 'text-blue-900'
+          textColor: 'text-blue-900',
         };
       case 'success':
         return {
@@ -32,7 +34,7 @@ export default function EnrichmentStatusToast({
           message: 'Card data has been successfully enriched with additional information.',
           bgColor: 'bg-green-50',
           borderColor: 'border-green-200',
-          textColor: 'text-green-900'
+          textColor: 'text-green-900',
         };
       case 'error':
         return {
@@ -41,7 +43,7 @@ export default function EnrichmentStatusToast({
           message: 'Unable to enrich card data. Please try again later.',
           bgColor: 'bg-red-50',
           borderColor: 'border-red-200',
-          textColor: 'text-red-900'
+          textColor: 'text-red-900',
         };
       default:
         return null;
@@ -49,7 +51,9 @@ export default function EnrichmentStatusToast({
   };
 
   const config = getStatusConfig();
-  if (!config) return null;
+  if (!config) {
+    return null;
+  }
 
   return (
     <div
@@ -61,16 +65,10 @@ export default function EnrichmentStatusToast({
       )}
     >
       <div className="flex items-start gap-3">
-        <div className="flex-shrink-0">
-          {config.icon}
-        </div>
+        <div className="flex-shrink-0">{config.icon}</div>
         <div className="flex-1 min-w-0">
-          <h4 className={clsx('font-medium text-sm', config.textColor)}>
-            {config.title}
-          </h4>
-          <p className={clsx('text-sm mt-1 opacity-90', config.textColor)}>
-            {config.message}
-          </p>
+          <h4 className={clsx('font-medium text-sm', config.textColor)}>{config.title}</h4>
+          <p className={clsx('text-sm mt-1 opacity-90', config.textColor)}>{config.message}</p>
         </div>
         {onDismiss && (
           <button

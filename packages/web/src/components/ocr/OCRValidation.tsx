@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import type { CreateCardData } from '@namecard/shared/types/card.types';
+import type { BusinessCardData } from '@namecard/shared/types/textract.types';
 import { clsx } from 'clsx';
 import { Check, X, Edit2, AlertCircle, Star } from 'lucide-react';
-import type { BusinessCardData } from '@namecard/shared/types/textract.types';
-import type { CreateCardData } from '@namecard/shared/types/card.types';
+import { useState } from 'react';
+
 import Button from '../Button';
 
 interface OCRValidationProps {
@@ -92,7 +93,7 @@ export default function OCRValidation({
   }));
 
   const updateField = (field: keyof Omit<ValidationState, 'tags'>, value: string) => {
-    setValidationState((prev) => ({
+    setValidationState(prev => ({
       ...prev,
       [field]: {
         ...prev[field],
@@ -105,7 +106,7 @@ export default function OCRValidation({
 
   const addTag = (tag: string) => {
     if (tag.trim() && !validationState.tags.includes(tag.trim())) {
-      setValidationState((prev) => ({
+      setValidationState(prev => ({
         ...prev,
         tags: [...prev.tags, tag.trim()],
       }));
@@ -113,9 +114,9 @@ export default function OCRValidation({
   };
 
   const removeTag = (tagToRemove: string) => {
-    setValidationState((prev) => ({
+    setValidationState(prev => ({
       ...prev,
-      tags: prev.tags.filter((tag) => tag !== tagToRemove),
+      tags: prev.tags.filter(tag => tag !== tagToRemove),
     }));
   };
 
@@ -129,14 +130,30 @@ export default function OCRValidation({
     };
 
     // Only include fields that have values
-    if (validationState.name.value) cardData.name = validationState.name.value;
-    if (validationState.title.value) cardData.title = validationState.title.value;
-    if (validationState.company.value) cardData.company = validationState.company.value;
-    if (validationState.email.value) cardData.email = validationState.email.value;
-    if (validationState.phone.value) cardData.phone = validationState.phone.value;
-    if (validationState.website.value) cardData.website = validationState.website.value;
-    if (validationState.address.value) cardData.address = validationState.address.value;
-    if (validationState.notes.value) cardData.notes = validationState.notes.value;
+    if (validationState.name.value) {
+      cardData.name = validationState.name.value;
+    }
+    if (validationState.title.value) {
+      cardData.title = validationState.title.value;
+    }
+    if (validationState.company.value) {
+      cardData.company = validationState.company.value;
+    }
+    if (validationState.email.value) {
+      cardData.email = validationState.email.value;
+    }
+    if (validationState.phone.value) {
+      cardData.phone = validationState.phone.value;
+    }
+    if (validationState.website.value) {
+      cardData.website = validationState.website.value;
+    }
+    if (validationState.address.value) {
+      cardData.address = validationState.address.value;
+    }
+    if (validationState.notes.value) {
+      cardData.notes = validationState.notes.value;
+    }
 
     await onSave(cardData);
   };
@@ -183,7 +200,7 @@ export default function OCRValidation({
               confidence={validationState.name.confidence}
               isEdited={validationState.name.isEdited}
               isValid={validationState.name.isValid}
-              onChange={(value) => updateField('name', value)}
+              onChange={value => updateField('name', value)}
               placeholder="Enter full name"
             />
 
@@ -193,7 +210,7 @@ export default function OCRValidation({
               confidence={validationState.title.confidence}
               isEdited={validationState.title.isEdited}
               isValid={validationState.title.isValid}
-              onChange={(value) => updateField('title', value)}
+              onChange={value => updateField('title', value)}
               placeholder="Enter job title"
             />
 
@@ -203,7 +220,7 @@ export default function OCRValidation({
               confidence={validationState.company.confidence}
               isEdited={validationState.company.isEdited}
               isValid={validationState.company.isValid}
-              onChange={(value) => updateField('company', value)}
+              onChange={value => updateField('company', value)}
               placeholder="Enter company name"
             />
 
@@ -214,7 +231,7 @@ export default function OCRValidation({
               confidence={validationState.email.confidence}
               isEdited={validationState.email.isEdited}
               isValid={validationState.email.isValid}
-              onChange={(value) => updateField('email', value)}
+              onChange={value => updateField('email', value)}
               placeholder="Enter email address"
             />
 
@@ -225,7 +242,7 @@ export default function OCRValidation({
               confidence={validationState.phone.confidence}
               isEdited={validationState.phone.isEdited}
               isValid={validationState.phone.isValid}
-              onChange={(value) => updateField('phone', value)}
+              onChange={value => updateField('phone', value)}
               placeholder="Enter phone number"
             />
 
@@ -236,7 +253,7 @@ export default function OCRValidation({
               confidence={validationState.website.confidence}
               isEdited={validationState.website.isEdited}
               isValid={validationState.website.isValid}
-              onChange={(value) => updateField('website', value)}
+              onChange={value => updateField('website', value)}
               placeholder="Enter website URL"
             />
 
@@ -246,7 +263,7 @@ export default function OCRValidation({
               confidence={validationState.address.confidence}
               isEdited={validationState.address.isEdited}
               isValid={validationState.address.isValid}
-              onChange={(value) => updateField('address', value)}
+              onChange={value => updateField('address', value)}
               placeholder="Enter address"
               multiline
             />
@@ -257,17 +274,13 @@ export default function OCRValidation({
               confidence={validationState.notes.confidence}
               isEdited={validationState.notes.isEdited}
               isValid={validationState.notes.isValid}
-              onChange={(value) => updateField('notes', value)}
+              onChange={value => updateField('notes', value)}
               placeholder="Add any additional notes"
               multiline
             />
 
             {/* Tags */}
-            <TagInput
-              tags={validationState.tags}
-              onAddTag={addTag}
-              onRemoveTag={removeTag}
-            />
+            <TagInput tags={validationState.tags} onAddTag={addTag} onRemoveTag={removeTag} />
           </div>
 
           {/* Actions */}
@@ -321,23 +334,17 @@ function FieldInput({
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <label className="block text-sm font-medium text-gray-700">{label}</label>
-        <ConfidenceBadge
-          confidence={confidence}
-          isEdited={isEdited}
-          isValid={isValid}
-        />
+        <ConfidenceBadge confidence={confidence} isEdited={isEdited} isValid={isValid} />
       </div>
       <InputComponent
         {...inputProps}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
         className={clsx(
           'block w-full rounded-md border shadow-sm px-3 py-2',
           'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500',
-          isValid
-            ? 'border-gray-300'
-            : 'border-red-300 bg-red-50',
+          isValid ? 'border-gray-300' : 'border-red-300 bg-red-50',
           multiline && 'resize-vertical min-h-[80px]'
         )}
       />
@@ -369,22 +376,32 @@ function ConfidenceBadge({ confidence, isEdited }: ConfidenceBadgeProps) {
   }
 
   const getConfidenceColor = (conf: number) => {
-    if (conf >= 90) return 'bg-green-100 text-green-800';
-    if (conf >= 70) return 'bg-yellow-100 text-yellow-800';
+    if (conf >= 90) {
+      return 'bg-green-100 text-green-800';
+    }
+    if (conf >= 70) {
+      return 'bg-yellow-100 text-yellow-800';
+    }
     return 'bg-red-100 text-red-800';
   };
 
   const getConfidenceIcon = (conf: number) => {
-    if (conf >= 90) return <Check className="w-3 h-3" />;
-    if (conf >= 70) return <AlertCircle className="w-3 h-3" />;
+    if (conf >= 90) {
+      return <Check className="w-3 h-3" />;
+    }
+    if (conf >= 70) {
+      return <AlertCircle className="w-3 h-3" />;
+    }
     return <X className="w-3 h-3" />;
   };
 
   return (
-    <span className={clsx(
-      'inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded',
-      getConfidenceColor(confidence)
-    )}>
+    <span
+      className={clsx(
+        'inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded',
+        getConfidenceColor(confidence)
+      )}
+    >
       {getConfidenceIcon(confidence)}
       {Math.round(confidence)}%
     </span>
@@ -415,7 +432,7 @@ function TagInput({ tags, onAddTag, onRemoveTag }: TagInputProps) {
     <div className="space-y-2">
       <label className="block text-sm font-medium text-gray-700">Tags</label>
       <div className="flex flex-wrap gap-2 mb-2">
-        {tags.map((tag) => (
+        {tags.map(tag => (
           <span
             key={tag}
             className="inline-flex items-center gap-1 px-2 py-1 text-sm bg-gray-100 text-gray-800 rounded"
@@ -434,7 +451,7 @@ function TagInput({ tags, onAddTag, onRemoveTag }: TagInputProps) {
       <input
         type="text"
         value={inputValue}
-        onChange={(e) => setInputValue(e.target.value)}
+        onChange={e => setInputValue(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder="Add tags (press Enter or comma to add)"
         className="block w-full rounded-md border border-gray-300 shadow-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -445,19 +462,25 @@ function TagInput({ tags, onAddTag, onRemoveTag }: TagInputProps) {
 
 // Validation helpers
 function validateEmail(email: string): boolean {
-  if (!email) return true; // Optional field
+  if (!email) {
+    return true;
+  } // Optional field
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
 }
 
 function validatePhone(phone: string): boolean {
-  if (!phone) return true; // Optional field
-  const phoneRegex = /^[\+]?[\d\s\-\(\)\.]{10,}$/;
+  if (!phone) {
+    return true;
+  } // Optional field
+  const phoneRegex = /^[+]?[\d\s\-().]{10,}$/;
   return phoneRegex.test(phone);
 }
 
 function validateWebsite(website: string): boolean {
-  if (!website) return true; // Optional field
+  if (!website) {
+    return true;
+  } // Optional field
   try {
     new URL(website.startsWith('http') ? website : `https://${website}`);
     return true;

@@ -1,6 +1,7 @@
+import type { User, UserSession } from '@namecard/shared';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { User, UserSession } from '@namecard/shared';
+
 import authService from '../services/auth.service';
 
 interface AuthState {
@@ -17,7 +18,11 @@ interface AuthState {
   logout: () => Promise<void>;
   refreshToken: () => Promise<void>;
   getProfile: () => Promise<void>;
-  updateProfile: (updates: { name?: string; avatarUrl?: string; preferences?: any }) => Promise<void>;
+  updateProfile: (updates: {
+    name?: string;
+    avatarUrl?: string;
+    preferences?: any;
+  }) => Promise<void>;
   forgotPassword: (email: string) => Promise<void>;
   clearError: () => void;
   setLoading: (loading: boolean) => void;
@@ -37,9 +42,9 @@ export const useAuthStore = create<AuthState>()(
       login: async (email: string, password: string) => {
         try {
           set({ isLoading: true, error: null });
-          
+
           const response = await authService.login(email, password);
-          
+
           if (response.success) {
             set({
               user: response.data.user,
@@ -66,9 +71,9 @@ export const useAuthStore = create<AuthState>()(
       register: async (email: string, password: string, name: string) => {
         try {
           set({ isLoading: true, error: null });
-          
+
           const response = await authService.register(email, password, name);
-          
+
           if (response.success) {
             // Registration successful but user needs to login
             set({
@@ -91,11 +96,11 @@ export const useAuthStore = create<AuthState>()(
         try {
           const { session } = get();
           set({ isLoading: true, error: null });
-          
+
           if (session?.accessToken) {
             await authService.logout(session.accessToken);
           }
-          
+
           set({
             user: null,
             session: null,
@@ -118,20 +123,22 @@ export const useAuthStore = create<AuthState>()(
       refreshToken: async () => {
         try {
           const { session } = get();
-          
+
           if (!session?.refreshToken) {
             throw new Error('No refresh token available');
           }
 
           const response = await authService.refreshToken(session.refreshToken);
-          
+
           if (response.success) {
             set(state => ({
-              session: state.session ? {
-                ...state.session,
-                accessToken: response.data.accessToken,
-                expiresAt: response.data.expiresAt,
-              } : null,
+              session: state.session
+                ? {
+                    ...state.session,
+                    accessToken: response.data.accessToken,
+                    expiresAt: response.data.expiresAt,
+                  }
+                : null,
               error: null,
             }));
           } else {
@@ -152,21 +159,23 @@ export const useAuthStore = create<AuthState>()(
       getProfile: async () => {
         try {
           const { session } = get();
-          
+
           if (!session?.accessToken) {
             throw new Error('No access token available');
           }
 
           set({ isLoading: true, error: null });
-          
+
           const response = await authService.getProfile(session.accessToken);
-          
+
           if (response.success) {
             set(state => ({
-              user: state.user ? {
-                ...state.user,
-                ...response.data,
-              } : null,
+              user: state.user
+                ? {
+                    ...state.user,
+                    ...response.data,
+                  }
+                : null,
               isLoading: false,
               error: null,
             }));
@@ -178,7 +187,7 @@ export const useAuthStore = create<AuthState>()(
             isLoading: false,
             error: error.message || 'Failed to get profile',
           });
-          
+
           // If unauthorized, try to refresh token
           if (error.message.includes('401') || error.message.includes('unauthorized')) {
             try {
@@ -189,7 +198,7 @@ export const useAuthStore = create<AuthState>()(
               // Refresh failed, user needs to login again
             }
           }
-          
+
           throw error;
         }
       },
@@ -197,15 +206,15 @@ export const useAuthStore = create<AuthState>()(
       updateProfile: async (updates: { name?: string; avatarUrl?: string; preferences?: any }) => {
         try {
           const { session } = get();
-          
+
           if (!session?.accessToken) {
             throw new Error('No access token available');
           }
 
           set({ isLoading: true, error: null });
-          
+
           const response = await authService.updateProfile(session.accessToken, updates);
-          
+
           if (response.success) {
             set(state => ({
               user: response.data,
@@ -228,9 +237,9 @@ export const useAuthStore = create<AuthState>()(
       forgotPassword: async (email: string) => {
         try {
           set({ isLoading: true, error: null });
-          
+
           await authService.forgotPassword(email);
-          
+
           set({
             isLoading: false,
             error: null,
@@ -245,12 +254,12 @@ export const useAuthStore = create<AuthState>()(
       },
 
       clearError: () => set({ error: null }),
-      
+
       setLoading: (loading: boolean) => set({ isLoading: loading }),
     }),
     {
       name: 'namecard-auth',
-      partialize: (state) => ({
+      partialize: state => ({
         user: state.user,
         session: state.session,
         isAuthenticated: state.isAuthenticated,
@@ -267,15 +276,15 @@ export const isTokenExpired = (expiresAt: Date): boolean => {
 // Helper function to setup automatic token refresh
 export const setupAutoRefresh = () => {
   const { session, refreshToken } = useAuthStore.getState();
-  
+
   if (session?.expiresAt && session?.refreshToken) {
     const expiresAt = new Date(session.expiresAt);
     const now = new Date();
     const timeUntilExpiry = expiresAt.getTime() - now.getTime();
-    
+
     // Refresh 5 minutes before expiry
     const refreshTime = Math.max(timeUntilExpiry - 5 * 60 * 1000, 0);
-    
+
     if (refreshTime > 0) {
       setTimeout(async () => {
         try {

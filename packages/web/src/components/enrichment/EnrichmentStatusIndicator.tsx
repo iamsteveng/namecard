@@ -1,11 +1,16 @@
-import { CheckCircle, AlertTriangle, Clock, XCircle, Minus, Sparkles } from 'lucide-react';
 import { clsx } from 'clsx';
+import { CheckCircle, AlertTriangle, Clock, XCircle, Minus, Sparkles } from 'lucide-react';
+
 import type { EnrichmentStatusIndicatorProps } from '../../types/enrichment.types';
-import { getEnrichmentStatusColor, getEnrichmentStatusText, formatEnrichmentSources } from '../../types/enrichment.types';
+import {
+  getEnrichmentStatusColor,
+  getEnrichmentStatusText,
+  formatEnrichmentSources,
+} from '../../types/enrichment.types';
 
 function getStatusIcon(status: string, size: string) {
   const iconClass = size === 'sm' ? 'h-3 w-3' : size === 'lg' ? 'h-5 w-5' : 'h-4 w-4';
-  
+
   switch (status) {
     case 'enriched':
       return <CheckCircle className={iconClass} />;
@@ -28,12 +33,12 @@ export default function EnrichmentStatusIndicator({
   confidence,
   sources = [],
   size = 'md',
-  showTooltip = true
+  showTooltip = true,
 }: EnrichmentStatusIndicatorProps) {
   const statusText = getEnrichmentStatusText(status);
   const statusColor = getEnrichmentStatusColor(status);
   const statusIcon = getStatusIcon(status, size);
-  
+
   const getSizeClasses = () => {
     switch (size) {
       case 'sm':
@@ -52,23 +57,35 @@ export default function EnrichmentStatusIndicator({
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     const diffMinutes = Math.floor(diffMs / (1000 * 60));
 
-    if (diffMinutes < 1) return 'Just now';
-    if (diffMinutes < 60) return `${diffMinutes}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays}d ago`;
-    
+    if (diffMinutes < 1) {
+      return 'Just now';
+    }
+    if (diffMinutes < 60) {
+      return `${diffMinutes}m ago`;
+    }
+    if (diffHours < 24) {
+      return `${diffHours}h ago`;
+    }
+    if (diffDays === 1) {
+      return 'Yesterday';
+    }
+    if (diffDays < 7) {
+      return `${diffDays}d ago`;
+    }
+
     return date.toLocaleDateString();
   };
 
-  const tooltipContent = showTooltip ? {
-    'data-tooltip': `
+  const tooltipContent = showTooltip
+    ? {
+        'data-tooltip': `
       Status: ${statusText}
       ${confidence ? `Confidence: ${Math.round(confidence * 100)}%` : ''}
       ${sources.length > 0 ? `Sources: ${formatEnrichmentSources(sources)}` : ''}
       ${lastEnrichmentDate ? `Last enriched: ${formatLastEnrichment(lastEnrichmentDate)}` : ''}
-    `.trim()
-  } : {};
+    `.trim(),
+      }
+    : {};
 
   return (
     <span
@@ -78,15 +95,17 @@ export default function EnrichmentStatusIndicator({
         statusColor,
         showTooltip && 'cursor-help'
       )}
-      title={showTooltip ? `${statusText}${confidence ? ` (${Math.round(confidence * 100)}%)` : ''}` : undefined}
+      title={
+        showTooltip
+          ? `${statusText}${confidence ? ` (${Math.round(confidence * 100)}%)` : ''}`
+          : undefined
+      }
       {...tooltipContent}
     >
       {statusIcon}
       <span>{statusText}</span>
       {confidence && confidence > 0 && (
-        <span className="text-xs opacity-75">
-          {Math.round(confidence * 100)}%
-        </span>
+        <span className="text-xs opacity-75">{Math.round(confidence * 100)}%</span>
       )}
     </span>
   );
@@ -96,7 +115,7 @@ export default function EnrichmentStatusIndicator({
 export function EnrichmentStatusBadge({
   status,
   confidence,
-  size = 'sm'
+  size = 'sm',
 }: {
   status: string;
   confidence?: number;
@@ -104,7 +123,7 @@ export function EnrichmentStatusBadge({
 }) {
   const statusColor = getEnrichmentStatusColor(status as any);
   const statusIcon = getStatusIcon(status, size);
-  
+
   const getSizeClasses = () => {
     switch (size) {
       case 'sm':

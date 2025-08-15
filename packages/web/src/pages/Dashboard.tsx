@@ -1,5 +1,6 @@
 import { ScanLine, CreditCard, Users, TrendingUp } from 'lucide-react';
 import { Link } from 'react-router-dom';
+
 import { useAuthStore } from '../store/auth.store';
 
 const stats = [
@@ -35,7 +36,7 @@ const recentCards = [
 
 export default function Dashboard() {
   const { user } = useAuthStore();
-  
+
   return (
     <div className="space-y-8">
       {/* Header */}

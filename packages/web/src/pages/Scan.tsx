@@ -1,9 +1,10 @@
-import { useState, useCallback } from 'react';
-import { File, AlertCircle, Loader2, Camera as CameraIcon, Scan as ScanIcon } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
+import { File, AlertCircle, Loader2, Camera as CameraIcon, Scan as ScanIcon } from 'lucide-react';
+import { useState, useCallback } from 'react';
+
 import CameraCapture from '../components/CameraCapture';
-import FileUpload from '../components/FileUpload';
 import CardResults, { type EditedCardData } from '../components/CardResults';
+import FileUpload from '../components/FileUpload';
 import cardsService, { type ScanCardResponse } from '../services/cards.service';
 import { useAuthStore } from '../store/auth.store';
 
@@ -16,7 +17,7 @@ export default function Scan() {
   const [showCamera, setShowCamera] = useState(false);
   const [scanResult, setScanResult] = useState<ScanCardResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  
+
   const { session } = useAuthStore();
   const accessToken = session?.accessToken;
 
@@ -42,7 +43,7 @@ export default function Scan() {
           useAnalyzeDocument: true,
           enhanceImage: true,
         },
-        (progress) => {
+        progress => {
           setProgress(progress);
           if (progress >= 100) {
             setStatus('processing');
@@ -50,12 +51,12 @@ export default function Scan() {
         }
       );
     },
-    onSuccess: (result) => {
+    onSuccess: result => {
       setScanResult(result);
       setStatus('success');
       setProgress(100);
     },
-    onError: (error) => {
+    onError: error => {
       setError(error.message);
       setStatus('error');
       setProgress(0);
@@ -69,17 +70,13 @@ export default function Scan() {
         throw new Error('Missing required data');
       }
 
-      return cardsService.updateCard(
-        scanResult.data.cardId,
-        editedData,
-        accessToken
-      );
+      return cardsService.updateCard(scanResult.data.cardId, editedData, accessToken);
     },
     onSuccess: () => {
       // Card saved successfully - could show a toast or redirect
       console.log('Card saved successfully');
     },
-    onError: (error) => {
+    onError: error => {
       setError(`Failed to save card: ${error.message}`);
     },
   });
@@ -114,18 +111,16 @@ export default function Scan() {
   }, []);
 
   // Handle save card
-  const handleSaveCard = useCallback((editedData: EditedCardData) => {
-    saveCardMutation.mutate(editedData);
-  }, [saveCardMutation]);
+  const handleSaveCard = useCallback(
+    (editedData: EditedCardData) => {
+      saveCardMutation.mutate(editedData);
+    },
+    [saveCardMutation]
+  );
 
   // Show camera modal
   if (showCamera) {
-    return (
-      <CameraCapture
-        onCapture={handleCameraCapture}
-        onClose={() => setShowCamera(false)}
-      />
-    );
+    return <CameraCapture onCapture={handleCameraCapture} onClose={() => setShowCamera(false)} />;
   }
 
   return (
@@ -177,10 +172,12 @@ export default function Scan() {
               <div className="flex items-center justify-center gap-3">
                 <Loader2 className="h-6 w-6 text-blue-600 animate-spin" />
                 <span className="text-lg font-medium text-gray-900">
-                  {status === 'uploading' ? `Uploading... ${progress}%` : 'Processing business card...'}
+                  {status === 'uploading'
+                    ? `Uploading... ${progress}%`
+                    : 'Processing business card...'}
                 </span>
               </div>
-              
+
               <div className="w-full max-w-md mx-auto">
                 <div className="bg-gray-200 rounded-full h-2">
                   <div
@@ -191,10 +188,9 @@ export default function Scan() {
               </div>
 
               <p className="text-center text-sm text-gray-500">
-                {status === 'uploading' 
-                  ? 'Uploading your image securely...' 
-                  : 'Extracting contact information using AI...'
-                }
+                {status === 'uploading'
+                  ? 'Uploading your image securely...'
+                  : 'Extracting contact information using AI...'}
               </p>
             </div>
           )}
