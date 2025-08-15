@@ -1,12 +1,12 @@
 // User validation schemas
 import { z } from 'zod';
-import { 
+import {
   baseEntitySchema,
   uuidSchema,
   emailSchema,
   urlSchema,
   userPreferencesSchema,
-  createStringSchema
+  createStringSchema,
 } from './common.validation.js';
 
 // Core user schema
@@ -28,14 +28,15 @@ export const createUserSchema = z.object({
 });
 
 // User update schema
-export const updateUserSchema = z.object({
-  name: createStringSchema(1, 100).optional(),
-  avatarUrl: urlSchema.optional(),
-  preferences: userPreferencesSchema.partial().optional(),
-}).refine(
-  data => Object.keys(data).length > 0,
-  { message: 'At least one field must be provided for update' }
-);
+export const updateUserSchema = z
+  .object({
+    name: createStringSchema(1, 100).optional(),
+    avatarUrl: urlSchema.optional(),
+    preferences: userPreferencesSchema.partial().optional(),
+  })
+  .refine(data => Object.keys(data).length > 0, {
+    message: 'At least one field must be provided for update',
+  });
 
 // Authentication schemas
 export const loginCredentialsSchema = z.object({
@@ -46,74 +47,69 @@ export const loginCredentialsSchema = z.object({
     .max(128, 'Password must not exceed 128 characters'),
 });
 
-export const registerDataSchema = z.object({
-  email: emailSchema,
-  password: z
-    .string()
-    .min(8, 'Password must be at least 8 characters')
-    .max(128, 'Password must not exceed 128 characters')
-    .regex(
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`])/,
-      'Password must contain at least one lowercase letter, one uppercase letter, one number, and one symbol'
-    ),
-  name: createStringSchema(1, 100),
-  confirmPassword: z.string(),
-}).refine(
-  data => data.password === data.confirmPassword,
-  {
+export const registerDataSchema = z
+  .object({
+    email: emailSchema,
+    password: z
+      .string()
+      .min(8, 'Password must be at least 8 characters')
+      .max(128, 'Password must not exceed 128 characters')
+      .regex(
+        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?~`])/,
+        'Password must contain at least one lowercase letter, one uppercase letter, one number, and one symbol'
+      ),
+    name: createStringSchema(1, 100),
+    confirmPassword: z.string(),
+  })
+  .refine(data => data.password === data.confirmPassword, {
     message: 'Passwords do not match',
     path: ['confirmPassword'],
-  }
-);
+  });
 
-export const changePasswordSchema = z.object({
-  currentPassword: z.string().min(1, 'Current password is required'),
-  newPassword: z
-    .string()
-    .min(8, 'Password must be at least 8 characters')
-    .max(128, 'Password must not exceed 128 characters')
-    .regex(
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`])/,
-      'Password must contain at least one lowercase letter, one uppercase letter, one number, and one symbol'
-    ),
-  confirmPassword: z.string(),
-}).refine(
-  data => data.newPassword === data.confirmPassword,
-  {
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, 'Current password is required'),
+    newPassword: z
+      .string()
+      .min(8, 'Password must be at least 8 characters')
+      .max(128, 'Password must not exceed 128 characters')
+      .regex(
+        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?~`])/,
+        'Password must contain at least one lowercase letter, one uppercase letter, one number, and one symbol'
+      ),
+    confirmPassword: z.string(),
+  })
+  .refine(data => data.newPassword === data.confirmPassword, {
     message: 'Passwords do not match',
     path: ['confirmPassword'],
-  }
-).refine(
-  data => data.currentPassword !== data.newPassword,
-  {
+  })
+  .refine(data => data.currentPassword !== data.newPassword, {
     message: 'New password must be different from current password',
     path: ['newPassword'],
-  }
-);
+  });
 
 export const resetPasswordSchema = z.object({
   email: emailSchema,
 });
 
-export const confirmResetPasswordSchema = z.object({
-  email: emailSchema,
-  resetToken: z.string().min(1, 'Reset token is required'),
-  newPassword: z
-    .string()
-    .min(8, 'Password must be at least 8 characters')
-    .max(128, 'Password must not exceed 128 characters')
-    .regex(
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`])/,
-      'Password must contain at least one lowercase letter, one uppercase letter, one number, and one symbol'
-    ),
-  confirmPassword: z.string(),
-}).refine(
-  data => data.newPassword === data.confirmPassword,
-  {
+export const confirmResetPasswordSchema = z
+  .object({
+    email: emailSchema,
+    resetToken: z.string().min(1, 'Reset token is required'),
+    newPassword: z
+      .string()
+      .min(8, 'Password must be at least 8 characters')
+      .max(128, 'Password must not exceed 128 characters')
+      .regex(
+        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?~`])/,
+        'Password must contain at least one lowercase letter, one uppercase letter, one number, and one symbol'
+      ),
+    confirmPassword: z.string(),
+  })
+  .refine(data => data.newPassword === data.confirmPassword, {
     message: 'Passwords do not match',
     path: ['confirmPassword'],
-  }
-);
+  });
 
 // Refresh token schema
 export const refreshTokenSchema = z.object({
@@ -139,21 +135,23 @@ export const userStatsSchema = z.object({
   totalCards: z.number().min(0),
   cardsThisMonth: z.number().min(0),
   companiesTracked: z.number().min(0),
-  recentActivity: z.array(z.object({
-    id: uuidSchema,
-    type: z.enum([
-      'card_created',
-      'card_updated',
-      'card_enriched',
-      'card_deleted',
-      'card_exported',
-      'card_imported',
-      'profile_updated',
-    ]),
-    description: z.string(),
-    timestamp: z.date(),
-    metadata: z.record(z.any()).optional(),
-  })),
+  recentActivity: z.array(
+    z.object({
+      id: uuidSchema,
+      type: z.enum([
+        'card_created',
+        'card_updated',
+        'card_enriched',
+        'card_deleted',
+        'card_exported',
+        'card_imported',
+        'profile_updated',
+      ]),
+      description: z.string(),
+      timestamp: z.date(),
+      metadata: z.record(z.any()).optional(),
+    })
+  ),
 });
 
 // Legacy schemas for backward compatibility
@@ -164,7 +162,7 @@ export const userRegistrationSchema = z.object({
     .min(8, 'Password must be at least 8 characters')
     .max(128, 'Password must not exceed 128 characters')
     .regex(
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`])/,
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?~`])/,
       'Password must contain at least one lowercase letter, one uppercase letter, one number, and one symbol'
     ),
   name: createStringSchema(1, 100),
@@ -185,11 +183,11 @@ export const validatePassword = (password: string): boolean => {
     .string()
     .min(8)
     .max(128)
-    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`])/)
+    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?~`])/)
     .safeParse(password).success;
 };
 
-export const validateUserPreferences = (preferences: any): boolean => {
+export const validateUserPreferences = (preferences: unknown): boolean => {
   return userPreferencesSchema.safeParse(preferences).success;
 };
 

@@ -1,13 +1,13 @@
 // Company validation schemas
 import { z } from 'zod';
-import { 
+import {
   baseEntitySchema,
   uuidSchema,
   urlSchema,
   companySizeSchema,
   paginationParamsSchema,
   createStringSchema,
-  createArraySchema
+  createArraySchema,
 } from './common.validation.js';
 import { INDUSTRIES } from '../constants/app.constants.js';
 
@@ -35,18 +35,19 @@ export const createCompanySchema = z.object({
 });
 
 // Company update schema
-export const updateCompanySchema = z.object({
-  name: createStringSchema(1, 200).optional(),
-  industry: z.enum([...INDUSTRIES] as [string, ...string[]]).optional(),
-  size: companySizeSchema.optional(),
-  headquarters: createStringSchema(1, 200).optional(),
-  website: urlSchema.optional(),
-  description: createStringSchema(0, 1000).optional(),
-  logoUrl: urlSchema.optional(),
-}).refine(
-  data => Object.keys(data).length > 0,
-  { message: 'At least one field must be provided for update' }
-);
+export const updateCompanySchema = z
+  .object({
+    name: createStringSchema(1, 200).optional(),
+    industry: z.enum([...INDUSTRIES] as [string, ...string[]]).optional(),
+    size: companySizeSchema.optional(),
+    headquarters: createStringSchema(1, 200).optional(),
+    website: urlSchema.optional(),
+    description: createStringSchema(0, 1000).optional(),
+    logoUrl: urlSchema.optional(),
+  })
+  .refine(data => Object.keys(data).length > 0, {
+    message: 'At least one field must be provided for update',
+  });
 
 // Company filtering schemas
 export const companyFiltersSchema = z.object({
@@ -57,12 +58,13 @@ export const companyFiltersSchema = z.object({
   hasCards: z.boolean().optional(),
 });
 
-export const companySearchParamsSchema = z.object({
-  q: z.string().min(2, 'Search query must be at least 2 characters').max(100).optional(),
-}).merge(companyFiltersSchema);
+export const companySearchParamsSchema = z
+  .object({
+    q: z.string().min(2, 'Search query must be at least 2 characters').max(100).optional(),
+  })
+  .merge(companyFiltersSchema);
 
-export const listCompaniesParamsSchema = paginationParamsSchema
-  .merge(companySearchParamsSchema);
+export const listCompaniesParamsSchema = paginationParamsSchema.merge(companySearchParamsSchema);
 
 // Company enrichment schemas
 export const companyEnrichmentDataSchema = z.object({
@@ -72,52 +74,68 @@ export const companyEnrichmentDataSchema = z.object({
   website: urlSchema.optional(),
   description: createStringSchema(0, 1000).optional(),
   logoUrl: urlSchema.optional(),
-  fundingRounds: createArraySchema(z.object({
-    id: uuidSchema,
-    round: z.string(),
-    amount: z.number().min(0).optional(),
-    currency: z.string().length(3).optional(),
-    date: z.date().optional(),
-    investors: createArraySchema(z.string()).optional(),
-    source: z.string().optional(),
-  }), 0, 50).optional(),
-  executives: createArraySchema(z.object({
-    name: createStringSchema(1, 100),
-    title: createStringSchema(1, 100),
-    linkedInUrl: urlSchema.optional(),
-    bio: createStringSchema(0, 500).optional(),
-  }), 0, 20).optional(),
+  fundingRounds: createArraySchema(
+    z.object({
+      id: uuidSchema,
+      round: z.string(),
+      amount: z.number().min(0).optional(),
+      currency: z.string().length(3).optional(),
+      date: z.date().optional(),
+      investors: createArraySchema(z.string()).optional(),
+      source: z.string().optional(),
+    }),
+    0,
+    50
+  ).optional(),
+  executives: createArraySchema(
+    z.object({
+      name: createStringSchema(1, 100),
+      title: createStringSchema(1, 100),
+      linkedInUrl: urlSchema.optional(),
+      bio: createStringSchema(0, 500).optional(),
+    }),
+    0,
+    20
+  ).optional(),
   competitors: createArraySchema(createStringSchema(1, 200), 0, 50).optional(),
-  socialMedia: z.object({
-    linkedin: urlSchema.optional(),
-    twitter: urlSchema.optional(),
-    facebook: urlSchema.optional(),
-    instagram: urlSchema.optional(),
-    youtube: urlSchema.optional(),
-  }).optional(),
-  financials: z.object({
-    revenue: z.number().min(0).optional(),
-    employees: z.number().min(1).optional(),
-    founded: z.number().min(1800).max(new Date().getFullYear()).optional(),
-    valuation: z.number().min(0).optional(),
-    currency: z.string().length(3).default('USD'),
-    fiscalYear: z.number().min(2000).max(new Date().getFullYear()).optional(),
-  }).optional(),
+  socialMedia: z
+    .object({
+      linkedin: urlSchema.optional(),
+      twitter: urlSchema.optional(),
+      facebook: urlSchema.optional(),
+      instagram: urlSchema.optional(),
+      youtube: urlSchema.optional(),
+    })
+    .optional(),
+  financials: z
+    .object({
+      revenue: z.number().min(0).optional(),
+      employees: z.number().min(1).optional(),
+      founded: z.number().min(1800).max(new Date().getFullYear()).optional(),
+      valuation: z.number().min(0).optional(),
+      currency: z.string().length(3).default('USD'),
+      fiscalYear: z.number().min(2000).max(new Date().getFullYear()).optional(),
+    })
+    .optional(),
 });
 
 // Company insights schema
 export const companyInsightsSchema = z.object({
   companyId: uuidSchema,
-  recentNews: createArraySchema(z.object({
-    id: uuidSchema,
-    companyId: uuidSchema,
-    title: createStringSchema(1, 500),
-    summary: createStringSchema(0, 2000).optional(),
-    url: urlSchema.optional(),
-    publishedDate: z.date().optional(),
-    source: z.string().optional(),
-    createdAt: z.date(),
-  }), 0, 20),
+  recentNews: createArraySchema(
+    z.object({
+      id: uuidSchema,
+      companyId: uuidSchema,
+      title: createStringSchema(1, 500),
+      summary: createStringSchema(0, 2000).optional(),
+      url: urlSchema.optional(),
+      publishedDate: z.date().optional(),
+      source: z.string().optional(),
+      createdAt: z.date(),
+    }),
+    0,
+    20
+  ),
   sentiment: z.enum(['positive', 'neutral', 'negative']),
   keyTopics: createArraySchema(createStringSchema(1, 100), 0, 20),
   lastUpdated: z.date(),

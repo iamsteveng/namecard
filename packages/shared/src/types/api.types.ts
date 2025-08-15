@@ -1,14 +1,14 @@
 // API-specific request and response types
-import type { 
-  ApiResponse, 
-  ApiError, 
-  PaginatedResponse, 
+import type {
+  ApiResponse,
+  ApiError,
+  PaginatedResponse,
   PaginationParams,
-  SearchParams 
+  SearchParams,
 } from './common.types.js';
-import type { 
-  Card, 
-  UpdateCardData, 
+import type {
+  Card,
+  UpdateCardData,
   CardFilters,
   ScanCardRequest,
   ScanCardResponse,
@@ -16,22 +16,18 @@ import type {
   CardExportRequest,
   CardExportResponse,
   CardImportRequest,
-  CardImportResponse
+  CardImportResponse,
 } from './card.types.js';
-import type { 
-  User, 
-  UpdateUserData, 
-  UserProfile, 
+import type {
+  User,
+  UpdateUserData,
+  UserProfile,
   UserStats,
   LoginCredentials,
   RegisterData,
-  UserSession
+  UserSession,
 } from './user.types.js';
-import type { 
-  Company, 
-  CompanyFilters,
-  CompanyInsights
-} from './company.types.js';
+import type { Company, CompanyFilters, CompanyInsights } from './company.types.js';
 
 // =============================================================================
 // AUTH ENDPOINTS
@@ -41,19 +37,21 @@ import type {
 export interface RegisterRequest {
   body: RegisterData;
 }
-export interface RegisterResponse extends ApiResponse<{
-  user: User;
-  session: UserSession;
-}> {}
+export interface RegisterResponse
+  extends ApiResponse<{
+    user: User;
+    session: UserSession;
+  }> {}
 
 // POST /api/v1/auth/login
 export interface LoginRequest {
   body: LoginCredentials;
 }
-export interface LoginResponse extends ApiResponse<{
-  user: User;
-  session: UserSession;
-}> {}
+export interface LoginResponse
+  extends ApiResponse<{
+    user: User;
+    session: UserSession;
+  }> {}
 
 // POST /api/v1/auth/logout
 export interface LogoutRequest {
@@ -61,9 +59,10 @@ export interface LogoutRequest {
     authorization: string;
   };
 }
-export interface LogoutResponse extends ApiResponse<{
-  message: string;
-}> {}
+export interface LogoutResponse
+  extends ApiResponse<{
+    message: string;
+  }> {}
 
 // POST /api/v1/auth/refresh
 export interface RefreshTokenRequest {
@@ -71,10 +70,11 @@ export interface RefreshTokenRequest {
     refreshToken: string;
   };
 }
-export interface RefreshTokenResponse extends ApiResponse<{
-  accessToken: string;
-  expiresAt: Date;
-}> {}
+export interface RefreshTokenResponse
+  extends ApiResponse<{
+    accessToken: string;
+    expiresAt: Date;
+  }> {}
 
 // =============================================================================
 // USER ENDPOINTS
@@ -148,10 +148,11 @@ export interface UpdateCardRequest {
   };
   body: UpdateCardData;
 }
-export interface UpdateCardResponse extends ApiResponse<{ 
-  card: Card;
-  message: string;
-}> {}
+export interface UpdateCardResponse
+  extends ApiResponse<{
+    card: Card;
+    message: string;
+  }> {}
 
 // DELETE /api/v1/cards/:id
 export interface DeleteCardRequest {
@@ -162,10 +163,11 @@ export interface DeleteCardRequest {
     id: string;
   };
 }
-export interface DeleteCardResponse extends ApiResponse<{
-  message: string;
-  cardId: string;
-}> {}
+export interface DeleteCardResponse
+  extends ApiResponse<{
+    message: string;
+    cardId: string;
+  }> {}
 
 // POST /api/v1/cards/:id/enrich
 export interface EnrichCardApiRequest {
@@ -188,7 +190,8 @@ export interface SearchCardsRequest {
   };
   query: {
     q: string;
-  } & PaginationParams & CardFilters;
+  } & PaginationParams &
+    CardFilters;
 }
 export interface SearchCardsResponse extends PaginatedResponse<Card> {}
 
@@ -198,12 +201,13 @@ export interface GetCardTagsRequest {
     authorization: string;
   };
 }
-export interface GetCardTagsResponse extends ApiResponse<{
-  tags: Array<{
-    name: string;
-    count: number;
-  }>;
-}> {}
+export interface GetCardTagsResponse
+  extends ApiResponse<{
+    tags: Array<{
+      name: string;
+      count: number;
+    }>;
+  }> {}
 
 // GET /api/v1/cards/companies
 export interface GetCardCompaniesRequest {
@@ -211,12 +215,13 @@ export interface GetCardCompaniesRequest {
     authorization: string;
   };
 }
-export interface GetCardCompaniesResponse extends ApiResponse<{
-  companies: Array<{
-    name: string;
-    count: number;
-  }>;
-}> {}
+export interface GetCardCompaniesResponse
+  extends ApiResponse<{
+    companies: Array<{
+      name: string;
+      count: number;
+    }>;
+  }> {}
 
 // POST /api/v1/cards/export
 export interface ExportCardsRequest {
@@ -292,11 +297,12 @@ export interface HealthCheckResponse {
 
 // GET /api/v1
 export interface ApiInfoRequest {}
-export interface ApiInfoResponse extends ApiResponse<{
-  name: string;
-  version: string;
-  environment: string;
-}> {}
+export interface ApiInfoResponse
+  extends ApiResponse<{
+    name: string;
+    version: string;
+    environment: string;
+  }> {}
 
 // =============================================================================
 // ERROR RESPONSES
@@ -350,7 +356,7 @@ export interface ServerErrorResponse extends ApiError {
 }
 
 // Union type for all possible error responses
-export type ApiErrorResponse = 
+export type ApiErrorResponse =
   | ValidationErrorResponse
   | NotFoundErrorResponse
   | UnauthorizedErrorResponse

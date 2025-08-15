@@ -1,4 +1,9 @@
-import { isValidEmail, isValidPhone, sanitizeInput, validateRequired } from '../utils/validation.utils';
+import {
+  isValidEmail,
+  isValidPhone,
+  sanitizeInput,
+  validateRequired,
+} from '../utils/validation.utils';
 
 describe('Validation Utils', () => {
   describe('isValidEmail', () => {
@@ -37,7 +42,9 @@ describe('Validation Utils', () => {
     });
 
     it('should escape HTML characters', () => {
-      expect(sanitizeInput('<script>alert("xss")</script>')).toBe('&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;');
+      expect(sanitizeInput('<script>alert("xss")</script>')).toBe(
+        '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;'
+      );
     });
 
     it('should handle empty strings', () => {

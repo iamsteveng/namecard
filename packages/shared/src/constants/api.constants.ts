@@ -3,7 +3,7 @@ export const API_ROUTES = {
   // Health and system
   HEALTH: '/health',
   API_INFO: '/api/v1',
-  
+
   // Authentication routes
   AUTH: {
     BASE: '/auth',
@@ -12,14 +12,14 @@ export const API_ROUTES = {
     LOGOUT: '/auth/logout',
     REFRESH: '/auth/refresh',
   },
-  
+
   // User routes
   USERS: {
     BASE: '/users',
     PROFILE: '/users/profile',
     STATS: '/users/stats',
   },
-  
+
   // Card routes
   CARDS: {
     BASE: '/cards',
@@ -32,7 +32,7 @@ export const API_ROUTES = {
     BY_ID: (id: string) => `/cards/${id}`,
     ENRICH: (id: string) => `/cards/${id}/enrich`,
   },
-  
+
   // Company routes
   COMPANIES: {
     BASE: '/companies',
@@ -47,7 +47,7 @@ export const HTTP_STATUS = {
   OK: 200,
   CREATED: 201,
   NO_CONTENT: 204,
-  
+
   // Client error responses
   BAD_REQUEST: 400,
   UNAUTHORIZED: 401,
@@ -57,7 +57,7 @@ export const HTTP_STATUS = {
   CONFLICT: 409,
   UNPROCESSABLE_ENTITY: 422,
   TOO_MANY_REQUESTS: 429,
-  
+
   // Server error responses
   INTERNAL_SERVER_ERROR: 500,
   BAD_GATEWAY: 502,
@@ -69,26 +69,26 @@ export const ERROR_CODES = {
   // Validation errors
   VALIDATION_ERROR: 'VALIDATION_ERROR',
   INVALID_INPUT: 'INVALID_INPUT',
-  
+
   // Authentication errors
   UNAUTHORIZED: 'UNAUTHORIZED',
   INVALID_CREDENTIALS: 'INVALID_CREDENTIALS',
   TOKEN_EXPIRED: 'TOKEN_EXPIRED',
   TOKEN_INVALID: 'TOKEN_INVALID',
-  
+
   // Resource errors
   NOT_FOUND: 'NOT_FOUND',
   CARD_NOT_FOUND: 'CARD_NOT_FOUND',
   USER_NOT_FOUND: 'USER_NOT_FOUND',
   COMPANY_NOT_FOUND: 'COMPANY_NOT_FOUND',
-  
+
   // Business logic errors
   DUPLICATE_EMAIL: 'DUPLICATE_EMAIL',
   CARD_PROCESSING_FAILED: 'CARD_PROCESSING_FAILED',
   ENRICHMENT_FAILED: 'ENRICHMENT_FAILED',
   EXPORT_FAILED: 'EXPORT_FAILED',
   IMPORT_FAILED: 'IMPORT_FAILED',
-  
+
   // System errors
   INTERNAL_ERROR: 'INTERNAL_ERROR',
   DATABASE_ERROR: 'DATABASE_ERROR',
@@ -100,16 +100,16 @@ export const API_DEFAULTS = {
   // Pagination
   PAGE_SIZE: 20,
   MAX_PAGE_SIZE: 100,
-  
+
   // Limits
   MAX_FILE_SIZE: 10 * 1024 * 1024, // 10MB
   MAX_CARDS_PER_USER: 10000,
   MAX_TAGS_PER_CARD: 20,
-  
+
   // Timeouts
   REQUEST_TIMEOUT: 30000, // 30 seconds
   UPLOAD_TIMEOUT: 120000, // 2 minutes
-  
+
   // Rate limiting
   RATE_LIMIT_WINDOW: 60000, // 1 minute
   RATE_LIMIT_MAX_REQUESTS: 100,

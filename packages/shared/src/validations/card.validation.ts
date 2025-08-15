@@ -1,6 +1,6 @@
 // Card validation schemas
 import { z } from 'zod';
-import { 
+import {
   baseEntitySchema,
   idSchema,
   emailSchema,
@@ -21,7 +21,7 @@ export const cardSchema = baseEntitySchema.extend({
   processedImageUrl: urlSchema.optional(),
   extractedText: z.string().max(5000).optional(),
   confidence: z.number().min(0).max(1).optional(),
-  
+
   // Extracted information
   name: createStringSchema(1, 100).optional(),
   title: createStringSchema(1, 100).optional(),
@@ -30,7 +30,7 @@ export const cardSchema = baseEntitySchema.extend({
   phone: phoneSchema.optional(),
   address: createStringSchema(1, 500).optional(),
   website: urlSchema.optional(),
-  
+
   // Metadata
   notes: createStringSchema(0, 2000).optional(),
   tags: createArraySchema(createStringSchema(1, 50), 0, 20).default([]),
@@ -44,7 +44,7 @@ export const createCardSchema = z.object({
   originalImageUrl: urlSchema,
   extractedText: z.string().max(5000).optional(),
   confidence: z.number().min(0).max(1).optional(),
-  
+
   // Extracted information
   name: createStringSchema(1, 100).optional(),
   title: createStringSchema(1, 100).optional(),
@@ -53,7 +53,7 @@ export const createCardSchema = z.object({
   phone: phoneSchema.optional(),
   address: createStringSchema(1, 500).optional(),
   website: urlSchema.optional(),
-  
+
   // Metadata
   notes: createStringSchema(0, 2000).optional(),
   tags: createArraySchema(createStringSchema(1, 50), 0, 20).default([]),
@@ -61,21 +61,22 @@ export const createCardSchema = z.object({
 });
 
 // Card update schema (all fields optional except validation)
-export const updateCardSchema = z.object({
-  name: createStringSchema(1, 100).optional(),
-  title: createStringSchema(1, 100).optional(),
-  company: createStringSchema(1, 200).optional(),
-  email: emailSchema.optional(),
-  phone: phoneSchema.optional(),
-  address: createStringSchema(1, 500).optional(),
-  website: urlSchema.optional(),
-  notes: createStringSchema(0, 2000).optional(),
-  tags: createArraySchema(createStringSchema(1, 50), 0, 20).optional(),
-  processedImageUrl: urlSchema.optional(),
-}).refine(
-  data => Object.keys(data).length > 0,
-  { message: 'At least one field must be provided for update' }
-);
+export const updateCardSchema = z
+  .object({
+    name: createStringSchema(1, 100).optional(),
+    title: createStringSchema(1, 100).optional(),
+    company: createStringSchema(1, 200).optional(),
+    email: emailSchema.optional(),
+    phone: phoneSchema.optional(),
+    address: createStringSchema(1, 500).optional(),
+    website: urlSchema.optional(),
+    notes: createStringSchema(0, 2000).optional(),
+    tags: createArraySchema(createStringSchema(1, 50), 0, 20).optional(),
+    processedImageUrl: urlSchema.optional(),
+  })
+  .refine(data => Object.keys(data).length > 0, {
+    message: 'At least one field must be provided for update',
+  });
 
 // Card scanning schema
 export const scanCardSchema = z.object({
@@ -86,31 +87,33 @@ export const scanCardSchema = z.object({
 // Card enrichment schema
 export const enrichCardSchema = z.object({
   cardId: idSchema,
-  enrichmentType: z.enum([
-    ENRICHMENT_TYPES.COMPANY,
-    ENRICHMENT_TYPES.NEWS,
-    ENRICHMENT_TYPES.CALENDAR,
-    ENRICHMENT_TYPES.ALL,
-  ]).default(ENRICHMENT_TYPES.ALL),
+  enrichmentType: z
+    .enum([
+      ENRICHMENT_TYPES.COMPANY,
+      ENRICHMENT_TYPES.NEWS,
+      ENRICHMENT_TYPES.CALENDAR,
+      ENRICHMENT_TYPES.ALL,
+    ])
+    .default(ENRICHMENT_TYPES.ALL),
 });
 
 // Card search and filtering schemas
-export const cardFiltersSchema = z.object({
-  company: createStringSchema(1, 200).optional(),
-  tags: z.union([z.string(), createArraySchema(z.string())]).optional(),
-  hasEmail: z.boolean().optional(),
-  hasPhone: z.boolean().optional(),
-  hasCompany: z.boolean().optional(),
-}).extend({
-  dateFrom: z.string().datetime().optional(),
-  dateTo: z.string().datetime().optional(),
-});
-
-export const cardSearchParamsSchema = searchParamsSchema
-  .merge(cardFiltersSchema)
+export const cardFiltersSchema = z
+  .object({
+    company: createStringSchema(1, 200).optional(),
+    tags: z.union([z.string(), createArraySchema(z.string())]).optional(),
+    hasEmail: z.boolean().optional(),
+    hasPhone: z.boolean().optional(),
+    hasCompany: z.boolean().optional(),
+  })
   .extend({
-    userId: idSchema.optional(),
+    dateFrom: z.string().datetime().optional(),
+    dateTo: z.string().datetime().optional(),
   });
+
+export const cardSearchParamsSchema = searchParamsSchema.merge(cardFiltersSchema).extend({
+  userId: idSchema.optional(),
+});
 
 export const listCardsParamsSchema = paginationParamsSchema
   .merge(searchParamsSchema)
@@ -156,9 +159,12 @@ export const enrichCardParamsSchema = z.object({
 // Query parameter schemas for endpoints
 export const getCardsQuerySchema = listCardsParamsSchema;
 
-export const searchCardsQuerySchema = z.object({
-  q: z.string().min(2, 'Search query must be at least 2 characters').max(100),
-}).merge(paginationParamsSchema).merge(cardFiltersSchema);
+export const searchCardsQuerySchema = z
+  .object({
+    q: z.string().min(2, 'Search query must be at least 2 characters').max(100),
+  })
+  .merge(paginationParamsSchema)
+  .merge(cardFiltersSchema);
 
 // Validation for specific card fields
 export const validateCardName = (name: string): boolean => {
