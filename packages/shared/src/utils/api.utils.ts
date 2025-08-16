@@ -203,25 +203,23 @@ export const extractErrorMessage = (error: unknown): string => {
 
 export const isNetworkError = (error: unknown): boolean => {
   if (!error || typeof error !== 'object') return false;
-  
+
   // Check if no response (network failure)
   if ('response' in error && !error.response) return true;
-  
+
   // Check for network error codes
   if ('code' in error && typeof error.code === 'string') {
     return (
-      error.code === 'NETWORK_ERROR' ||
-      error.code === 'ECONNREFUSED' ||
-      error.code === 'ETIMEDOUT'
+      error.code === 'NETWORK_ERROR' || error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT'
     );
   }
-  
+
   return false;
 };
 
 export const getHttpStatusFromError = (error: unknown): number | null => {
   if (!error || typeof error !== 'object') return null;
-  
+
   // Check for response.status (axios-style)
   if (
     'response' in error &&
@@ -232,12 +230,12 @@ export const getHttpStatusFromError = (error: unknown): number | null => {
   ) {
     return error.response.status;
   }
-  
+
   // Check for direct status property
   if ('status' in error && typeof error.status === 'number') {
     return error.status;
   }
-  
+
   return null;
 };
 

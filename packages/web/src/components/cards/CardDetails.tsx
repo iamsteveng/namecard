@@ -75,13 +75,15 @@ export default function CardDetails({
   // Helper function to safely access company properties
   const getCompanyProperty = (property: string): unknown => {
     const company = card.companies?.[0];
-    if (!company) return undefined;
-    
+    if (!company) {
+      return undefined;
+    }
+
     // Handle junction table structure
     if ('company' in company) {
       return (company as any).company?.[property];
     }
-    
+
     // Direct company object
     return (company as any)?.[property];
   };
