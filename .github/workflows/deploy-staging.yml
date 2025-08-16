@@ -34,13 +34,13 @@ jobs:
         run: npm ci
 
       - name: Run linting
-        run: npm run lint
+        run: npx turbo run lint --filter="@namecard/*"
 
       - name: Run type checking
-        run: npm run type-check
+        run: npx turbo run type-check --filter="@namecard/*"
 
       - name: Run tests
-        run: npm test
+        run: npx turbo run test --filter="@namecard/*"
 
   build-and-deploy:
     name: Build and Deploy
