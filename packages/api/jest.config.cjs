@@ -38,6 +38,6 @@ module.exports = {
     }],
   },
   setupFiles: ['<rootDir>/jest.env.cjs'],
-  globalSetup: '<rootDir>/jest.global-setup.js',
-  globalTeardown: '<rootDir>/jest.global-teardown.js',
+  globalSetup: '<rootDir>/jest.global-setup.cjs',
+  globalTeardown: '<rootDir>/jest.global-teardown.cjs',
 };
