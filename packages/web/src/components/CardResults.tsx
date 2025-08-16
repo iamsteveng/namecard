@@ -161,7 +161,7 @@ export default function CardResults({
     handleEnrichmentComplete,
     handleEnrichmentError,
     clearError,
-  } = useEnrichmentStatus(result.data?.cardId);
+  } = useEnrichmentStatus();
   const [editedData, setEditedData] = useState<EditedCardData>({});
 
   // Initialize edited data from result

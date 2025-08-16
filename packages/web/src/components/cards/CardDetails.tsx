@@ -72,13 +72,27 @@ export default function CardDetails({
   isEnriching,
   className,
 }: CardDetailsProps) {
+  // Helper function to safely access company properties
+  const getCompanyProperty = (property: string): unknown => {
+    const company = card.companies?.[0];
+    if (!company) return undefined;
+    
+    // Handle junction table structure
+    if ('company' in company) {
+      return (company as any).company?.[property];
+    }
+    
+    // Direct company object
+    return (company as any)?.[property];
+  };
+
   // Get the primary company data (handle junction table structure)
-  const primaryCompany =
+  const primaryCompany: any =
     card.companies?.[0] && 'company' in card.companies[0]
-      ? (card.companies[0] as unknown as { company: unknown }).company
-      : card.companies?.[0];
+      ? (card.companies[0] as any).company
+      : (card.companies?.[0] as any);
   const hasEnrichmentData = primaryCompany && Object.keys(primaryCompany).length > 3;
-  const enrichmentScore = primaryCompany?.overallEnrichmentScore || 0;
+  const enrichmentScore = Number(getCompanyProperty('overallEnrichmentScore')) || 0;
 
   // Get enriched data from API response
   const enrichmentData = card.enrichmentData;
@@ -317,22 +331,22 @@ export default function CardDetails({
               {/* Company Overview */}
               <div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {primaryCompany.industry && (
+                  {getCompanyProperty('industry') && (
                     <div>
                       <span className="text-sm font-medium text-gray-500">Industry</span>
-                      <p className="text-gray-900">{primaryCompany.industry}</p>
+                      <p className="text-gray-900">{String(getCompanyProperty('industry'))}</p>
                     </div>
                   )}
-                  {primaryCompany.size && (
+                  {getCompanyProperty('size') && (
                     <div>
                       <span className="text-sm font-medium text-gray-500">Company Size</span>
-                      <p className="text-gray-900">{primaryCompany.size}</p>
+                      <p className="text-gray-900">{String(getCompanyProperty('size'))}</p>
                     </div>
                   )}
-                  {primaryCompany.founded && (
+                  {getCompanyProperty('founded') && (
                     <div>
                       <span className="text-sm font-medium text-gray-500">Founded</span>
-                      <p className="text-gray-900">{primaryCompany.founded}</p>
+                      <p className="text-gray-900">{String(getCompanyProperty('founded'))}</p>
                     </div>
                   )}
                   {primaryCompany.employeeCount && (
