@@ -1,5 +1,5 @@
 // Jest setup for API package
-require('@testing-library/jest-dom');
+// Note: @testing-library/jest-dom is not needed for backend API testing
 
 // Global test timeout
 jest.setTimeout(10000);
