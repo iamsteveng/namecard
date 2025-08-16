@@ -9,34 +9,49 @@ jest.mock('@aws-sdk/client-s3', () => {
     S3Client: jest.fn().mockImplementation(() => ({
       send: mockSend,
     })),
-    PutObjectCommand: jest.fn().mockImplementation((input) => ({ input, constructor: { name: 'PutObjectCommand' } })),
-    DeleteObjectCommand: jest.fn().mockImplementation((input) => ({ input, constructor: { name: 'DeleteObjectCommand' } })),
-    GetObjectCommand: jest.fn().mockImplementation((input) => ({ input, constructor: { name: 'GetObjectCommand' } })),
-    HeadObjectCommand: jest.fn().mockImplementation((input) => ({ input, constructor: { name: 'HeadObjectCommand' } })),
-    ListObjectsV2Command: jest.fn().mockImplementation((input) => ({ input, constructor: { name: 'ListObjectsV2Command' } })),
-    GetObjectAttributesCommand: jest.fn().mockImplementation((input) => ({ input, constructor: { name: 'GetObjectAttributesCommand' } })),
+    PutObjectCommand: jest
+      .fn()
+      .mockImplementation(input => ({ input, constructor: { name: 'PutObjectCommand' } })),
+    DeleteObjectCommand: jest
+      .fn()
+      .mockImplementation(input => ({ input, constructor: { name: 'DeleteObjectCommand' } })),
+    GetObjectCommand: jest
+      .fn()
+      .mockImplementation(input => ({ input, constructor: { name: 'GetObjectCommand' } })),
+    HeadObjectCommand: jest
+      .fn()
+      .mockImplementation(input => ({ input, constructor: { name: 'HeadObjectCommand' } })),
+    ListObjectsV2Command: jest
+      .fn()
+      .mockImplementation(input => ({ input, constructor: { name: 'ListObjectsV2Command' } })),
+    GetObjectAttributesCommand: jest.fn().mockImplementation(input => ({
+      input,
+      constructor: { name: 'GetObjectAttributesCommand' },
+    })),
   };
 });
 
 jest.mock('@aws-sdk/s3-request-presigner', () => ({
-  getSignedUrl: jest.fn(() => Promise.resolve('https://test-bucket.s3.amazonaws.com/test-key?signed=true')),
+  getSignedUrl: jest.fn(() =>
+    Promise.resolve('https://test-bucket.s3.amazonaws.com/test-key?signed=true')
+  ),
 }));
 
 describe('S3 Service Tests', () => {
   let mockS3Send: jest.Mock;
-  
+
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     // Get the mocked S3Client send function
     const { S3Client } = require('@aws-sdk/client-s3');
     const mockS3ClientInstance = new S3Client({});
     mockS3Send = mockS3ClientInstance.send as jest.Mock;
-    
+
     // Default successful responses
-    mockS3Send.mockImplementation((command) => {
+    mockS3Send.mockImplementation(command => {
       const commandName = command.constructor.name;
-      
+
       switch (commandName) {
         case 'PutObjectCommand':
           return Promise.resolve({
@@ -51,10 +66,12 @@ describe('S3 Service Tests', () => {
             LastModified: new Date('2023-01-01'),
             ETag: '"mock-etag-123"',
             ContentType: 'image/jpeg',
-            Metadata: command.input.Key.includes('non-existent') ? undefined : {
-              'original-name': 'test.jpg',
-              'user-id': 'test-user',
-            },
+            Metadata: command.input.Key.includes('non-existent')
+              ? undefined
+              : {
+                  'original-name': 'test.jpg',
+                  'user-id': 'test-user',
+                },
           });
         case 'ListObjectsV2Command':
           return Promise.resolve({
@@ -123,7 +140,7 @@ describe('S3 Service Tests', () => {
     it('should perform health check', async () => {
       // Mock a successful ListObjectsV2 response for health check
       mockS3Send.mockImplementationOnce(() => Promise.resolve({ Contents: [] }));
-      
+
       const healthResult = await s3Service.healthCheck();
 
       expect(healthResult).toHaveProperty('status');
@@ -139,7 +156,6 @@ describe('S3 Service Tests', () => {
   });
 
   describe('File Upload Operations', () => {
-
     it('should upload a single JPEG image', async () => {
       const imageBuffer = await createTestImage(800, 600, 'jpeg');
       const originalName = 'test-image.jpg';
@@ -243,7 +259,6 @@ describe('S3 Service Tests', () => {
   });
 
   describe('Batch Upload Operations', () => {
-
     it('should upload multiple files in batch', async () => {
       const files = [
         {
@@ -317,7 +332,7 @@ describe('S3 Service Tests', () => {
   describe('File Operations', () => {
     it('should get file information', async () => {
       const testFileKey = 'images/users/operations-user/storage/operations-test.jpg';
-      
+
       const fileInfo = await s3Service.getFileInfo(testFileKey);
 
       expect(fileInfo).toMatchObject({
@@ -332,7 +347,7 @@ describe('S3 Service Tests', () => {
 
     it('should generate signed download URL', async () => {
       const testFileKey = 'images/users/operations-user/storage/operations-test.jpg';
-      
+
       const signedUrl = await s3Service.getSignedDownloadUrl(testFileKey, 3600);
 
       expect(signedUrl).toContain('https://');

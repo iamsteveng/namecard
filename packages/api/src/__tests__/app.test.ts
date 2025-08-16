@@ -32,7 +32,7 @@ describe('App', () => {
           }),
         }),
       });
-      
+
       // Additional checks based on actual status
       if (response.body.status === 'degraded') {
         expect(response.body.services.database.status).toBe('disconnected');
