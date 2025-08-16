@@ -8,6 +8,7 @@ jest.mock('../../services/textract.service.js', () => ({
   textractService: {
     extractText: jest.fn(),
     parseBusinessCard: jest.fn(),
+    processBusinessCard: jest.fn(),
   },
 }));
 
@@ -275,8 +276,8 @@ describe('Card Processing Service Tests', () => {
       });
 
       // Mock OCR processing
-      const { TextractService } = require('../../services/textract.service.js');
-      TextractService.processBusinessCard.mockResolvedValue({
+      const { textractService } = require('../../services/textract.service.js');
+      textractService.processBusinessCard.mockResolvedValue({
         success: true,
         data: {
           businessCardData: {
@@ -339,8 +340,8 @@ describe('Card Processing Service Tests', () => {
         cdnUrl: 'https://cdn.example.com/original.jpg',
       });
 
-      const { TextractService } = require('../../services/textract.service.js');
-      TextractService.processBusinessCard.mockResolvedValue({
+      const { textractService } = require('../../services/textract.service.js');
+      textractService.processBusinessCard.mockResolvedValue({
         success: true,
         data: {
           businessCardData: {
@@ -481,8 +482,8 @@ describe('Card Processing Service Tests', () => {
         url: 'https://s3.example.com/original.jpg',
       });
 
-      const { TextractService } = require('../../services/textract.service.js');
-      TextractService.processBusinessCard.mockResolvedValue({
+      const { textractService } = require('../../services/textract.service.js');
+      textractService.processBusinessCard.mockResolvedValue({
         success: true,
         data: {
           businessCardData: {

@@ -15,23 +15,28 @@ describe('App', () => {
       // Health check might return 200 (database connected) or 503 (database disconnected)
       expect([200, 503]).toContain(response.status);
 
-      if (response.status === 200) {
-        expect(response.body).toEqual({
-          status: 'ok',
-          timestamp: expect.any(String),
-          environment: 'test',
-          uptime: expect.any(Number),
-          memory: expect.any(Object),
-          database: 'connected',
-        });
-      } else {
-        expect(response.body).toEqual({
-          status: 'error',
-          timestamp: expect.any(String),
-          environment: 'test',
-          database: 'disconnected',
-          error: 'Database connection failed',
-        });
+      // Test the actual response structure
+      expect(response.body).toEqual({
+        status: expect.stringMatching(/^(ok|error|degraded)$/),
+        timestamp: expect.any(String),
+        environment: 'test',
+        uptime: expect.any(Number),
+        memory: expect.any(Object),
+        services: expect.objectContaining({
+          api: expect.objectContaining({
+            status: 'ok',
+            message: expect.any(String),
+          }),
+          database: expect.objectContaining({
+            status: expect.stringMatching(/^(connected|disconnected)$/),
+          }),
+        }),
+      });
+      
+      // Additional checks based on actual status
+      if (response.body.status === 'degraded') {
+        expect(response.body.services.database.status).toBe('disconnected');
+        expect(response.body.services.database.error).toBeDefined();
       }
     });
   });

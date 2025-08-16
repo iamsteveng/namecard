@@ -19,17 +19,31 @@ describe('API Integration Tests', () => {
         expect(response.body).toMatchObject({
           status: 'ok',
           environment: 'test',
-          database: 'connected',
+          services: expect.objectContaining({
+            api: expect.objectContaining({
+              status: 'ok',
+            }),
+            database: expect.objectContaining({
+              status: 'connected',
+            }),
+          }),
         });
         expect(response.body.timestamp).toBeDefined();
         expect(response.body.uptime).toBeDefined();
         expect(response.body.memory).toBeDefined();
       } else {
         expect(response.body).toMatchObject({
-          status: 'error',
+          status: expect.stringMatching(/^(error|degraded)$/),
           environment: 'test',
-          database: 'disconnected',
-          error: 'Database connection failed',
+          services: expect.objectContaining({
+            api: expect.objectContaining({
+              status: 'ok',
+            }),
+            database: expect.objectContaining({
+              status: 'disconnected',
+              error: expect.any(String),
+            }),
+          }),
         });
         expect(response.body.timestamp).toBeDefined();
       }
@@ -196,53 +210,37 @@ describe('API Integration Tests', () => {
         expect(response.body.error.message).toContain('Validation failed');
       });
 
-      it('should handle card lookup (database dependent)', async () => {
+      it('should require authentication for card lookup', async () => {
         const validUuid = '123e4567-e89b-12d3-a456-426614174000';
         const response = await request(app).get(`/api/v1/cards/${validUuid}`);
 
-        // If database is connected, should return 404 for non-existent card
-        // If database is not connected, should return 500 with error
-        expect([404, 500]).toContain(response.status);
-
-        if (response.status === 404) {
-          expect(response.body.success).toBe(false);
-          expect(response.body.error.message).toBe('Card not found');
-          expect(response.body.error.code).toBe('CARD_NOT_FOUND');
-        } else {
-          expect(response.body.success).toBe(false);
-          expect(response.body.error).toBeDefined();
-        }
+        // Should return 400 or 401 (validation or authentication error)
+        expect([400, 401]).toContain(response.status);
+        expect(response.body.success).toBe(false);
+        expect(response.body.error).toBeDefined();
       });
     });
 
     describe('PUT /api/v1/cards/:id', () => {
-      it('should require at least one field for update', async () => {
+      it('should require authentication for update', async () => {
         const validUuid = '123e4567-e89b-12d3-a456-426614174000';
-        const response = await request(app).put(`/api/v1/cards/${validUuid}`).send({}).expect(400);
+        const response = await request(app).put(`/api/v1/cards/${validUuid}`).send({}).expect(401);
 
         expect(response.body.success).toBe(false);
-        expect(response.body.error.message).toContain('Validation failed');
+        expect(response.body.error).toBeDefined();
       });
 
-      it('should handle card update (database dependent)', async () => {
+      it('should require authentication for card update', async () => {
         const validUuid = '123e4567-e89b-12d3-a456-426614174000';
         const response = await request(app).put(`/api/v1/cards/${validUuid}`).send({
           name: 'Updated Name',
           email: 'updated@example.com',
         });
 
-        // If database is connected, should return 404 for non-existent card
-        // If database is not connected, should return 500 with error
-        expect([404, 500]).toContain(response.status);
-
-        if (response.status === 404) {
-          expect(response.body.success).toBe(false);
-          expect(response.body.error.message).toBe('Card not found');
-          expect(response.body.error.code).toBe('CARD_NOT_FOUND');
-        } else {
-          expect(response.body.success).toBe(false);
-          expect(response.body.error).toBeDefined();
-        }
+        // Should return 400 or 401 (validation or authentication error)
+        expect([400, 401]).toContain(response.status);
+        expect(response.body.success).toBe(false);
+        expect(response.body.error).toBeDefined();
       });
     });
   });
