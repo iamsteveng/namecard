@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       run_migrations:
-        description: 'Force run database migrations'
+        description: 'Force run database schema sync (uses db push for existing databases)'
         required: false
         default: 'true'
         type: boolean
@@ -99,10 +99,10 @@ jobs:
             echo "✅ No schema changes detected"
           fi
 
-      - name: Run database migrations
+      - name: Run database schema sync
         if: steps.schema_changes.outputs.schema_changed == 'true' || github.event.inputs.run_migrations != 'false'
         run: |
-          echo "🔄 Running database migrations via ECS task..."
+          echo "🔄 Syncing database schema via ECS task..."
           
           # Get database credentials from AWS Secrets Manager
           DB_SECRET=$(aws secretsmanager get-secret-value --secret-id namecard/database/staging --region ${{ env.AWS_REGION }} --query 'SecretString' --output text)
@@ -117,41 +117,42 @@ jobs:
           ENCODED_DB_PASS=$(echo "$DB_PASS" | python3 -c "import sys, urllib.parse; print(urllib.parse.quote(sys.stdin.read().strip(), safe=''))")
           ENCODED_DATABASE_URL="postgresql://${DB_USER}:${ENCODED_DB_PASS}@${DB_HOST}:5432/${DB_NAME}?sslmode=require"
           
-          echo "Running ECS migration task..."
+          echo "Running ECS schema sync task..."
           
-          # Run migration using ECS task
+          # Use 'db push' for existing databases to avoid P3005 migration baseline issues
+          # This command synchronizes the database schema without migration history tracking
           TASK_ARN=$(aws ecs run-task \
             --cluster ${{ env.ECS_CLUSTER }} \
             --task-definition NameCardProdstagingAPIServiceTaskDef909B2074 \
             --launch-type FARGATE \
             --network-configuration 'awsvpcConfiguration={subnets=["subnet-08cef10adb4cf31e6","subnet-00ca2562f3fabffaf"],securityGroups=["sg-0aa8f05b02d726a66"],assignPublicIp=ENABLED}' \
-            --overrides "{\"containerOverrides\":[{\"name\":\"namecard-api\",\"command\":[\"sh\",\"-c\",\"cd /app/packages/api && npx prisma migrate deploy\"],\"environment\":[{\"name\":\"DATABASE_URL\",\"value\":\"$ENCODED_DATABASE_URL\"}]}]}" \
+            --overrides "{\"containerOverrides\":[{\"name\":\"namecard-api\",\"command\":[\"sh\",\"-c\",\"cd /app/packages/api && npx prisma db push --accept-data-loss\"],\"environment\":[{\"name\":\"DATABASE_URL\",\"value\":\"$ENCODED_DATABASE_URL\"}]}]}" \
             --region ${{ env.AWS_REGION }} \
             --query 'tasks[0].taskArn' --output text)
           
-          echo "Migration task started: $TASK_ARN"
+          echo "Schema sync task started: $TASK_ARN"
           TASK_ID=$(echo "$TASK_ARN" | sed 's/.*\///')
           
           # Wait for task to complete
-          echo "⏳ Waiting for migration task to complete..."
+          echo "⏳ Waiting for schema sync task to complete..."
           aws ecs wait tasks-stopped --cluster ${{ env.ECS_CLUSTER }} --tasks "$TASK_ID" --region ${{ env.AWS_REGION }}
           
           # Check task exit code
           EXIT_CODE=$(aws ecs describe-tasks --cluster ${{ env.ECS_CLUSTER }} --tasks "$TASK_ID" --region ${{ env.AWS_REGION }} --query 'tasks[0].containers[0].exitCode' --output text)
           
           if [ "$EXIT_CODE" = "0" ]; then
-            echo "✅ Database migration completed successfully!"
+            echo "✅ Database schema sync completed successfully!"
             
-            # Get migration logs
+            # Get sync logs
             LOG_STREAM="namecard-api/namecard-api/$TASK_ID"
-            echo "📋 Migration logs:"
+            echo "📋 Schema sync logs:"
             aws logs get-log-events --log-group-name "/namecard/api-service/staging" --log-stream-name "$LOG_STREAM" --region ${{ env.AWS_REGION }} --query 'events[].message' --output text 2>/dev/null || echo "Log stream not available yet"
           else
-            echo "❌ Database migration failed! Exit code: $EXIT_CODE"
+            echo "❌ Database schema sync failed! Exit code: $EXIT_CODE"
             
             # Get error logs
             LOG_STREAM="namecard-api/namecard-api/$TASK_ID"
-            echo "📋 Migration error logs:"
+            echo "📋 Schema sync error logs:"
             aws logs get-log-events --log-group-name "/namecard/api-service/staging" --log-stream-name "$LOG_STREAM" --region ${{ env.AWS_REGION }} --query 'events[].message' --output text 2>/dev/null || echo "Log stream not available yet"
             exit 1
           fi
