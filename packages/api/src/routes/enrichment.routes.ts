@@ -4,6 +4,7 @@
  * REST API endpoints for company data enrichment
  */
 
+import { Card } from '@namecard/shared/types/card.types';
 import {
   EnrichCompanyRequest,
   EnrichBusinessCardRequest,
@@ -563,7 +564,7 @@ router.post(
       for (let i = 0; i < cards.length; i += batchSize) {
         const batch = cards.slice(i, i + batchSize);
 
-        const batchPromises = batch.map(async card => {
+        const batchPromises = batch.map(async (card: Card) => {
           try {
             // Simple card enrichment (company data)
             if (card.company) {
