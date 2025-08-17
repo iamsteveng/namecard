@@ -172,27 +172,30 @@ jobs:
 
       - name: Verify deployment
         run: |
-          # Use CloudFront distribution URL which provides HTTPS access to the API
-          # CloudFront acts as a proxy forwarding /api/* requests to the load balancer
-          FRONTEND_URL="https://d1357e576dd65p.cloudfront.net"
-          API_URL="$FRONTEND_URL/api"
+          # Health endpoint is at /health (root level) - not proxied by CloudFront
+          # Use direct load balancer URL for health check since CloudFront only forwards /api/*
+          HEALTH_URL="http://NameCa-APISe-N5y96ivnIVEm-949793622.ap-southeast-1.elb.amazonaws.com/health"
           
-          echo "🔍 Using CloudFront API URL: $API_URL"
+          # API endpoints are accessible via CloudFront
+          API_BASE_URL="https://d1357e576dd65p.cloudfront.net/api"
+          
+          echo "🔍 Health check URL: $HEALTH_URL"
+          echo "🔍 API base URL: $API_BASE_URL"
           
           # Health check with retry
           echo "Running health check..."
           for i in {1..5}; do
-            response=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/health" || echo "000")
+            response=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || echo "000")
             
             if [ "$response" = "200" ]; then
-              echo "✅ Deployment successful! API is healthy via CloudFront."
-              echo "🚀 API available at: $API_URL"
-              echo "📊 Testing API info endpoint..."
+              echo "✅ Deployment successful! API is healthy."
+              echo "🚀 Health check passed at: $HEALTH_URL"
+              echo "📊 Testing API info endpoint via CloudFront..."
               
-              # Test database connectivity by checking API info endpoint
-              info_response=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/v1/" || echo "000")
+              # Test database connectivity by checking API info endpoint via CloudFront
+              info_response=$(curl -s -o /dev/null -w "%{http_code}" "$API_BASE_URL/v1/" || echo "000")
               if [ "$info_response" = "200" ]; then
-                echo "✅ Database connectivity verified - API endpoints responding"
+                echo "✅ Database connectivity verified - API endpoints responding via CloudFront"
               else
                 echo "⚠️  API info endpoint returned: $info_response"
               fi
