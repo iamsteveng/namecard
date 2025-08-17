@@ -563,7 +563,7 @@ router.post(
       for (let i = 0; i < cards.length; i += batchSize) {
         const batch = cards.slice(i, i + batchSize);
 
-        const batchPromises = batch.map(async (card) => {
+        const batchPromises = batch.map(async card => {
           try {
             // Simple card enrichment (company data)
             if (card.company) {

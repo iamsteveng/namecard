@@ -103,7 +103,7 @@ export class EnrichmentService {
       console.log(`Enriching company with sources: ${availableSources.join(', ')}`);
 
       // Execute enrichment from each source in parallel
-      const enrichmentPromises = availableSources.map(async source => {
+      const enrichmentPromises = availableSources.map(async (source: EnrichmentSource) => {
         const service = this.sources.get(source)!;
         try {
           return await service.enrichCompany(request);

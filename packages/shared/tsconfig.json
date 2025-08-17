@@ -31,7 +31,7 @@
     "allowUnreachableCode": false,
     "noPropertyAccessFromIndexSignature": true,
     "noUncheckedSideEffectImports": true,
-    "verbatimModuleSyntax": true
+    "verbatimModuleSyntax": false
   },
   "include": ["src/**/*"],
   "exclude": ["dist", "node_modules", "**/*.test.ts", "**/*.spec.ts"]

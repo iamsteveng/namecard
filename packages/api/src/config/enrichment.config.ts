@@ -188,10 +188,18 @@ export function validateEnrichmentConfig(
   // Validate source preferences
   for (const [source, prefs] of Object.entries(settings.sourcePreferences)) {
     if (prefs && typeof prefs === 'object') {
-      if ('weight' in prefs && (prefs.weight < 0 || prefs.weight > 1)) {
+      if (
+        'weight' in prefs &&
+        typeof prefs.weight === 'number' &&
+        (prefs.weight < 0 || prefs.weight > 1)
+      ) {
         errors.push(`Source weight for ${source} must be between 0 and 1`);
       }
-      if ('trustLevel' in prefs && (prefs.trustLevel < 0 || prefs.trustLevel > 100)) {
+      if (
+        'trustLevel' in prefs &&
+        typeof prefs.trustLevel === 'number' &&
+        (prefs.trustLevel < 0 || prefs.trustLevel > 100)
+      ) {
         errors.push(`Trust level for ${source} must be between 0 and 100`);
       }
     }
