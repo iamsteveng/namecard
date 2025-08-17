@@ -10,7 +10,6 @@ import {
   DetailedEnrichCardRequest,
   BatchEnrichmentRequest,
 } from '@namecard/shared/types/enrichment.types';
-import { Card } from '@prisma/client';
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 
@@ -564,7 +563,7 @@ router.post(
       for (let i = 0; i < cards.length; i += batchSize) {
         const batch = cards.slice(i, i + batchSize);
 
-        const batchPromises = batch.map(async (card: Card) => {
+        const batchPromises = batch.map(async (card) => {
           try {
             // Simple card enrichment (company data)
             if (card.company) {
