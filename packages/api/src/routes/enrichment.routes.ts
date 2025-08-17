@@ -1,26 +1,27 @@
 /**
  * Enrichment API Routes
- * 
+ *
  * REST API endpoints for company data enrichment
  */
 
-import { Router, Request, Response } from 'express';
-import { authenticateToken } from '../middleware/auth.middleware.js';
-import { validateRequest } from '../middleware/validation.middleware.js';
-import { EnrichmentService } from '../services/enrichment/enrichment.service.js';
-import prisma from '../lib/prisma.js';
-import { 
-  loadEnrichmentSourceConfigs, 
-  loadEnrichmentSettings,
-  validateEnrichmentConfig 
-} from '../config/enrichment.config.js';
-import { 
+import {
   EnrichCompanyRequest,
   EnrichBusinessCardRequest,
   DetailedEnrichCardRequest,
-  BatchEnrichmentRequest 
+  BatchEnrichmentRequest,
 } from '@namecard/shared/types/enrichment.types';
+import { Router, Request, Response } from 'express';
 import { z } from 'zod';
+
+import {
+  loadEnrichmentSourceConfigs,
+  loadEnrichmentSettings,
+  validateEnrichmentConfig,
+} from '../config/enrichment.config.js';
+import prisma from '../lib/prisma.js';
+import { authenticateToken } from '../middleware/auth.middleware.js';
+import { validateRequest } from '../middleware/validation.middleware.js';
+import { EnrichmentService } from '../services/enrichment/enrichment.service.js';
 
 const router = Router();
 
@@ -36,50 +37,67 @@ if (!configValidation.valid) {
 const enrichmentService = new EnrichmentService(prisma, sourceConfigs, settings);
 
 // Validation schemas
-const enrichCompanySchema = z.object({
-  companyName: z.string().optional(),
-  domain: z.string().optional(),
-  website: z.string().url().optional(),
-  sources: z.array(z.enum(['clearbit', 'linkedin', 'crunchbase', 'manual', 'opencorporates', 'perplexity'])).optional(),
-  forceRefresh: z.boolean().optional()
-}).refine(data => data.companyName || data.domain, {
-  message: "Either companyName or domain must be provided"
-});
+const enrichCompanySchema = z
+  .object({
+    companyName: z.string().optional(),
+    domain: z.string().optional(),
+    website: z.string().url().optional(),
+    sources: z
+      .array(
+        z.enum(['clearbit', 'linkedin', 'crunchbase', 'manual', 'opencorporates', 'perplexity'])
+      )
+      .optional(),
+    forceRefresh: z.boolean().optional(),
+  })
+  .refine(data => data.companyName || data.domain, {
+    message: 'Either companyName or domain must be provided',
+  });
 
-const enrichBusinessCardSchema = z.object({
-  // Person information
-  personName: z.string().optional(),
-  personTitle: z.string().optional(),
-  
-  // Company information  
-  companyName: z.string().optional(),
-  domain: z.string().optional(),
-  website: z.string().url().optional(),
-  
-  // Card reference (optional for standalone enrichment)
-  cardId: z.string().cuid().optional(),
-  
-  // Enrichment options
-  sources: z.array(z.enum(['clearbit', 'linkedin', 'crunchbase', 'manual', 'opencorporates', 'perplexity'])).optional().default(['perplexity']),
-  forceRefresh: z.boolean().optional().default(false),
-  includePersonData: z.boolean().optional().default(true),
-  includeCompanyData: z.boolean().optional().default(true)
-}).refine(data => data.personName || data.companyName, {
-  message: "Either personName or companyName must be provided"
-});
+const enrichBusinessCardSchema = z
+  .object({
+    // Person information
+    personName: z.string().optional(),
+    personTitle: z.string().optional(),
+
+    // Company information
+    companyName: z.string().optional(),
+    domain: z.string().optional(),
+    website: z.string().url().optional(),
+
+    // Card reference (optional for standalone enrichment)
+    cardId: z.string().cuid().optional(),
+
+    // Enrichment options
+    sources: z
+      .array(
+        z.enum(['clearbit', 'linkedin', 'crunchbase', 'manual', 'opencorporates', 'perplexity'])
+      )
+      .optional()
+      .default(['perplexity']),
+    forceRefresh: z.boolean().optional().default(false),
+    includePersonData: z.boolean().optional().default(true),
+    includeCompanyData: z.boolean().optional().default(true),
+  })
+  .refine(data => data.personName || data.companyName, {
+    message: 'Either personName or companyName must be provided',
+  });
 
 const enrichCardSchema = z.object({
   cardId: z.string().cuid(),
   enrichmentTypes: z.array(z.enum(['company', 'person', 'social', 'news', 'logo'])).optional(),
-  sources: z.array(z.enum(['clearbit', 'linkedin', 'crunchbase', 'manual', 'opencorporates', 'perplexity'])).optional(),
-  triggeredBy: z.enum(['auto', 'manual', 'batch']).optional().default('manual')
+  sources: z
+    .array(z.enum(['clearbit', 'linkedin', 'crunchbase', 'manual', 'opencorporates', 'perplexity']))
+    .optional(),
+  triggeredBy: z.enum(['auto', 'manual', 'batch']).optional().default('manual'),
 });
 
 const batchEnrichmentSchema = z.object({
   cardIds: z.array(z.string().cuid()).min(1).max(50),
   enrichmentTypes: z.array(z.enum(['company', 'person', 'social', 'news', 'logo'])).optional(),
-  sources: z.array(z.enum(['clearbit', 'linkedin', 'crunchbase', 'manual', 'opencorporates', 'perplexity'])).optional(),
-  maxConcurrent: z.number().min(1).max(10).optional().default(3)
+  sources: z
+    .array(z.enum(['clearbit', 'linkedin', 'crunchbase', 'manual', 'opencorporates', 'perplexity']))
+    .optional(),
+  maxConcurrent: z.number().min(1).max(10).optional().default(3),
 });
 
 /**
@@ -89,19 +107,19 @@ const batchEnrichmentSchema = z.object({
 router.get('/health', async (req: Request, res: Response) => {
   try {
     const health = await enrichmentService.healthCheck();
-    
+
     res.status(health.status === 'healthy' ? 200 : 503).json({
       status: health.status,
       sources: health.sources,
       availableSources: enrichmentService.getAvailableSources(),
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error('Enrichment health check error:', error);
     res.status(500).json({
       status: 'error',
       message: 'Health check failed',
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 });
@@ -113,7 +131,7 @@ router.get('/health', async (req: Request, res: Response) => {
 router.get('/sources', authenticateToken, (req: Request, res: Response) => {
   try {
     const availableSources = enrichmentService.getAvailableSources();
-    
+
     res.json({
       success: true,
       sources: availableSources,
@@ -121,15 +139,15 @@ router.get('/sources', authenticateToken, (req: Request, res: Response) => {
       configuration: sourceConfigs.map(config => ({
         source: config.source,
         enabled: config.enabled,
-        hasApiKey: !!config.apiKey
-      }))
+        hasApiKey: !!config.apiKey,
+      })),
     });
   } catch (error) {
     console.error('Error getting enrichment sources:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to get enrichment sources',
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 });
@@ -138,32 +156,33 @@ router.get('/sources', authenticateToken, (req: Request, res: Response) => {
  * POST /api/v1/enrichment/company
  * Enrich company data from multiple sources
  */
-router.post('/company', 
+router.post(
+  '/company',
   authenticateToken,
   validateRequest(enrichCompanySchema),
   async (req: Request, res: Response) => {
     try {
       const request: EnrichCompanyRequest = req.body;
-      
-      console.log('Enriching company:', { 
-        companyName: request.companyName, 
+
+      console.log('Enriching company:', {
+        companyName: request.companyName,
         domain: request.domain,
-        sources: request.sources 
+        sources: request.sources,
       });
 
       const result = await enrichmentService.enrichCompany(request);
-      
+
       if (result.success) {
         res.json({
           success: true,
           data: result,
-          message: 'Company enrichment completed successfully'
+          message: 'Company enrichment completed successfully',
         });
       } else {
         res.status(422).json({
           success: false,
           data: result,
-          message: 'Company enrichment failed'
+          message: 'Company enrichment failed',
         });
       }
     } catch (error) {
@@ -171,7 +190,7 @@ router.post('/company',
       res.status(500).json({
         success: false,
         message: 'Internal server error during company enrichment',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       });
     }
   }
@@ -181,63 +200,60 @@ router.post('/company',
  * GET /api/v1/enrichment/company/:companyId/status
  * Get enrichment status for a specific company
  */
-router.get('/company/:companyId/status',
-  authenticateToken,
-  async (req: Request, res: Response) => {
-    try {
-      const { companyId } = req.params;
-      
-      const status = await enrichmentService.getCompanyEnrichmentStatus(companyId);
-      
-      res.json({
-        success: true,
-        data: status,
-        message: 'Company enrichment status retrieved successfully'
+router.get('/company/:companyId/status', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const { companyId } = req.params;
+
+    const status = await enrichmentService.getCompanyEnrichmentStatus(companyId);
+
+    res.json({
+      success: true,
+      data: status,
+      message: 'Company enrichment status retrieved successfully',
+    });
+  } catch (error) {
+    console.error('Error getting company enrichment status:', error);
+
+    if (error instanceof Error && error.message.includes('not found')) {
+      res.status(404).json({
+        success: false,
+        message: 'Company not found',
+        error: error.message,
       });
-    } catch (error) {
-      console.error('Error getting company enrichment status:', error);
-      
-      if (error instanceof Error && error.message.includes('not found')) {
-        res.status(404).json({
-          success: false,
-          message: 'Company not found',
-          error: error.message
-        });
-      } else {
-        res.status(500).json({
-          success: false,
-          message: 'Failed to get company enrichment status',
-          error: error instanceof Error ? error.message : 'Unknown error'
-        });
-      }
+    } else {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get company enrichment status',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
     }
   }
-);
+});
 
 /**
  * POST /api/v1/enrichment/business-card
  * Unified business card enrichment with combined person and company data
  */
-router.post('/business-card',
+router.post(
+  '/business-card',
   authenticateToken,
   validateRequest(enrichBusinessCardSchema),
   async (req: Request, res: Response) => {
     try {
       const request: EnrichBusinessCardRequest = req.body;
-      const userId = req.user?.id;
 
-      console.log('Enriching business card with unified approach:', { 
+      console.log('Enriching business card with unified approach:', {
         personName: request.personName,
         personTitle: request.personTitle,
         companyName: request.companyName,
         domain: request.domain,
         sources: request.sources,
         includePersonData: request.includePersonData,
-        includeCompanyData: request.includeCompanyData
+        includeCompanyData: request.includeCompanyData,
       });
 
       const result = await enrichmentService.enrichBusinessCard(request);
-      
+
       if (result.success) {
         res.json({
           success: true,
@@ -247,15 +263,15 @@ router.post('/business-card',
             sources: result.sources,
             overallConfidence: result.overallConfidence,
             processingTimeMs: result.processingTimeMs,
-            enrichmentDate: new Date()
+            enrichmentDate: new Date(),
           },
-          message: 'Business card enrichment completed successfully'
+          message: 'Business card enrichment completed successfully',
         });
       } else {
         res.status(422).json({
           success: false,
           data: result,
-          message: 'Business card enrichment failed'
+          message: 'Business card enrichment failed',
         });
       }
     } catch (error) {
@@ -263,7 +279,7 @@ router.post('/business-card',
       res.status(500).json({
         success: false,
         message: 'Internal server error during business card enrichment',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       });
     }
   }
@@ -273,7 +289,8 @@ router.post('/business-card',
  * POST /api/v1/enrichment/card
  * Enrich a business card with company data
  */
-router.post('/card',
+router.post(
+  '/card',
   authenticateToken,
   validateRequest(enrichCardSchema),
   async (req: Request, res: Response) => {
@@ -285,14 +302,14 @@ router.post('/card',
       const card = await prisma.card.findFirst({
         where: {
           id: request.cardId,
-          userId: userId
-        }
+          userId: userId,
+        },
       });
 
       if (!card) {
         return res.status(404).json({
           success: false,
-          message: 'Card not found or access denied'
+          message: 'Card not found or access denied',
         });
       }
 
@@ -304,14 +321,20 @@ router.post('/card',
           where: {
             OR: [
               { name: { equals: card.company, mode: 'insensitive' } },
-              { domain: card.website ? card.website.replace(/https?:\/\//, '').replace(/\/$/, '') : undefined }
-            ]
-          }
+              {
+                domain: card.website
+                  ? card.website.replace(/https?:\/\//, '').replace(/\/$/, '')
+                  : undefined,
+              },
+            ],
+          },
         });
 
         if (!companyRecord) {
           // Create new company record
-          const domain = card.website ? card.website.replace(/https?:\/\//, '').replace(/\/$/, '') : null;
+          const domain = card.website
+            ? card.website.replace(/https?:\/\//, '').replace(/\/$/, '')
+            : null;
           companyRecord = await prisma.company.create({
             data: {
               name: card.company,
@@ -325,8 +348,8 @@ router.post('/card',
               employeeCount: null,
               founded: null,
               annualRevenue: null,
-              funding: null
-            }
+              funding: null,
+            },
           });
 
           // Link the card to the company
@@ -334,14 +357,14 @@ router.post('/card',
             where: {
               cardId_companyId: {
                 cardId: card.id,
-                companyId: companyRecord.id
-              }
+                companyId: companyRecord.id,
+              },
             },
             update: {},
             create: {
               cardId: card.id,
-              companyId: companyRecord.id
-            }
+              companyId: companyRecord.id,
+            },
           });
         } else {
           // Ensure card is linked to existing company
@@ -349,14 +372,14 @@ router.post('/card',
             where: {
               cardId_companyId: {
                 cardId: card.id,
-                companyId: companyRecord.id
-              }
+                companyId: companyRecord.id,
+              },
             },
             update: {},
             create: {
               cardId: card.id,
-              companyId: companyRecord.id
-            }
+              companyId: companyRecord.id,
+            },
           });
         }
 
@@ -364,7 +387,7 @@ router.post('/card',
           companyName: card.company,
           website: card.website,
           sources: request.sources,
-          forceRefresh: false
+          forceRefresh: false,
         };
 
         let enrichmentResult;
@@ -374,8 +397,11 @@ router.post('/card',
           enrichmentResult = await enrichmentService.enrichCompany(companyEnrichmentRequest);
         } catch (enrichmentError) {
           console.error('Enrichment service error:', enrichmentError);
-          errorMessage = (enrichmentError instanceof Error ? enrichmentError.message : String(enrichmentError)) || 'Enrichment service failed';
-          
+          errorMessage =
+            (enrichmentError instanceof Error
+              ? enrichmentError.message
+              : String(enrichmentError)) || 'Enrichment service failed';
+
           // Create failed enrichment record
           await prisma.cardEnrichment.create({
             data: {
@@ -388,17 +414,17 @@ router.post('/card',
               triggeredBy: request.triggeredBy || 'manual',
               enrichedAt: null,
               errorMessage: errorMessage,
-              processingTimeMs: 0
-            }
+              processingTimeMs: 0,
+            },
           });
 
           return res.status(400).json({
             success: false,
             error: errorMessage,
-            message: 'Card enrichment failed'
+            message: 'Card enrichment failed',
           });
         }
-        
+
         // Update the company record with enrichment data if successful
         if (enrichmentResult.success && enrichmentResult.enrichmentData) {
           const enrichmentData = enrichmentResult.enrichmentData;
@@ -408,7 +434,8 @@ router.post('/card',
               // Update company fields with enriched data
               description: enrichmentData.description || companyRecord.description,
               industry: enrichmentData.industry || companyRecord.industry,
-              location: enrichmentData.headquarters || enrichmentData.location || companyRecord.location,
+              location:
+                enrichmentData.headquarters || enrichmentData.location || companyRecord.location,
               size: enrichmentData.size || companyRecord.size,
               employeeCount: enrichmentData.employeeCount || companyRecord.employeeCount,
               founded: enrichmentData.founded || companyRecord.founded,
@@ -421,8 +448,8 @@ router.post('/card',
               facebookUrl: enrichmentData.facebookUrl || companyRecord.facebookUrl,
               logoUrl: enrichmentData.logoUrl || companyRecord.logoUrl,
               overallEnrichmentScore: (enrichmentResult.overallConfidence || 0) * 100,
-              lastEnrichmentDate: new Date()
-            }
+              lastEnrichmentDate: new Date(),
+            },
           });
 
           // Create CompanyEnrichment record for tracking raw data
@@ -430,8 +457,8 @@ router.post('/card',
             where: {
               companyId_source: {
                 companyId: companyRecord.id,
-                source: 'perplexity' // or determine from request.sources
-              }
+                source: 'perplexity', // or determine from request.sources
+              },
             },
             update: {
               status: 'enriched',
@@ -439,7 +466,7 @@ router.post('/card',
               rawData: enrichmentResult.enrichmentData as any,
               enrichedAt: new Date(),
               errorMessage: null,
-              retryCount: 0
+              retryCount: 0,
             },
             create: {
               companyId: companyRecord.id,
@@ -447,11 +474,11 @@ router.post('/card',
               status: 'enriched',
               confidence: (enrichmentResult.overallConfidence || 0) * 100,
               rawData: enrichmentResult.enrichmentData as any,
-              enrichedAt: new Date()
-            }
+              enrichedAt: new Date(),
+            },
           });
         }
-        
+
         // Create successful enrichment record
         await prisma.cardEnrichment.create({
           data: {
@@ -459,14 +486,15 @@ router.post('/card',
             enrichmentType: 'company',
             status: enrichmentResult.success ? 'completed' : 'failed',
             companiesFound: enrichmentResult.success ? 1 : 0,
-            dataPointsAdded: enrichmentResult.success ? 
-              Object.keys(enrichmentResult.enrichmentData || {}).length : 0,
+            dataPointsAdded: enrichmentResult.success
+              ? Object.keys(enrichmentResult.enrichmentData || {}).length
+              : 0,
             confidence: enrichmentResult.overallConfidence || 0.0,
             triggeredBy: request.triggeredBy || 'manual',
             enrichedAt: enrichmentResult.success ? new Date() : null,
             errorMessage: enrichmentResult.success ? null : 'Company enrichment failed',
-            processingTimeMs: enrichmentResult.processingTimeMs || 0
-          }
+            processingTimeMs: enrichmentResult.processingTimeMs || 0,
+          },
         });
 
         res.json({
@@ -478,14 +506,14 @@ router.post('/card',
             sources: request.sources || ['clearbit'],
             confidence: enrichmentResult.overallConfidence || 0.0,
             processingTime: enrichmentResult.processingTimeMs || 0,
-            enrichmentDate: new Date()
+            enrichmentDate: new Date(),
           },
-          message: 'Card enrichment completed'
+          message: 'Card enrichment completed',
         });
       } else {
         res.status(400).json({
           success: false,
-          message: 'Card does not have company information to enrich'
+          message: 'Card does not have company information to enrich',
         });
       }
     } catch (error) {
@@ -493,7 +521,7 @@ router.post('/card',
       res.status(500).json({
         success: false,
         message: 'Internal server error during card enrichment',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       });
     }
   }
@@ -503,7 +531,8 @@ router.post('/card',
  * POST /api/v1/enrichment/batch
  * Batch enrich multiple cards
  */
-router.post('/batch',
+router.post(
+  '/batch',
   authenticateToken,
   validateRequest(batchEnrichmentSchema),
   async (req: Request, res: Response) => {
@@ -516,25 +545,25 @@ router.post('/batch',
       const cards = await prisma.card.findMany({
         where: {
           id: { in: request.cardIds },
-          userId: userId
-        }
+          userId: userId,
+        },
       });
 
       if (cards.length !== request.cardIds.length) {
         return res.status(404).json({
           success: false,
-          message: 'Some cards not found or access denied'
+          message: 'Some cards not found or access denied',
         });
       }
 
       // Process cards in batches
       const results = [];
       const batchSize = request.maxConcurrent || 3;
-      
+
       for (let i = 0; i < cards.length; i += batchSize) {
         const batch = cards.slice(i, i + batchSize);
-        
-        const batchPromises = batch.map(async (card) => {
+
+        const batchPromises = batch.map(async card => {
           try {
             // Simple card enrichment (company data)
             if (card.company) {
@@ -542,11 +571,11 @@ router.post('/batch',
                 companyName: card.company,
                 website: card.website,
                 sources: request.sources,
-                forceRefresh: false
+                forceRefresh: false,
               };
 
               const enrichmentResult = await enrichmentService.enrichCompany(companyRequest);
-              
+
               // Create card enrichment record
               await prisma.cardEnrichment.create({
                 data: {
@@ -554,60 +583,68 @@ router.post('/batch',
                   enrichmentType: 'company',
                   status: enrichmentResult.success ? 'completed' : 'failed',
                   companiesFound: enrichmentResult.success ? 1 : 0,
-                  dataPointsAdded: enrichmentResult.success ? 
-                    Object.keys(enrichmentResult.enrichmentData).length : 0,
+                  dataPointsAdded: enrichmentResult.success
+                    ? Object.keys(enrichmentResult.enrichmentData).length
+                    : 0,
                   confidence: enrichmentResult.overallConfidence,
                   triggeredBy: 'batch',
                   enrichedAt: enrichmentResult.success ? new Date() : null,
                   errorMessage: enrichmentResult.success ? null : 'Company enrichment failed',
-                  processingTimeMs: enrichmentResult.processingTimeMs
-                }
+                  processingTimeMs: enrichmentResult.processingTimeMs,
+                },
               });
 
               return {
                 success: true,
                 cardId: card.id,
-                enrichments: [{
-                  type: 'company' as const,
-                  status: enrichmentResult.success ? 'enriched' as const : 'failed' as const,
-                  companiesFound: enrichmentResult.success ? 1 : 0,
-                  dataPointsAdded: enrichmentResult.success ? 
-                    Object.keys(enrichmentResult.enrichmentData).length : 0,
-                  confidence: enrichmentResult.overallConfidence
-                }],
+                enrichments: [
+                  {
+                    type: 'company' as const,
+                    status: enrichmentResult.success ? ('enriched' as const) : ('failed' as const),
+                    companiesFound: enrichmentResult.success ? 1 : 0,
+                    dataPointsAdded: enrichmentResult.success
+                      ? Object.keys(enrichmentResult.enrichmentData).length
+                      : 0,
+                    confidence: enrichmentResult.overallConfidence,
+                  },
+                ],
                 overallConfidence: enrichmentResult.overallConfidence,
-                processingTimeMs: enrichmentResult.processingTimeMs
+                processingTimeMs: enrichmentResult.processingTimeMs,
               };
             } else {
               return {
                 success: false,
                 cardId: card.id,
-                enrichments: [{
-                  type: 'company' as const,
-                  status: 'skipped' as const,
-                  companiesFound: 0,
-                  dataPointsAdded: 0,
-                  confidence: 0,
-                  error: 'No company information available'
-                }],
+                enrichments: [
+                  {
+                    type: 'company' as const,
+                    status: 'skipped' as const,
+                    companiesFound: 0,
+                    dataPointsAdded: 0,
+                    confidence: 0,
+                    error: 'No company information available',
+                  },
+                ],
                 overallConfidence: 0,
-                processingTimeMs: 0
+                processingTimeMs: 0,
               };
             }
           } catch (error) {
             return {
               success: false,
               cardId: card.id,
-              enrichments: [{
-                type: 'company' as const,
-                status: 'failed' as const,
-                companiesFound: 0,
-                dataPointsAdded: 0,
-                confidence: 0,
-                error: error instanceof Error ? error.message : 'Unknown error'
-              }],
+              enrichments: [
+                {
+                  type: 'company' as const,
+                  status: 'failed' as const,
+                  companiesFound: 0,
+                  dataPointsAdded: 0,
+                  confidence: 0,
+                  error: error instanceof Error ? error.message : 'Unknown error',
+                },
+              ],
               overallConfidence: 0,
-              processingTimeMs: 0
+              processingTimeMs: 0,
             };
           }
         });
@@ -627,16 +664,16 @@ router.post('/batch',
           successfulCards,
           failedCards,
           results,
-          overallProcessingTimeMs: Date.now() - startTime
+          overallProcessingTimeMs: Date.now() - startTime,
         },
-        message: `Batch enrichment completed: ${successfulCards} successful, ${failedCards} failed`
+        message: `Batch enrichment completed: ${successfulCards} successful, ${failedCards} failed`,
       });
     } catch (error) {
       console.error('Batch enrichment error:', error);
       res.status(500).json({
         success: false,
         message: 'Internal server error during batch enrichment',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       });
     }
   }

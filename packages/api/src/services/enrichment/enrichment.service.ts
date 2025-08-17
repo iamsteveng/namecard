@@ -12,9 +12,7 @@ import {
   EnrichBusinessCardRequest,
   EnrichBusinessCardResponse,
   CompanyEnrichmentData,
-  BusinessCardEnrichmentData,
   EnrichmentSettings,
-  EnrichmentError,
 } from '@namecard/shared/types/enrichment.types';
 import { PrismaClient } from '@prisma/client';
 
@@ -181,7 +179,7 @@ export class EnrichmentService {
     const mergedData = this.mergeCompanyData(successfulResults.map(r => r.enrichmentData));
 
     // Calculate overall confidence based on source weights and individual confidences
-    const overallConfidence = this.calculateOverallConfidence(successfulResults, allSources);
+    const overallConfidence = this.calculateOverallConfidence(successfulResults);
 
     return {
       success: true,
@@ -312,10 +310,7 @@ export class EnrichmentService {
   /**
    * Calculate overall confidence score from multiple sources
    */
-  private calculateOverallConfidence(
-    results: EnrichCompanyResponse[],
-    allSources: EnrichCompanyResponse['sources']
-  ): number {
+  private calculateOverallConfidence(results: EnrichCompanyResponse[]): number {
     if (results.length === 0) {
       return 0;
     }

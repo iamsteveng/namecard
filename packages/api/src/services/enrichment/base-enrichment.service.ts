@@ -75,7 +75,7 @@ export abstract class BaseEnrichmentService {
       await this.saveEnrichmentResults(company.id, enrichmentData, 'enriched');
 
       // Update company with merged data
-      const updatedCompany = await this.updateCompanyWithEnrichedData(company.id, enrichmentData);
+      await this.updateCompanyWithEnrichedData(company.id, enrichmentData);
 
       return {
         success: true,

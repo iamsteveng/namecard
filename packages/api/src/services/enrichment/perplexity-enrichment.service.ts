@@ -16,7 +16,7 @@ import {
   PerplexityBusinessCardResponse,
 } from '@namecard/shared/types/enrichment.types';
 import { PrismaClient } from '@prisma/client';
-import fetch, { Response } from 'node-fetch';
+import fetch from 'node-fetch';
 
 import { BaseEnrichmentService } from './base-enrichment.service.js';
 
