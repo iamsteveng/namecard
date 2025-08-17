@@ -18,9 +18,9 @@ import {
 } from '@namecard/shared/types/enrichment.types';
 import { PrismaClient } from '@prisma/client';
 
-import { BaseEnrichmentService } from './base-enrichment.service';
-import { ClearbitEnrichmentService } from './clearbit-enrichment.service';
-import { PerplexityEnrichmentService } from './perplexity-enrichment.service';
+import { BaseEnrichmentService } from './base-enrichment.service.js';
+import { ClearbitEnrichmentService } from './clearbit-enrichment.service.js';
+import { PerplexityEnrichmentService } from './perplexity-enrichment.service.js';
 
 export class EnrichmentService {
   private prisma: PrismaClient;

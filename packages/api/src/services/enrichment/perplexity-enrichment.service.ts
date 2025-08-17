@@ -14,13 +14,11 @@ import {
   BusinessCardEnrichmentData,
   PerplexityCompanyResponse,
   PerplexityBusinessCardResponse,
-  PerplexityBusinessCardSchema,
-  PerplexityCompanySchema,
 } from '@namecard/shared/types/enrichment.types';
 import { PrismaClient } from '@prisma/client';
 import fetch, { Response } from 'node-fetch';
 
-import { BaseEnrichmentService } from './base-enrichment.service';
+import { BaseEnrichmentService } from './base-enrichment.service.js';
 
 export class PerplexityEnrichmentService extends BaseEnrichmentService {
   private apiKey: string;
@@ -44,7 +42,7 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
   /**
    * Check if service is properly configured and enabled
    */
-  isEnabled(): boolean {
+  override isEnabled(): boolean {
     return this.config.enabled && !!this.apiKey;
   }
 
@@ -66,7 +64,7 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
   /**
    * Enrich company data using Perplexity AI research
    */
-  async enrichCompany(request: EnrichCompanyRequest): Promise<EnrichCompanyResponse> {
+  override async enrichCompany(request: EnrichCompanyRequest): Promise<EnrichCompanyResponse> {
     const startTime = Date.now();
 
     try {
@@ -426,14 +424,14 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
   /**
    * Get the JSON schema for structured company research output
    */
-  private getCompanyResearchSchema(): PerplexityCompanySchema {
+  private getCompanyResearchSchema(): any {
     return this.getLegacyCompanySchema();
   }
 
   /**
    * Get the JSON schema for combined business card research output
    */
-  private getBusinessCardResearchSchema(): PerplexityBusinessCardSchema {
+  private getBusinessCardResearchSchema(): any {
     return {
       type: 'object',
       properties: {
@@ -619,7 +617,7 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
   /**
    * Legacy company schema for backward compatibility
    */
-  private getLegacyCompanySchema(): PerplexityCompanySchema {
+  private getLegacyCompanySchema(): any {
     return {
       type: 'object',
       properties: {

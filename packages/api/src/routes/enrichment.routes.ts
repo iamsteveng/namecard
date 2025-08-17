@@ -5,15 +5,15 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { authenticateToken } from '../middleware/auth.middleware';
-import { validateRequest } from '../middleware/validation.middleware';
-import { EnrichmentService } from '../services/enrichment/enrichment.service';
+import { authenticateToken } from '../middleware/auth.middleware.js';
+import { validateRequest } from '../middleware/validation.middleware.js';
+import { EnrichmentService } from '../services/enrichment/enrichment.service.js';
 import prisma from '../lib/prisma.js';
 import { 
   loadEnrichmentSourceConfigs, 
   loadEnrichmentSettings,
   validateEnrichmentConfig 
-} from '../config/enrichment.config';
+} from '../config/enrichment.config.js';
 import { 
   EnrichCompanyRequest,
   EnrichBusinessCardRequest,

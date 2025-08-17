@@ -13,7 +13,7 @@ import {
 import { PrismaClient } from '@prisma/client';
 import axios, { AxiosInstance } from 'axios';
 
-import { BaseEnrichmentService } from './base-enrichment.service';
+import { BaseEnrichmentService } from './base-enrichment.service.js';
 
 export class ClearbitEnrichmentService extends BaseEnrichmentService {
   private client: AxiosInstance;
@@ -190,7 +190,7 @@ export class ClearbitEnrichmentService extends BaseEnrichmentService {
     let requestCount = 0;
     let resetTime = Date.now() + 60 * 1000; // Reset every minute
 
-    this.client.interceptors.request.use(config => {
+    this.client.interceptors.request.use((config: any) => {
       const now = Date.now();
 
       // Reset counter if time window has passed
@@ -211,8 +211,8 @@ export class ClearbitEnrichmentService extends BaseEnrichmentService {
 
     // Handle rate limit responses
     this.client.interceptors.response.use(
-      response => response,
-      error => {
+      (response: any) => response,
+      (error: any) => {
         if (error.response?.status === 429) {
           const retryAfter = error.response.headers['retry-after'];
           if (retryAfter) {
