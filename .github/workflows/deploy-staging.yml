@@ -172,16 +172,12 @@ jobs:
 
       - name: Verify deployment
         run: |
-          # Get the load balancer URL from stack outputs
-          cd infrastructure
-          API_URL=$(jq -r '.["NameCardProd-staging"].APIServiceUrl' outputs.json 2>/dev/null || echo "")
+          # Use CloudFront distribution URL which provides HTTPS access to the API
+          # CloudFront acts as a proxy forwarding /api/* requests to the load balancer
+          FRONTEND_URL="https://d1357e576dd65p.cloudfront.net"
+          API_URL="$FRONTEND_URL/api"
           
-          if [ -z "$API_URL" ] || [ "$API_URL" = "null" ]; then
-            echo "⚠️  Could not get API URL from outputs, using direct ALB DNS"
-            API_URL="http://NameCa-APISe-N5y96ivnIVEm-949793622.ap-southeast-1.elb.amazonaws.com"
-          fi
-          
-          echo "🔍 API URL: $API_URL"
+          echo "🔍 Using CloudFront API URL: $API_URL"
           
           # Health check with retry
           echo "Running health check..."
@@ -189,12 +185,12 @@ jobs:
             response=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/health" || echo "000")
             
             if [ "$response" = "200" ]; then
-              echo "✅ Deployment successful! API is healthy."
+              echo "✅ Deployment successful! API is healthy via CloudFront."
               echo "🚀 API available at: $API_URL"
-              echo "📊 Testing registration endpoint..."
+              echo "📊 Testing API info endpoint..."
               
               # Test database connectivity by checking API info endpoint
-              info_response=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/api/v1/" || echo "000")
+              info_response=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/v1/" || echo "000")
               if [ "$info_response" = "200" ]; then
                 echo "✅ Database connectivity verified - API endpoints responding"
               else
