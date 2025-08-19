@@ -26,6 +26,9 @@ export interface ProductionStackProps extends cdk.StackProps {
   s3CdnDomain?: string;
   cognitoUserPoolId?: string;
   cognitoClientId?: string;
+  // Secrets from SecretsStack
+  apiSecret?: secretsmanager.ISecret;
+  databaseSecret?: secretsmanager.ISecret;
 }
 
 export class ProductionStack extends cdk.Stack {
@@ -34,19 +37,25 @@ export class ProductionStack extends cdk.Stack {
   public readonly ecsCluster: ecs.Cluster;
   public readonly apiService: ecsPatterns.ApplicationLoadBalancedFargateService;
   public readonly redis: elasticache.CfnCacheCluster;
-  public readonly secrets: secretsmanager.Secret;
+  public readonly secrets: secretsmanager.ISecret;
+  public readonly apiSecret: secretsmanager.ISecret;
   public readonly migrationFunction: lambda.Function;
   
   constructor(scope: Construct, id: string, props: ProductionStackProps) {
     super(scope, id, props);
 
-    const { environment, domainName, certificateArn, s3CdnDomain } = props;
+    const { environment, domainName, certificateArn, s3CdnDomain, apiSecret, databaseSecret } = props;
 
     // Create VPC with public and private subnets
     this.vpc = this.createVPC(environment);
 
-    // Create database secrets
-    this.secrets = this.createSecrets(environment);
+    // Use injected secrets or create fallbacks
+    this.secrets = databaseSecret || this.createSecrets(environment);
+    this.apiSecret = apiSecret || secretsmanager.Secret.fromSecretNameV2(
+      this, 
+      'FallbackAPISecret', 
+      `namecard/api/${environment}`
+    );
 
     // Create RDS PostgreSQL database
     this.database = this.createDatabase(environment);
@@ -400,14 +409,8 @@ export class ProductionStack extends cdk.Stack {
         secrets: {
           DB_USER: ecs.Secret.fromSecretsManager(this.secrets, 'username'),
           DB_PASS: ecs.Secret.fromSecretsManager(this.secrets, 'password'),
-          JWT_SECRET: ecs.Secret.fromSecretsManager(
-            secretsmanager.Secret.fromSecretNameV2(this, 'APISecretRef', `namecard/api/${environment}`),
-            'JWT_SECRET'
-          ),
-          PERPLEXITY_API_KEY: ecs.Secret.fromSecretsManager(
-            secretsmanager.Secret.fromSecretNameV2(this, 'PerplexitySecretRef', `namecard/api/${environment}`),
-            'PERPLEXITY_API_KEY'
-          ),
+          JWT_SECRET: ecs.Secret.fromSecretsManager(this.apiSecret, 'JWT_SECRET'),
+          PERPLEXITY_API_KEY: ecs.Secret.fromSecretsManager(this.apiSecret, 'PERPLEXITY_API_KEY'),
         },
         
         // Logging

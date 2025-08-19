@@ -2,6 +2,7 @@
 import * as cdk from 'aws-cdk-lib';
 import { CognitoStack } from '../lib/cognito-stack';
 import { InfrastructureStack } from '../lib/infrastructure-stack';
+import { SecretsStack } from '../lib/secrets-stack';
 import { ProductionStack } from '../lib/production-stack';
 import { FrontendStack } from '../lib/frontend-stack';
 
@@ -36,6 +37,14 @@ const cognitoStack = new CognitoStack(app, `NameCardCognito-${environment}`, {
   tags: commonTags,
 });
 
+// Deploy secrets management stack
+const secretsStack = new SecretsStack(app, `NameCardSecrets-${environment}`, {
+  environment,
+  env,
+  description: `Secrets management for NameCard Application - ${environment}`,
+  tags: commonTags,
+});
+
 // Deploy main infrastructure stack (S3 and CloudFront for images)
 const infraStack = new InfrastructureStack(app, `NameCardInfra-${environment}`, {
   environment,
@@ -61,11 +70,16 @@ if (environment === 'staging' || environment === 'production') {
     s3CdnDomain: infraStack.cloudFrontDomainName,
     cognitoUserPoolId: cognitoStack.userPool?.userPoolId,
     cognitoClientId: undefined, // Will be retrieved from stack outputs
+    
+    // Secrets from SecretsStack
+    apiSecret: secretsStack.apiSecret,
+    databaseSecret: secretsStack.databaseSecret,
   });
 
   // Add dependencies
   productionStack.addDependency(cognitoStack);
   productionStack.addDependency(infraStack);
+  productionStack.addDependency(secretsStack);
 
   // Deploy frontend stack
   const frontendStack = new FrontendStack(app, `NameCardFrontend-${environment}`, {
