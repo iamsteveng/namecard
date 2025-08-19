@@ -380,6 +380,20 @@ export class ProductionStack extends cdk.Stack {
           // External APIs (optional)
           CLEARBIT_API_KEY: '',
           NEWS_API_KEY: '',
+          
+          // Enrichment Services Configuration
+          ENRICHMENT_ENABLED_SOURCES: 'perplexity',
+          
+          // Perplexity AI Configuration
+          PERPLEXITY_ENABLED: 'true',
+          PERPLEXITY_BASE_URL: 'https://api.perplexity.ai',
+          PERPLEXITY_RATE_LIMIT_RPM: '60',
+          PERPLEXITY_RATE_LIMIT_RPD: '1000',
+          PERPLEXITY_TIMEOUT: '30000',
+          PERPLEXITY_MAX_RETRIES: '2',
+          PERPLEXITY_BACKOFF_MS: '3000',
+          PERPLEXITY_WEIGHT: '0.9',
+          PERPLEXITY_TRUST_LEVEL: '88',
         },
         
         // Secrets from AWS Secrets Manager (sensitive)
@@ -389,6 +403,10 @@ export class ProductionStack extends cdk.Stack {
           JWT_SECRET: ecs.Secret.fromSecretsManager(
             secretsmanager.Secret.fromSecretNameV2(this, 'APISecretRef', `namecard/api/${environment}`),
             'JWT_SECRET'
+          ),
+          PERPLEXITY_API_KEY: ecs.Secret.fromSecretsManager(
+            secretsmanager.Secret.fromSecretNameV2(this, 'PerplexitySecretRef', `namecard/api/${environment}`),
+            'PERPLEXITY_API_KEY'
           ),
         },
         
