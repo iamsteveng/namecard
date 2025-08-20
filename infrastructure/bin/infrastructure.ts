@@ -73,7 +73,6 @@ if (environment === 'staging' || environment === 'production') {
     
     // Secrets from SecretsStack
     apiSecret: secretsStack.apiSecret,
-    databaseSecret: secretsStack.databaseSecret,
   });
 
   // Add dependencies

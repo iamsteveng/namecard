@@ -28,7 +28,6 @@ export interface ProductionStackProps extends cdk.StackProps {
   cognitoClientId?: string;
   // Secrets from SecretsStack
   apiSecret?: secretsmanager.ISecret;
-  databaseSecret?: secretsmanager.ISecret;
 }
 
 export class ProductionStack extends cdk.Stack {
@@ -44,13 +43,13 @@ export class ProductionStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: ProductionStackProps) {
     super(scope, id, props);
 
-    const { environment, domainName, certificateArn, s3CdnDomain, apiSecret, databaseSecret } = props;
+    const { environment, domainName, certificateArn, s3CdnDomain, apiSecret } = props;
 
     // Create VPC with public and private subnets
     this.vpc = this.createVPC(environment);
 
     // Use injected secrets or create fallbacks
-    this.secrets = databaseSecret || this.createSecrets(environment);
+    this.secrets = this.createSecrets(environment);
     this.apiSecret = apiSecret || secretsmanager.Secret.fromSecretNameV2(
       this, 
       'FallbackAPISecret', 
