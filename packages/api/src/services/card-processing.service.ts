@@ -1,10 +1,12 @@
+import type { BusinessCardData } from '@namecard/shared';
 import { PrismaClient } from '@prisma/client';
+
 import logger from '../utils/logger.js';
-import { textractService, OCRResult } from './textract.service.js';
+
 import { ImagePreprocessingService } from './image-preprocessing.service.js';
 import { ImageValidationService } from './image-validation.service.js';
 import { s3Service } from './s3.service.js';
-import type { BusinessCardData } from '@namecard/shared';
+import { textractService, OCRResult } from './textract.service.js';
 
 export interface CardProcessingOptions {
   skipImageProcessing?: boolean;
@@ -14,7 +16,7 @@ export interface CardProcessingOptions {
   saveProcessedImage?: boolean;
   ocrOptions?: {
     minConfidence?: number;
-    useAnalyzeDocument?: boolean; 
+    useAnalyzeDocument?: boolean;
     enhanceImage?: boolean;
   };
 }
@@ -60,7 +62,7 @@ export class CardProcessingService {
     options: CardProcessingOptions = {}
   ): Promise<CardProcessingResult> {
     const startTime = Date.now();
-    
+
     try {
       logger.info('Starting business card processing', {
         userId,
@@ -71,8 +73,8 @@ export class CardProcessingService {
 
       // Step 1: Validate the image
       const validationResult = await ImageValidationService.validateImage(
-        imageBuffer, 
-        fileName, 
+        imageBuffer,
+        fileName,
         ImageValidationService.getConfigForUseCase('business-card')
       );
 
@@ -90,12 +92,12 @@ export class CardProcessingService {
       // Step 2: Image preprocessing for OCR
       let processedImageBuffer = imageBuffer;
       let processedImageUrl: string | undefined;
-      
+
       if (!options.skipImageProcessing) {
-        const preprocessingResult = await ImagePreprocessingService.processImage(
-          imageBuffer,
-          { purpose: 'ocr', removeMetadata: true }
-        );
+        const preprocessingResult = await ImagePreprocessingService.processImage(imageBuffer, {
+          purpose: 'ocr',
+          removeMetadata: true,
+        });
         processedImageBuffer = preprocessingResult.buffer;
 
         // Upload processed image to S3 if requested
@@ -112,11 +114,10 @@ export class CardProcessingService {
       // Step 3: Upload original image to S3
       let originalImageUrl: string | undefined;
       if (options.saveOriginalImage !== false) {
-        const s3Result = await s3Service.uploadFile(
-          imageBuffer,
-          fileName,
-          { userId, purpose: 'storage' }
-        );
+        const s3Result = await s3Service.uploadFile(imageBuffer, fileName, {
+          userId,
+          purpose: 'storage',
+        });
         originalImageUrl = (s3Result as any).cdnUrl || s3Result.url;
       }
 
@@ -140,7 +141,7 @@ export class CardProcessingService {
             userId,
             fileName,
           });
-          
+
           return {
             success: false,
             error: {
@@ -172,17 +173,13 @@ export class CardProcessingService {
       }
 
       // Step 7: Save to database
-      const cardId = await this.saveCardToDatabase(
-        userId,
-        normalizedData,
-        {
-          originalImageUrl: originalImageUrl || '',
-          processedImageUrl,
-          extractedText: businessCardData.rawText,
-          confidence: businessCardData.confidence,
-          ocrMetadata: ocrResult,
-        }
-      );
+      const cardId = await this.saveCardToDatabase(userId, normalizedData, {
+        originalImageUrl: originalImageUrl || '',
+        processedImageUrl,
+        extractedText: businessCardData.rawText,
+        confidence: businessCardData.confidence,
+        ocrMetadata: ocrResult,
+      });
 
       const processingTime = Date.now() - startTime;
 
@@ -208,10 +205,9 @@ export class CardProcessingService {
           processingTime,
         },
       };
-
     } catch (error) {
       const processingTime = Date.now() - startTime;
-      
+
       logger.error('Business card processing failed', {
         error: error instanceof Error ? error.message : 'Unknown error',
         userId,
@@ -233,10 +229,18 @@ export class CardProcessingService {
   /**
    * Normalize and clean extracted business card data
    */
-  private async normalizeBusinessCardData(
-    data: BusinessCardData
-  ): Promise<BusinessCardData & { normalizedPhone?: string; normalizedEmail?: string; normalizedWebsite?: string }> {
-    const normalized = { ...data } as BusinessCardData & { normalizedPhone?: string; normalizedEmail?: string; normalizedWebsite?: string };
+  private async normalizeBusinessCardData(data: BusinessCardData): Promise<
+    BusinessCardData & {
+      normalizedPhone?: string;
+      normalizedEmail?: string;
+      normalizedWebsite?: string;
+    }
+  > {
+    const normalized = { ...data } as BusinessCardData & {
+      normalizedPhone?: string;
+      normalizedEmail?: string;
+      normalizedWebsite?: string;
+    };
 
     // Normalize phone number
     if (data.phone?.text) {
@@ -261,7 +265,11 @@ export class CardProcessingService {
    */
   private async findDuplicateCard(
     userId: string,
-    data: BusinessCardData & { normalizedPhone?: string; normalizedEmail?: string; normalizedWebsite?: string }
+    data: BusinessCardData & {
+      normalizedPhone?: string;
+      normalizedEmail?: string;
+      normalizedWebsite?: string;
+    }
   ): Promise<string | undefined> {
     try {
       // Check for duplicates based on email or phone
@@ -309,7 +317,11 @@ export class CardProcessingService {
    */
   private async saveCardToDatabase(
     userId: string,
-    data: BusinessCardData & { normalizedPhone?: string; normalizedEmail?: string; normalizedWebsite?: string },
+    data: BusinessCardData & {
+      normalizedPhone?: string;
+      normalizedEmail?: string;
+      normalizedWebsite?: string;
+    },
     metadata: {
       originalImageUrl: string;
       processedImageUrl?: string;
@@ -345,8 +357,8 @@ export class CardProcessingService {
    */
   private normalizePhoneNumber(phone: string): string {
     // Remove all non-digit characters except + at the beginning
-    let cleaned = phone.replace(/[^\d+]/g, '');
-    
+    const cleaned = phone.replace(/[^\d+]/g, '');
+
     // Handle common formats
     if (cleaned.startsWith('+')) {
       return cleaned;
@@ -357,7 +369,7 @@ export class CardProcessingService {
       // US number with country code
       return `+${cleaned}`;
     }
-    
+
     // Return cleaned version if we can't determine format
     return cleaned;
   }
@@ -374,17 +386,17 @@ export class CardProcessingService {
    */
   private normalizeWebsite(website: string): string {
     let normalized = website.toLowerCase().trim();
-    
+
     // Add protocol if missing
     if (!normalized.startsWith('http://') && !normalized.startsWith('https://')) {
       normalized = `https://${normalized}`;
     }
-    
+
     // Remove trailing slash
     if (normalized.endsWith('/')) {
       normalized = normalized.slice(0, -1);
     }
-    
+
     return normalized;
   }
 

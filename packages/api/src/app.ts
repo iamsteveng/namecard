@@ -1,15 +1,15 @@
-import express from 'express';
-import cors from 'cors';
-import helmet from 'helmet';
 import compression from 'compression';
+import cors from 'cors';
+import express from 'express';
+import helmet from 'helmet';
 import 'express-async-errors';
 
 import { env } from './config/env.js';
-import logger, { requestLogger } from './utils/logger.js';
+import prisma from './lib/prisma.js';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware.js';
 import { apiRateLimit } from './middleware/rate-limit.middleware.js';
 import apiRoutes from './routes/index.js';
-import prisma from './lib/prisma.js';
+import logger, { requestLogger } from './utils/logger.js';
 
 const app = express();
 
@@ -17,18 +17,22 @@ const app = express();
 app.set('trust proxy', 1);
 
 // Security middleware
-app.use(helmet({
-  contentSecurityPolicy: env.isProduction,
-  hsts: env.isProduction,
-}));
+app.use(
+  helmet({
+    contentSecurityPolicy: env.isProduction,
+    hsts: env.isProduction,
+  })
+);
 
 // CORS configuration
-app.use(cors({
-  origin: env.security.corsOrigin,
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-}));
+app.use(
+  cors({
+    origin: env.security.corsOrigin,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  })
+);
 
 // General middleware
 app.use(compression());
@@ -52,9 +56,9 @@ app.get('/health', async (_req, res) => {
     // Check database connection with timeout
     await Promise.race([
       prisma.$queryRaw`SELECT 1`,
-      new Promise((_, reject) => 
+      new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Database query timeout')), 2000)
-      )
+      ),
     ]);
     databaseStatus = 'connected';
   } catch (error) {
@@ -77,8 +81,8 @@ app.get('/health', async (_req, res) => {
       api: {
         status: 'ok',
         message: 'API server is running',
-      }
-    }
+      },
+    },
   };
 
   // Return 200 for degraded mode (API works without database)

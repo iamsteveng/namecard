@@ -7,11 +7,11 @@ import type {
   UpdateUserProfileResponse,
 } from '@namecard/shared';
 
-const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3001';
+const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || '';
 
 class AuthService {
   private baseUrl = `${API_BASE_URL}/api/v1/auth`;
-  
+
   /**
    * Register a new user
    */
@@ -61,7 +61,7 @@ class AuthService {
     const response = await fetch(`${this.baseUrl}/logout`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
+        Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
     });
@@ -103,7 +103,7 @@ class AuthService {
     const response = await fetch(`${this.baseUrl}/profile`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
+        Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
     });
@@ -121,13 +121,13 @@ class AuthService {
    * Update user profile
    */
   async updateProfile(
-    accessToken: string, 
+    accessToken: string,
     updates: { name?: string; avatarUrl?: string; preferences?: any }
   ): Promise<UpdateUserProfileResponse> {
     const response = await fetch(`${this.baseUrl}/profile`, {
       method: 'PUT',
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
+        Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(updates),
@@ -167,8 +167,8 @@ class AuthService {
    * Confirm password reset
    */
   async resetPassword(
-    email: string, 
-    confirmationCode: string, 
+    email: string,
+    confirmationCode: string,
     newPassword: string
   ): Promise<{ success: boolean; message: string }> {
     const response = await fetch(`${this.baseUrl}/reset-password`, {

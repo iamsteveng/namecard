@@ -1,11 +1,12 @@
-import { useState } from 'react';
-import { Upload, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
-import type { BusinessCardData } from '@namecard/shared/types/textract.types';
 import type { Card, CreateCardData } from '@namecard/shared/types/card.types';
-import Button from '../Button';
-import OCRValidation from '../ocr/OCRValidation';
+import type { BusinessCardData } from '@namecard/shared/types/textract.types';
+import { Upload, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { useState } from 'react';
+
 import cardService from '../../services/card.service';
 import { useAuthStore } from '../../store/auth.store';
+import Button from '../Button';
+import OCRValidation from '../ocr/OCRValidation';
 
 type ScanStep = 'upload' | 'processing' | 'validation' | 'complete' | 'error';
 
@@ -37,38 +38,40 @@ export default function ScanWorkflow({ onComplete, onCancel }: ScanWorkflowProps
       return;
     }
 
-    setState(prev => ({ 
-      ...prev, 
-      step: 'processing', 
-      file, 
+    setState(prev => ({
+      ...prev,
+      step: 'processing',
+      file,
       imageUrl: URL.createObjectURL(file),
-      progress: 10
+      progress: 10,
     }));
 
     try {
       // Simulate progress updates
       setState(prev => ({ ...prev, progress: 30 }));
-      
+
       // Upload and process the image
-      const { imageData, ocrData } = await cardService.uploadAndProcessCard(file, session.accessToken);
-      
+      const { imageData, ocrData } = await cardService.uploadAndProcessCard(
+        file,
+        session.accessToken
+      );
+
       setState(prev => ({ ...prev, progress: 80 }));
-      
+
       // Move to validation step
-      setState(prev => ({ 
-        ...prev, 
-        step: 'validation', 
+      setState(prev => ({
+        ...prev,
+        step: 'validation',
         ocrData,
         imageUrl: imageData.files[0]?.variants.web || imageData.files[0]?.url || '', // Use web-optimized version for display
-        progress: 100 
+        progress: 100,
       }));
-      
     } catch (error) {
-      setState(prev => ({ 
-        ...prev, 
-        step: 'error', 
+      setState(prev => ({
+        ...prev,
+        step: 'error',
         error: error instanceof Error ? error.message : 'Processing failed',
-        progress: 0
+        progress: 0,
       }));
     }
   };
@@ -84,7 +87,13 @@ export default function ScanWorkflow({ onComplete, onCancel }: ScanWorkflowProps
     try {
       // Extract the fields we need to pass separately
       const { originalImageUrl, extractedText, confidence, scanDate, ...restData } = validatedData;
-      
+
+      // Ignore these extracted fields as they are handled separately
+      void originalImageUrl;
+      void extractedText;
+      void confidence;
+      void scanDate;
+
       // Save the card
       const savedCard = await cardService.scanAndSaveCard(
         state.file,
@@ -92,22 +101,22 @@ export default function ScanWorkflow({ onComplete, onCancel }: ScanWorkflowProps
         session.accessToken
       );
 
-      setState(prev => ({ 
-        ...prev, 
-        step: 'complete', 
+      setState(prev => ({
+        ...prev,
+        step: 'complete',
         savedCard,
-        progress: 100 
+        progress: 100,
       }));
 
       if (onComplete) {
         onComplete(savedCard);
       }
     } catch (error) {
-      setState(prev => ({ 
-        ...prev, 
-        step: 'error', 
+      setState(prev => ({
+        ...prev,
+        step: 'error',
         error: error instanceof Error ? error.message : 'Failed to save card',
-        progress: 0
+        progress: 0,
       }));
     }
   };
@@ -131,20 +140,10 @@ export default function ScanWorkflow({ onComplete, onCancel }: ScanWorkflowProps
   const renderContent = () => {
     switch (state.step) {
       case 'upload':
-        return (
-          <FileUpload 
-            onFileSelect={handleFileSelect}
-            onCancel={handleCancel}
-          />
-        );
+        return <FileUpload onFileSelect={handleFileSelect} onCancel={handleCancel} />;
 
       case 'processing':
-        return (
-          <ProcessingStep 
-            progress={state.progress}
-            imageUrl={state.imageUrl || ''}
-          />
-        );
+        return <ProcessingStep progress={state.progress} imageUrl={state.imageUrl || ''} />;
 
       case 'validation':
         return state.ocrData && state.imageUrl ? (
@@ -155,16 +154,12 @@ export default function ScanWorkflow({ onComplete, onCancel }: ScanWorkflowProps
             onCancel={handleValidationCancel}
           />
         ) : (
-          <ErrorStep 
-            error="Missing OCR data" 
-            onRetry={handleRetry}
-            onCancel={handleCancel}
-          />
+          <ErrorStep error="Missing OCR data" onRetry={handleRetry} onCancel={handleCancel} />
         );
 
       case 'complete':
         return (
-          <CompleteStep 
+          <CompleteStep
             card={state.savedCard!}
             onDone={() => onComplete?.(state.savedCard!)}
             onScanAnother={handleRetry}
@@ -172,13 +167,7 @@ export default function ScanWorkflow({ onComplete, onCancel }: ScanWorkflowProps
         );
 
       case 'error':
-        return (
-          <ErrorStep 
-            error={state.error!} 
-            onRetry={handleRetry}
-            onCancel={handleCancel}
-          />
-        );
+        return <ErrorStep error={state.error!} onRetry={handleRetry} onCancel={handleCancel} />;
 
       default:
         return null;
@@ -196,14 +185,14 @@ export default function ScanWorkflow({ onComplete, onCancel }: ScanWorkflowProps
               <span>{state.progress}%</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
+              <div
                 className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                 style={{ width: `${state.progress}%` }}
               />
             </div>
           </div>
         )}
-        
+
         {renderContent()}
       </div>
     </div>
@@ -222,19 +211,19 @@ function FileUpload({ onFileSelect, onCancel }: FileUploadProps) {
   const handleFiles = (files: FileList | null) => {
     if (files && files[0]) {
       const file = files[0];
-      
+
       // Validate file type
       if (!file.type.startsWith('image/')) {
         alert('Please select an image file');
         return;
       }
-      
+
       // Validate file size (max 10MB)
       if (file.size > 10 * 1024 * 1024) {
         alert('File size must be less than 10MB');
         return;
       }
-      
+
       onFileSelect(file);
     }
   };
@@ -260,37 +249,29 @@ function FileUpload({ onFileSelect, onCancel }: FileUploadProps) {
 
       <div
         className={`relative border-2 border-dashed rounded-lg p-12 text-center transition-colors ${
-          dragActive 
-            ? 'border-blue-400 bg-blue-50' 
-            : 'border-gray-300 hover:border-gray-400'
+          dragActive ? 'border-blue-400 bg-blue-50' : 'border-gray-300 hover:border-gray-400'
         }`}
         onDragEnter={() => setDragActive(true)}
         onDragLeave={() => setDragActive(false)}
-        onDragOver={(e) => e.preventDefault()}
+        onDragOver={e => e.preventDefault()}
         onDrop={handleDrop}
       >
         <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
         <h3 className="text-lg font-medium text-gray-900 mb-2">
           Drop your business card image here
         </h3>
-        <p className="text-gray-600 mb-6">
-          or click to browse files
-        </p>
-        
+        <p className="text-gray-600 mb-6">or click to browse files</p>
+
         <input
           type="file"
           accept="image/*"
           onChange={handleChange}
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
         />
-        
-        <Button variant="primary">
-          Choose File
-        </Button>
-        
-        <p className="text-sm text-gray-500 mt-4">
-          Supports: JPG, PNG, GIF (max 10MB)
-        </p>
+
+        <Button variant="primary">Choose File</Button>
+
+        <p className="text-sm text-gray-500 mt-4">Supports: JPG, PNG, GIF (max 10MB)</p>
       </div>
 
       <div className="flex justify-center mt-8">
@@ -310,9 +291,15 @@ interface ProcessingStepProps {
 
 function ProcessingStep({ progress, imageUrl }: ProcessingStepProps) {
   const getStepMessage = (progress: number) => {
-    if (progress < 30) return 'Uploading image...';
-    if (progress < 60) return 'Processing with OCR...';
-    if (progress < 90) return 'Extracting business card data...';
+    if (progress < 30) {
+      return 'Uploading image...';
+    }
+    if (progress < 60) {
+      return 'Processing with OCR...';
+    }
+    if (progress < 90) {
+      return 'Extracting business card data...';
+    }
     return 'Preparing validation...';
   };
 
@@ -321,9 +308,9 @@ function ProcessingStep({ progress, imageUrl }: ProcessingStepProps) {
       <div className="flex justify-center mb-6">
         <div className="relative">
           {imageUrl && (
-            <img 
-              src={imageUrl} 
-              alt="Business card" 
+            <img
+              src={imageUrl}
+              alt="Business card"
               className="w-64 h-40 object-contain rounded-lg border"
             />
           )}
@@ -332,16 +319,12 @@ function ProcessingStep({ progress, imageUrl }: ProcessingStepProps) {
           </div>
         </div>
       </div>
-      
-      <h2 className="text-xl font-semibold text-gray-900 mb-2">
-        Processing Business Card
-      </h2>
-      <p className="text-gray-600 mb-6">
-        {getStepMessage(progress)}
-      </p>
-      
+
+      <h2 className="text-xl font-semibold text-gray-900 mb-2">Processing Business Card</h2>
+      <p className="text-gray-600 mb-6">{getStepMessage(progress)}</p>
+
       <div className="w-full bg-gray-200 rounded-full h-3">
-        <div 
+        <div
           className="bg-blue-600 h-3 rounded-full transition-all duration-300"
           style={{ width: `${progress}%` }}
         />
@@ -361,26 +344,49 @@ function CompleteStep({ card, onDone, onScanAnother }: CompleteStepProps) {
   return (
     <div className="bg-white rounded-lg shadow-lg p-8 text-center">
       <CheckCircle className="mx-auto h-16 w-16 text-green-500 mb-6" />
-      
-      <h2 className="text-2xl font-bold text-gray-900 mb-2">
-        Business Card Saved!
-      </h2>
+
+      <h2 className="text-2xl font-bold text-gray-900 mb-2">Business Card Saved!</h2>
       <p className="text-gray-600 mb-8">
-        {card.name ? `${card.name}'s` : 'The'} business card has been successfully processed and saved.
+        {card.name ? `${card.name}'s` : 'The'} business card has been successfully processed and
+        saved.
       </p>
-      
+
       <div className="bg-gray-50 rounded-lg p-6 mb-8 text-left">
         <h3 className="font-semibold text-gray-900 mb-4">Extracted Information:</h3>
         <div className="space-y-2 text-sm">
-          {card.name && <div><strong>Name:</strong> {card.name}</div>}
-          {card.title && <div><strong>Title:</strong> {card.title}</div>}
-          {card.company && <div><strong>Company:</strong> {card.company}</div>}
-          {card.email && <div><strong>Email:</strong> {card.email}</div>}
-          {card.phone && <div><strong>Phone:</strong> {card.phone}</div>}
-          {card.website && <div><strong>Website:</strong> {card.website}</div>}
+          {card.name && (
+            <div>
+              <strong>Name:</strong> {card.name}
+            </div>
+          )}
+          {card.title && (
+            <div>
+              <strong>Title:</strong> {card.title}
+            </div>
+          )}
+          {card.company && (
+            <div>
+              <strong>Company:</strong> {card.company}
+            </div>
+          )}
+          {card.email && (
+            <div>
+              <strong>Email:</strong> {card.email}
+            </div>
+          )}
+          {card.phone && (
+            <div>
+              <strong>Phone:</strong> {card.phone}
+            </div>
+          )}
+          {card.website && (
+            <div>
+              <strong>Website:</strong> {card.website}
+            </div>
+          )}
         </div>
       </div>
-      
+
       <div className="flex gap-4 justify-center">
         <Button variant="secondary" onClick={onScanAnother}>
           Scan Another Card
@@ -404,17 +410,13 @@ function ErrorStep({ error, onRetry, onCancel }: ErrorStepProps) {
   return (
     <div className="bg-white rounded-lg shadow-lg p-8 text-center">
       <AlertCircle className="mx-auto h-16 w-16 text-red-500 mb-6" />
-      
-      <h2 className="text-2xl font-bold text-gray-900 mb-2">
-        Processing Failed
-      </h2>
+
+      <h2 className="text-2xl font-bold text-gray-900 mb-2">Processing Failed</h2>
       <p className="text-gray-600 mb-2">
         We encountered an error while processing your business card.
       </p>
-      <p className="text-red-600 text-sm mb-8 bg-red-50 p-3 rounded border">
-        {error}
-      </p>
-      
+      <p className="text-red-600 text-sm mb-8 bg-red-50 p-3 rounded border">{error}</p>
+
       <div className="flex gap-4 justify-center">
         <Button variant="secondary" onClick={onCancel}>
           Cancel

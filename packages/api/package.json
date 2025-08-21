@@ -17,6 +17,7 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
+    "db:migrate:prod": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "db:seed": "tsx src/scripts/seed.ts"
   },
@@ -28,6 +29,7 @@
     "@namecard/shared": "*",
     "@prisma/client": "^5.8.1",
     "@types/node-fetch": "^2.6.13",
+    "axios": "^1.11.0",
     "bcryptjs": "^2.4.3",
     "bull": "^4.12.2",
     "compression": "^1.7.4",

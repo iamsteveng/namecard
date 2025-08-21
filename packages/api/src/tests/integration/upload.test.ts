@@ -1,12 +1,11 @@
 import request from 'supertest';
+
 import app from '../../app.js';
 
 describe('Upload Routes Integration Tests', () => {
   describe('GET /api/v1/upload/health', () => {
     it('should return upload service health status', async () => {
-      const response = await request(app)
-        .get('/api/v1/upload/health')
-        .expect(200);
+      const response = await request(app).get('/api/v1/upload/health').expect(200);
 
       expect(response.body).toMatchObject({
         success: true,
@@ -40,9 +39,7 @@ describe('Upload Routes Integration Tests', () => {
 
   describe('POST /api/v1/upload/image', () => {
     it('should require authentication', async () => {
-      const response = await request(app)
-        .post('/api/v1/upload/image')
-        .expect(401);
+      const response = await request(app).post('/api/v1/upload/image').expect(401);
 
       expect(response.body.success).toBe(false);
       expect(response.body.error.message).toBe('Access token is required');
@@ -71,9 +68,7 @@ describe('Upload Routes Integration Tests', () => {
 
   describe('POST /api/v1/upload/images', () => {
     it('should require authentication', async () => {
-      const response = await request(app)
-        .post('/api/v1/upload/images')
-        .expect(401);
+      const response = await request(app).post('/api/v1/upload/images').expect(401);
 
       expect(response.body.success).toBe(false);
       expect(response.body.error.message).toBe('Access token is required');
@@ -92,9 +87,7 @@ describe('Upload Routes Integration Tests', () => {
 
   describe('Route registration', () => {
     it('should include upload endpoints in API info', async () => {
-      const response = await request(app)
-        .get('/api/v1')
-        .expect(200);
+      const response = await request(app).get('/api/v1').expect(200);
 
       expect(response.body.data.endpoints.upload).toBe('/api/v1/upload');
     });
@@ -102,9 +95,7 @@ describe('Upload Routes Integration Tests', () => {
 
   describe('Enhanced Health Endpoint', () => {
     it('should return enhanced upload service health with validation features', async () => {
-      const response = await request(app)
-        .get('/api/v1/upload/health')
-        .expect(200);
+      const response = await request(app).get('/api/v1/upload/health').expect(200);
 
       expect(response.body).toMatchObject({
         success: true,
@@ -136,7 +127,7 @@ describe('Upload Routes Integration Tests', () => {
     it('should demonstrate validation error response structure', async () => {
       // Create a text file that will fail validation
       const textBuffer = Buffer.from('This is not an image file');
-      
+
       // This test demonstrates the expected error structure when validation fails
       // In real scenarios, this would require valid authentication
       const response = await request(app)

@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import logger from '../utils/logger.js';
+
 import { env } from '../config/env.js';
+import logger from '../utils/logger.js';
 
 export interface ApiError extends Error {
   statusCode?: number;
@@ -45,7 +46,8 @@ const handleDatabaseError = (error: any): AppError => {
 };
 
 const handleValidationError = (error: any): AppError => {
-  const message = error.details?.map((detail: any) => detail.message).join(', ') || 'Validation failed';
+  const message =
+    error.details?.map((detail: any) => detail.message).join(', ') || 'Validation failed';
   return new AppError(message, 400);
 };
 
@@ -91,10 +93,11 @@ export const errorHandler = (
   error: any,
   req: Request,
   res: Response,
+  // eslint-disable-next-line no-unused-vars
   _next: NextFunction
 ): void => {
   const normalizedError = normalizeError(error);
-  
+
   // Log error
   if (normalizedError.statusCode >= 500) {
     logger.error('Server error', {

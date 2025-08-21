@@ -42,7 +42,7 @@ export const sanitizeInput = (input: string): string => {
     .replace(/'/g, '&#x27;');
 };
 
-export const validateRequired = (value: any): boolean => {
+export const validateRequired = (value: unknown): boolean => {
   if (value === null || value === undefined) {
     return false;
   }

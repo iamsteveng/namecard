@@ -1,8 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
-import { AppError } from './error.middleware.js';
-import cognitoService, { CognitoUser } from '../services/cognito.service.js';
+
 import prisma from '../lib/prisma.js';
+import cognitoService, { CognitoUser } from '../services/cognito.service.js';
 import logger from '../utils/logger.js';
+
+import { AppError } from './error.middleware.js';
 
 // Extend Express Request interface to include user
 declare global {
@@ -59,9 +61,7 @@ export const authenticateToken = async (req: Request, _res: Response, next: Next
       logger.info('Created new user in database', { userId: dbUser.id, email: dbUser.email });
     } else {
       // Update user info if it has changed
-      const needsUpdate = 
-        dbUser.email !== cognitoUser.email || 
-        dbUser.name !== cognitoUser.name;
+      const needsUpdate = dbUser.email !== cognitoUser.email || dbUser.name !== cognitoUser.name;
 
       if (needsUpdate) {
         dbUser = await prisma.user.update({
@@ -84,9 +84,9 @@ export const authenticateToken = async (req: Request, _res: Response, next: Next
       ...(dbUser.name && { name: dbUser.name }),
     };
 
-    logger.debug('User authenticated successfully', { 
-      userId: dbUser.id, 
-      email: dbUser.email 
+    logger.debug('User authenticated successfully', {
+      userId: dbUser.id,
+      email: dbUser.email,
     });
 
     next();
@@ -116,7 +116,7 @@ export const optionalAuth = async (req: Request, _res: Response, next: NextFunct
     // Try to authenticate, but don't fail if token is invalid
     try {
       const cognitoUser = await cognitoService.verifyToken(token);
-      
+
       const dbUser = await prisma.user.findUnique({
         where: { cognitoId: cognitoUser.sub },
       });
@@ -153,7 +153,7 @@ export const requirePermission = (permission: string) => {
 
     // For now, we'll implement basic role-based permissions
     // In the future, this could be expanded to a more sophisticated RBAC system
-    
+
     // All authenticated users have basic permissions for now
     const userPermissions = ['read:own', 'write:own', 'delete:own'];
 

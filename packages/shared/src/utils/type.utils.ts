@@ -18,17 +18,21 @@ export type DeepPartial<T> = {
 export type Exact<T, U extends T> = T & Record<Exclude<keyof U, keyof T>, never>;
 
 // Utility type to create a union from array values
-export type ArrayElement<ArrayType extends readonly unknown[]> = 
+export type ArrayElement<ArrayType extends readonly unknown[]> =
   ArrayType extends readonly (infer ElementType)[] ? ElementType : never;
 
 // Utility type to exclude null and undefined
 export type NonNullable<T> = T extends null | undefined ? never : T;
 
 // Utility type for function parameter extraction
-export type Parameters<T extends (...args: any) => any> = T extends (...args: infer P) => any ? P : never;
+export type Parameters<T extends (...args: any) => any> = T extends (...args: infer P) => any
+  ? P
+  : never;
 
 // Utility type for function return type extraction
-export type ReturnType<T extends (...args: any) => any> = T extends (...args: any) => infer R ? R : any;
+export type ReturnType<T extends (...args: any) => any> = T extends (...args: any) => infer R
+  ? R
+  : any;
 
 // Utility type for promise resolution type
 export type Awaited<T> = T extends PromiseLike<infer U> ? Awaited<U> : T;
@@ -207,14 +211,17 @@ export const groupBy = <T, K extends string | number | symbol>(
   array: T[],
   getKey: (item: T) => K
 ): Record<K, T[]> => {
-  return array.reduce((groups, item) => {
-    const key = getKey(item);
-    if (!groups[key]) {
-      groups[key] = [];
-    }
-    groups[key].push(item);
-    return groups;
-  }, {} as Record<K, T[]>);
+  return array.reduce(
+    (groups, item) => {
+      const key = getKey(item);
+      if (!groups[key]) {
+        groups[key] = [];
+      }
+      groups[key].push(item);
+      return groups;
+    },
+    {} as Record<K, T[]>
+  );
 };
 
 export const chunk = <T>(array: T[], size: number): T[][] => {

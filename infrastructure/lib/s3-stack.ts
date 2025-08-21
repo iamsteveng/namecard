@@ -118,24 +118,35 @@ export class S3Stack extends cdk.Stack {
   }
 
   private createCloudFrontDistribution(environment: string): cloudfront.Distribution {
-    // Origin Access Identity for secure S3 access
-    const originAccessIdentity = new cloudfront.OriginAccessIdentity(
+    // Origin Access Control for secure S3 access (modern replacement for OAI)
+    const originAccessControl = new cloudfront.S3OriginAccessControl(
       this,
-      'NameCardImagesOAI',
+      'NameCardImagesOAC',
       {
-        comment: `OAI for NameCard Images Bucket - ${environment}`,
+        description: `OAC for NameCard Images Bucket - ${environment}`,
       }
     );
 
-    // Grant CloudFront access to S3 bucket
-    this.bucket.grantRead(originAccessIdentity);
+    // Grant CloudFront access to S3 bucket using OAC
+    this.bucket.addToResourcePolicy(new iam.PolicyStatement({
+      sid: 'AllowCloudFrontServicePrincipal',
+      effect: iam.Effect.ALLOW,
+      principals: [new iam.ServicePrincipal('cloudfront.amazonaws.com')],
+      actions: ['s3:GetObject'],
+      resources: [`${this.bucket.bucketArn}/*`],
+      conditions: {
+        StringEquals: {
+          'AWS:SourceArn': `arn:aws:cloudfront::${this.account}:distribution/*`,
+        },
+      },
+    }));
 
-    // Create CloudFront distribution
-    const distribution = new cloudfront.Distribution(this, 'NameCardImagesCDN', {
-      comment: `NameCard Images CDN - ${environment}`,
+    // Create CloudFront distribution with OAC
+    const distribution = new cloudfront.Distribution(this, 'NameCardImagesCDNv2', {
+      comment: `NameCard Images CDN - ${environment} (OAC)`,
       defaultBehavior: {
-        origin: origins.S3BucketOrigin.withOriginAccessIdentity(this.bucket, {
-          originAccessIdentity,
+        origin: origins.S3BucketOrigin.withOriginAccessControl(this.bucket, {
+          originAccessControl,
         }),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
@@ -147,8 +158,8 @@ export class S3Stack extends cdk.Stack {
       // Additional behaviors for API-style access
       additionalBehaviors: {
         '/images/*': {
-          origin: origins.S3BucketOrigin.withOriginAccessIdentity(this.bucket, {
-            originAccessIdentity,
+          origin: origins.S3BucketOrigin.withOriginAccessControl(this.bucket, {
+            originAccessControl,
           }),
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,

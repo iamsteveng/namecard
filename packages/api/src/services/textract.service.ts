@@ -4,19 +4,21 @@ import {
   Block,
   DetectDocumentTextCommand,
 } from '@aws-sdk/client-textract';
-import logger from '../utils/logger.js';
-import { env } from '../config/env.js';
 import Sharp from 'sharp';
+
+import { env } from '../config/env.js';
+import logger from '../utils/logger.js';
 
 // AWS Textract configuration
 const textractClient = new TextractClient({
   region: env.aws.region,
-  ...(env.aws.accessKeyId && env.aws.secretAccessKey && {
-    credentials: {
-      accessKeyId: env.aws.accessKeyId,
-      secretAccessKey: env.aws.secretAccessKey,
-    },
-  }),
+  ...(env.aws.accessKeyId &&
+    env.aws.secretAccessKey && {
+      credentials: {
+        accessKeyId: env.aws.accessKeyId,
+        secretAccessKey: env.aws.secretAccessKey,
+      },
+    }),
 });
 
 // Types for OCR results
@@ -60,7 +62,7 @@ export interface BusinessCardData {
   company?: { text: string; confidence: number };
   email?: { text: string; confidence: number };
   phone?: { text: string; confidence: number };
-  website?: { text: string; confidence: number };  
+  website?: { text: string; confidence: number };
   address?: { text: string; confidence: number };
   rawText: string;
   confidence: number;
@@ -85,7 +87,7 @@ class TextractService {
     try {
       const image = Sharp(imageBuffer);
       const metadata = await image.metadata();
-      
+
       logger.info('Preprocessing image for OCR', {
         originalSize: imageBuffer.length,
         format: metadata.format,
@@ -114,7 +116,8 @@ class TextractService {
 
       logger.info('Image preprocessing completed', {
         processedSize: result.length,
-        compressionRatio: ((imageBuffer.length - result.length) / imageBuffer.length * 100).toFixed(1) + '%',
+        compressionRatio:
+          (((imageBuffer.length - result.length) / imageBuffer.length) * 100).toFixed(1) + '%',
       });
 
       return result;
@@ -129,11 +132,15 @@ class TextractService {
    */
   private validateImage(imageBuffer: Buffer, mimeType: string): void {
     if (imageBuffer.length > this.maxImageSize) {
-      throw new Error(`Image size ${imageBuffer.length} bytes exceeds maximum allowed size of ${this.maxImageSize} bytes`);
+      throw new Error(
+        `Image size ${imageBuffer.length} bytes exceeds maximum allowed size of ${this.maxImageSize} bytes`
+      );
     }
 
     if (!this.supportedFormats.includes(mimeType)) {
-      throw new Error(`Unsupported image format: ${mimeType}. Supported formats: ${this.supportedFormats.join(', ')}`);
+      throw new Error(
+        `Unsupported image format: ${mimeType}. Supported formats: ${this.supportedFormats.join(', ')}`
+      );
     }
 
     if (imageBuffer.length < 1024) {
@@ -155,13 +162,13 @@ class TextractService {
     // Convert geometry if present
     if (block.Geometry) {
       converted.geometry = {};
-      
+
       if (block.Geometry.BoundingBox) {
         const bb = block.Geometry.BoundingBox;
         converted.geometry.boundingBox = {
           width: bb.Width || 0,
           height: bb.Height || 0,
-          left: bb.Left || 0,  
+          left: bb.Left || 0,
           top: bb.Top || 0,
         };
       }
@@ -190,12 +197,12 @@ class TextractService {
    */
   async extractText(imageBuffer: Buffer, mimeType: string): Promise<OCRResult> {
     const startTime = Date.now();
-    
+
     try {
       // Validate and preprocess image
       this.validateImage(imageBuffer, mimeType);
       const processedImage = await this.preprocessImage(imageBuffer);
-      
+
       logger.info('Starting Textract analysis', {
         imageSize: processedImage.length,
         mimeType,
@@ -220,15 +227,16 @@ class TextractService {
       const blocks = response.Blocks.map(block => this.convertBlock(block));
       const textBlocks = blocks.filter(block => block.blockType === 'LINE' && block.text);
       const rawText = textBlocks.map(block => block.text).join('\n');
-      
+
       // Calculate average confidence for text blocks
       const confidenceScores = textBlocks
         .map(block => block.confidence)
         .filter((confidence): confidence is number => confidence !== undefined);
-      
-      const averageConfidence = confidenceScores.length > 0 
-        ? confidenceScores.reduce((sum, conf) => sum + conf, 0) / confidenceScores.length
-        : 0;
+
+      const averageConfidence =
+        confidenceScores.length > 0
+          ? confidenceScores.reduce((sum, conf) => sum + conf, 0) / confidenceScores.length
+          : 0;
 
       // Get image dimensions from Sharp
       const imageMetadata = await Sharp(processedImage).metadata();
@@ -258,7 +266,7 @@ class TextractService {
       return result;
     } catch (error: any) {
       const processingTime = Date.now() - startTime;
-      
+
       logger.error('Textract analysis failed', {
         error: error.message,
         processingTime,
@@ -287,11 +295,11 @@ class TextractService {
    */
   async detectText(imageBuffer: Buffer, mimeType: string): Promise<OCRResult> {
     const startTime = Date.now();
-    
+
     try {
       this.validateImage(imageBuffer, mimeType);
       const processedImage = await this.preprocessImage(imageBuffer);
-      
+
       logger.info('Starting Textract text detection', {
         imageSize: processedImage.length,
         mimeType,
@@ -314,14 +322,15 @@ class TextractService {
       const blocks = response.Blocks.map(block => this.convertBlock(block));
       const textBlocks = blocks.filter(block => block.blockType === 'LINE' && block.text);
       const rawText = textBlocks.map(block => block.text).join('\n');
-      
+
       const confidenceScores = textBlocks
         .map(block => block.confidence)
         .filter((confidence): confidence is number => confidence !== undefined);
-      
-      const averageConfidence = confidenceScores.length > 0 
-        ? confidenceScores.reduce((sum, conf) => sum + conf, 0) / confidenceScores.length
-        : 0;
+
+      const averageConfidence =
+        confidenceScores.length > 0
+          ? confidenceScores.reduce((sum, conf) => sum + conf, 0) / confidenceScores.length
+          : 0;
 
       const imageMetadata = await Sharp(processedImage).metadata();
 
@@ -349,7 +358,7 @@ class TextractService {
       return result;
     } catch (error: any) {
       const processingTime = Date.now() - startTime;
-      
+
       logger.error('Textract text detection failed', {
         error: error.message,
         processingTime,
@@ -364,8 +373,11 @@ class TextractService {
    */
   parseBusinessCard(ocrResult: OCRResult): BusinessCardData {
     const { rawText, confidence } = ocrResult;
-    const lines = rawText.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-    
+    const lines = rawText
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0);
+
     logger.info('Parsing business card data', {
       totalLines: lines.length,
       confidence: confidence.toFixed(1),
@@ -401,7 +413,8 @@ class TextractService {
     const websites = rawText.match(websiteRegex);
     if (websites && websites.length > 0) {
       const website = websites[0];
-      if (!website.includes('@')) { // Exclude emails
+      if (!website.includes('@')) {
+        // Exclude emails
         result.website = {
           text: website.startsWith('http') ? website : `https://${website}`,
           confidence: 85,
@@ -410,11 +423,23 @@ class TextractService {
     }
 
     // Company name detection (look for lines with keywords or all caps)
-    const companyKeywords = ['inc', 'llc', 'corp', 'ltd', 'company', 'group', 'solutions', 'technologies', 'consulting'];
+    const companyKeywords = [
+      'inc',
+      'llc',
+      'corp',
+      'ltd',
+      'company',
+      'group',
+      'solutions',
+      'technologies',
+      'consulting',
+    ];
     for (const line of lines) {
       const lowerLine = line.toLowerCase();
-      if (companyKeywords.some(keyword => lowerLine.includes(keyword)) || 
-          (line.length > 3 && line === line.toUpperCase() && !/\d/.test(line))) {
+      if (
+        companyKeywords.some(keyword => lowerLine.includes(keyword)) ||
+        (line.length > 3 && line === line.toUpperCase() && !/\d/.test(line))
+      ) {
         result.company = {
           text: line,
           confidence: 75,
@@ -424,7 +449,25 @@ class TextractService {
     }
 
     // Job title detection (common patterns)
-    const titleKeywords = ['ceo', 'cto', 'cfo', 'director', 'manager', 'senior', 'junior', 'lead', 'head', 'chief', 'president', 'vice', 'engineer', 'developer', 'analyst', 'consultant', 'specialist'];
+    const titleKeywords = [
+      'ceo',
+      'cto',
+      'cfo',
+      'director',
+      'manager',
+      'senior',
+      'junior',
+      'lead',
+      'head',
+      'chief',
+      'president',
+      'vice',
+      'engineer',
+      'developer',
+      'analyst',
+      'consultant',
+      'specialist',
+    ];
     for (const line of lines) {
       const lowerLine = line.toLowerCase();
       if (titleKeywords.some(keyword => lowerLine.includes(keyword))) {
@@ -438,13 +481,15 @@ class TextractService {
 
     // Name detection (usually first line that's not company/title and contains spaces)
     for (const line of lines) {
-      if (line.includes(' ') && 
-          line.length > 3 && 
-          line.length < 50 &&
-          !line.includes('@') &&
-          !/\d/.test(line) &&
-          line !== result.company?.text &&
-          line !== result.jobTitle?.text) {
+      if (
+        line.includes(' ') &&
+        line.length > 3 &&
+        line.length < 50 &&
+        !line.includes('@') &&
+        !/\d/.test(line) &&
+        line !== result.company?.text &&
+        line !== result.jobTitle?.text
+      ) {
         result.name = {
           text: line,
           confidence: 60,
@@ -454,7 +499,8 @@ class TextractService {
     }
 
     logger.info('Business card parsing completed', {
-      extractedFields: Object.keys(result).filter(key => key !== 'rawText' && key !== 'confidence').length,
+      extractedFields: Object.keys(result).filter(key => key !== 'rawText' && key !== 'confidence')
+        .length,
       name: result.name?.text || 'not found',
       email: result.email?.text || 'not found',
       company: result.company?.text || 'not found',
@@ -474,16 +520,20 @@ class TextractService {
           width: 100,
           height: 50,
           channels: 3,
-          background: { r: 255, g: 255, b: 255 }
-        }
+          background: { r: 255, g: 255, b: 255 },
+        },
       })
-      .png()
-      .composite([{
-        input: Buffer.from(`<svg><text x="10" y="30" font-family="Arial" font-size="20">TEST</text></svg>`),
-        top: 0,
-        left: 0
-      }])
-      .toBuffer();
+        .png()
+        .composite([
+          {
+            input: Buffer.from(
+              `<svg><text x="10" y="30" font-family="Arial" font-size="20">TEST</text></svg>`
+            ),
+            top: 0,
+            left: 0,
+          },
+        ])
+        .toBuffer();
 
       const startTime = Date.now();
       await this.detectText(testImage, 'image/png');

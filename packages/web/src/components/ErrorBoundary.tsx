@@ -1,5 +1,5 @@
-import { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
+import { Component, ErrorInfo, ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 
 interface Props {
@@ -54,10 +54,8 @@ export default class ErrorBoundary extends Component<Props, State> {
               <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100 mb-6">
                 <AlertTriangle className="h-8 w-8 text-red-600" />
               </div>
-              
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">
-                Oops! Something went wrong
-              </h1>
+
+              <h1 className="text-2xl font-bold text-gray-900 mb-2">Oops! Something went wrong</h1>
               <p className="text-gray-600 mb-8">
                 We encountered an unexpected error. This has been logged and we'll look into it.
               </p>
@@ -71,7 +69,7 @@ export default class ErrorBoundary extends Component<Props, State> {
                     <RefreshCw className="h-4 w-4" />
                     Try Again
                   </button>
-                  
+
                   <button
                     onClick={this.handleReload}
                     className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors"
@@ -80,7 +78,7 @@ export default class ErrorBoundary extends Component<Props, State> {
                     Reload Page
                   </button>
                 </div>
-                
+
                 <Link
                   to="/"
                   className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"

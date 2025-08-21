@@ -1,15 +1,16 @@
+import type {
+  OCRScanResponse,
+  OCRProcessingOptions,
+  // BusinessCardData, // Currently unused
+  // OCRResult, // Currently unused
+} from '@namecard/shared';
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
+
 import 'express-async-errors';
 import { authenticateToken } from '../middleware/auth.middleware.js';
 import { textractService } from '../services/textract.service.js';
 import logger from '../utils/logger.js';
-import type { 
-  OCRScanResponse, 
-  OCRProcessingOptions,
-  BusinessCardData,
-  OCRResult 
-} from '@namecard/shared';
 
 const router = Router();
 
@@ -20,12 +21,18 @@ const upload = multer({
     fileSize: parseInt(process.env.MAX_FILE_SIZE || '10485760'), // 10MB default
   },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = (process.env.ALLOWED_FILE_TYPES || 'image/jpeg,image/png,image/heic,image/webp').split(',');
-    
+    const allowedTypes = (
+      process.env.ALLOWED_FILE_TYPES || 'image/jpeg,image/png,image/heic,image/webp'
+    ).split(',');
+
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error(`Unsupported file type: ${file.mimetype}. Allowed types: ${allowedTypes.join(', ')}`));
+      cb(
+        new Error(
+          `Unsupported file type: ${file.mimetype}. Allowed types: ${allowedTypes.join(', ')}`
+        )
+      );
     }
   },
 });
@@ -47,12 +54,13 @@ interface AuthenticatedScanRequest extends Request {
  * @desc Extract text from image using basic OCR (faster)
  * @access Private
  */
-router.post('/text', 
+router.post(
+  '/text',
   authenticateToken,
   upload.single('image'),
   async (req: AuthenticatedScanRequest, res: Response) => {
     const startTime = Date.now();
-    
+
     try {
       if (!req.file) {
         return res.status(400).json({
@@ -100,7 +108,7 @@ router.post('/text',
       res.status(200).json(response);
     } catch (error: any) {
       const processingTime = Date.now() - startTime;
-      
+
       logger.error('OCR text extraction failed', {
         userId: req.user?.id,
         error: error.message,
@@ -121,12 +129,13 @@ router.post('/text',
  * @desc Analyze document structure and extract text (more detailed)
  * @access Private
  */
-router.post('/analyze',
+router.post(
+  '/analyze',
   authenticateToken,
   upload.single('image'),
   async (req: AuthenticatedScanRequest, res: Response) => {
     const startTime = Date.now();
-    
+
     try {
       if (!req.file) {
         return res.status(400).json({
@@ -175,7 +184,7 @@ router.post('/analyze',
       res.status(200).json(response);
     } catch (error: any) {
       const processingTime = Date.now() - startTime;
-      
+
       logger.error('Document analysis OCR failed', {
         userId: req.user?.id,
         error: error.message,
@@ -196,12 +205,13 @@ router.post('/analyze',
  * @desc Scan and parse business card data
  * @access Private
  */
-router.post('/business-card',
+router.post(
+  '/business-card',
   authenticateToken,
   upload.single('image'),
   async (req: AuthenticatedScanRequest, res: Response) => {
     const startTime = Date.now();
-    
+
     try {
       if (!req.file) {
         return res.status(400).json({
@@ -236,7 +246,7 @@ router.post('/business-card',
       });
 
       // Extract text using the appropriate method
-      const ocrResult = options.useAnalyzeDocument 
+      const ocrResult = options.useAnalyzeDocument
         ? await textractService.extractText(req.file.buffer, req.file.mimetype)
         : await textractService.detectText(req.file.buffer, req.file.mimetype);
 
@@ -248,7 +258,9 @@ router.post('/business-card',
         userId: req.user.id,
         processingTime,
         confidence: ocrResult.confidence.toFixed(1),
-        extractedFields: Object.keys(businessCardData).filter(key => key !== 'rawText' && key !== 'confidence').length,
+        extractedFields: Object.keys(businessCardData).filter(
+          key => key !== 'rawText' && key !== 'confidence'
+        ).length,
         hasName: !!businessCardData.name,
         hasEmail: !!businessCardData.email,
         hasCompany: !!businessCardData.company,
@@ -268,7 +280,7 @@ router.post('/business-card',
       res.status(200).json(response);
     } catch (error: any) {
       const processingTime = Date.now() - startTime;
-      
+
       logger.error('Business card scanning failed', {
         userId: req.user?.id,
         error: error.message,
@@ -289,74 +301,70 @@ router.post('/business-card',
  * @desc Check OCR service health
  * @access Private
  */
-router.get('/health',
-  authenticateToken,
-  async (req: AuthenticatedScanRequest, res: Response) => {
-    try {
-      logger.info('Checking OCR service health', {
-        userId: req.user?.id,
-      });
+router.get('/health', authenticateToken, async (req: AuthenticatedScanRequest, res: Response) => {
+  try {
+    logger.info('Checking OCR service health', {
+      userId: req.user?.id,
+    });
 
-      const healthCheck = await textractService.healthCheck();
+    const healthCheck = await textractService.healthCheck();
 
-      res.status(healthCheck.status === 'healthy' ? 200 : 503).json({
-        success: healthCheck.status === 'healthy',
-        data: healthCheck,
-        timestamp: new Date().toISOString(),
-      });
-    } catch (error: any) {
-      logger.error('OCR health check failed', {
-        userId: req.user?.id,
-        error: error.message,
-      });
+    res.status(healthCheck.status === 'healthy' ? 200 : 503).json({
+      success: healthCheck.status === 'healthy',
+      data: healthCheck,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error: any) {
+    logger.error('OCR health check failed', {
+      userId: req.user?.id,
+      error: error.message,
+    });
 
-      res.status(503).json({
-        success: false,
-        error: 'OCR service health check failed',
-        details: error.message,
-        timestamp: new Date().toISOString(),
-      });
-    }
+    res.status(503).json({
+      success: false,
+      error: 'OCR service health check failed',
+      details: error.message,
+      timestamp: new Date().toISOString(),
+    });
   }
-);
+});
 
 /**
  * @route GET /api/v1/scan/info
  * @desc Get OCR service information and capabilities
  * @access Private
  */
-router.get('/info',
-  authenticateToken,
-  async (req: Request, res: Response) => {
-    const allowedTypes = (process.env.ALLOWED_FILE_TYPES || 'image/jpeg,image/png,image/heic,image/webp').split(',');
-    const maxFileSize = parseInt(process.env.MAX_FILE_SIZE || '10485760');
+router.get('/info', authenticateToken, async (req: Request, res: Response) => {
+  const allowedTypes = (
+    process.env.ALLOWED_FILE_TYPES || 'image/jpeg,image/png,image/heic,image/webp'
+  ).split(',');
+  const maxFileSize = parseInt(process.env.MAX_FILE_SIZE || '10485760');
 
-    res.status(200).json({
-      success: true,
-      data: {
-        service: 'AWS Textract OCR',
-        version: '1.0.0',
-        capabilities: {
-          textDetection: true,
-          documentAnalysis: true,
-          businessCardParsing: true,
-          imagePreprocessing: true,
-        },
-        limits: {
-          maxFileSize,
-          allowedTypes,
-          maxImageDimension: 3000,
-        },
-        endpoints: {
-          textExtraction: '/api/v1/scan/text',
-          documentAnalysis: '/api/v1/scan/analyze', 
-          businessCardScanning: '/api/v1/scan/business-card',
-          healthCheck: '/api/v1/scan/health',
-        },
+  res.status(200).json({
+    success: true,
+    data: {
+      service: 'AWS Textract OCR',
+      version: '1.0.0',
+      capabilities: {
+        textDetection: true,
+        documentAnalysis: true,
+        businessCardParsing: true,
+        imagePreprocessing: true,
       },
-      timestamp: new Date().toISOString(),
-    });
-  }
-);
+      limits: {
+        maxFileSize,
+        allowedTypes,
+        maxImageDimension: 3000,
+      },
+      endpoints: {
+        textExtraction: '/api/v1/scan/text',
+        documentAnalysis: '/api/v1/scan/analyze',
+        businessCardScanning: '/api/v1/scan/business-card',
+        healthCheck: '/api/v1/scan/health',
+      },
+    },
+    timestamp: new Date().toISOString(),
+  });
+});
 
 export default router;

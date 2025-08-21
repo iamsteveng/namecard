@@ -1,11 +1,17 @@
 /**
  * Company Enrichment Types
- * 
+ *
  * Types for multi-source company data enrichment system
  */
 
 // Enrichment source types
-export type EnrichmentSource = 'clearbit' | 'linkedin' | 'crunchbase' | 'manual' | 'opencorporates' | 'perplexity';
+export type EnrichmentSource =
+  | 'clearbit'
+  | 'linkedin'
+  | 'crunchbase'
+  | 'manual'
+  | 'opencorporates'
+  | 'perplexity';
 
 export type EnrichmentStatus = 'pending' | 'enriched' | 'failed' | 'partial' | 'skipped';
 
@@ -17,7 +23,7 @@ export interface PersonEnrichmentData {
   name?: string;
   title?: string;
   currentRole?: string;
-  
+
   // Professional background
   education?: Array<{
     institution: string;
@@ -31,12 +37,12 @@ export interface PersonEnrichmentData {
     duration?: string;
     description?: string;
   }>;
-  
+
   // Expertise and skills
   expertise?: string[];
   skills?: string[];
   certifications?: string[];
-  
+
   // Achievements and recognition
   achievements?: string[];
   publications?: Array<{
@@ -56,19 +62,19 @@ export interface PersonEnrichmentData {
     organization?: string;
     year?: number;
   }>;
-  
+
   // Professional activities
   boardMemberships?: string[];
   advisoryRoles?: string[];
   professionalMemberships?: string[];
-  
+
   // Social media and online presence
   linkedinUrl?: string;
   twitterHandle?: string;
   personalWebsite?: string;
   blogUrl?: string;
   githubUrl?: string;
-  
+
   // AI Research data (from Perplexity)
   recentActivities?: Array<{
     title: string;
@@ -79,7 +85,7 @@ export interface PersonEnrichmentData {
   }>;
   industryInfluence?: string;
   thoughtLeadership?: string[];
-  
+
   // Metadata
   confidence?: number;
   lastUpdated?: Date;
@@ -93,30 +99,30 @@ export interface CompanyEnrichmentData {
   website?: string;
   description?: string;
   industry?: string;
-  
+
   // Location and size
   headquarters?: string;
   location?: string;
   size?: string;
   employeeCount?: number;
-  
+
   // Financial info
   founded?: number;
   annualRevenue?: string;
   funding?: string;
-  
+
   // Technology and keywords
   technologies?: string[];
   keywords?: string[];
-  
+
   // Social media
   linkedinUrl?: string;
   twitterHandle?: string;
   facebookUrl?: string;
-  
+
   // Visual assets
   logoUrl?: string;
-  
+
   // AI Research data (from Perplexity)
   recentNews?: Array<{
     title: string;
@@ -134,7 +140,7 @@ export interface CompanyEnrichmentData {
   marketPosition?: string;
   businessModel?: string;
   recentDevelopments?: string[];
-  
+
   // Citation and research metadata
   citations?: Array<{
     url: string;
@@ -145,7 +151,7 @@ export interface CompanyEnrichmentData {
   }>;
   researchQuery?: string;
   researchDate?: Date;
-  
+
   // Metadata
   confidence?: number;
   lastUpdated?: Date;
@@ -172,7 +178,7 @@ export interface EnrichmentSourceConfig {
 export interface BusinessCardEnrichmentData {
   personData?: PersonEnrichmentData;
   companyData?: CompanyEnrichmentData;
-  
+
   // Combined research metadata
   citations?: Array<{
     url: string;
@@ -184,7 +190,7 @@ export interface BusinessCardEnrichmentData {
   }>;
   researchQuery?: string;
   researchDate?: Date;
-  
+
   // Confidence scores
   personConfidence?: number;
   companyConfidence?: number;
@@ -221,16 +227,16 @@ export interface EnrichCompanyResponse {
 export interface EnrichBusinessCardRequest {
   // Card reference (optional for standalone enrichment)
   cardId?: string;
-  
+
   // Person information
   personName?: string;
   personTitle?: string;
-  
-  // Company information  
+
+  // Company information
   companyName?: string;
   domain?: string;
   website?: string;
-  
+
   // Enrichment options
   sources?: EnrichmentSource[];
   forceRefresh?: boolean;
@@ -543,7 +549,7 @@ export interface PerplexityBusinessCardResponse {
       githubUrl?: string;
     };
   };
-  
+
   // Company research data
   company?: {
     name: string;
@@ -577,7 +583,7 @@ export interface PerplexityBusinessCardResponse {
     twitterHandle?: string;
     facebookUrl?: string;
   };
-  
+
   // Combined research metadata
   citations: Array<{
     url: string;
@@ -754,7 +760,7 @@ export interface PerplexityBusinessCardSchema {
           title: { type: 'string' };
           source: { type: 'string' };
           relevance: { type: 'number' };
-          category: { type: 'string', enum: ['person', 'company', 'both'] };
+          category: { type: 'string'; enum: ['person', 'company', 'both'] };
         };
         required: ['url', 'title', 'source', 'relevance', 'category'];
       };
@@ -769,7 +775,13 @@ export interface PerplexityBusinessCardSchema {
         processingTimeMs: { type: 'number' };
         researchDate: { type: 'string' };
       };
-      required: ['query', 'personConfidence', 'companyConfidence', 'overallConfidence', 'researchDate'];
+      required: [
+        'query',
+        'personConfidence',
+        'companyConfidence',
+        'overallConfidence',
+        'researchDate',
+      ];
     };
   };
   required: ['citations', 'researchMetadata'];

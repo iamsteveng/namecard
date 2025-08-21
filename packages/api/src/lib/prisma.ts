@@ -1,9 +1,11 @@
 import { PrismaClient } from '@prisma/client';
+
 import { env } from '../config/env.js';
 import logger from '../utils/logger.js';
 
 // Global variable to store Prisma client instance for development hot reload
 declare global {
+  // eslint-disable-next-line no-var
   var __prisma: PrismaClient | undefined;
 }
 
@@ -21,6 +23,23 @@ function createPrismaClient(): PrismaClient {
         ]
       : env.isTest 
         ? [] 
+        : ['error', 'warn'],
+    errorFormat: 'minimal',
+  });
+
+  return client;
+}
+
+function createPrismaClient(): PrismaClient {
+  const client = new PrismaClient({
+    datasourceUrl: env.database.url,
+    log: env.isProduction
+      ? [
+          { emit: 'event', level: 'error' },
+          { emit: 'event', level: 'warn' },
+        ]
+      : env.isTest
+        ? []
         : ['error', 'warn'],
     errorFormat: 'minimal',
   });
@@ -49,7 +68,9 @@ async function initializePrismaConnection(retries = 3): Promise<void> {
     } catch (error) {
       logger.warn(`Database connection attempt ${attempt}/${retries} failed:`, { error });
       if (attempt === retries) {
-        logger.error('All database connection attempts failed. Server will continue without database operations.');
+        logger.error(
+          'All database connection attempts failed. Server will continue without database operations.'
+        );
         return;
       }
       // Wait before retrying with exponential backoff
@@ -59,7 +80,7 @@ async function initializePrismaConnection(retries = 3): Promise<void> {
 }
 
 // Start connection attempt but don't block initialization
-connectionPromise = initializePrismaConnection().catch(error => {
+void initializePrismaConnection().catch(error => {
   logger.error('Failed to establish database connection during startup:', { error });
 });
 

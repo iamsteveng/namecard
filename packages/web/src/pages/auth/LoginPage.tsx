@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../../store/auth.store';
+
 import LoginForm from '../../components/auth/LoginForm';
+import { useAuthStore } from '../../store/auth.store';
 
 export default function LoginPage() {
   const navigate = useNavigate();

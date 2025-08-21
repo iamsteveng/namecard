@@ -3,14 +3,14 @@
 // Company size categories
 export const COMPANY_SIZES = {
   MICRO: '1-10',
-  SMALL: '10-50', 
+  SMALL: '10-50',
   MEDIUM: '50-100',
   LARGE: '100-500',
   ENTERPRISE: '500-1000',
   MEGA: '1000+',
 } as const;
 
-export type CompanySizeValue = typeof COMPANY_SIZES[keyof typeof COMPANY_SIZES];
+export type CompanySizeValue = (typeof COMPANY_SIZES)[keyof typeof COMPANY_SIZES];
 
 // Calendar integration sources
 export const CALENDAR_SOURCES = {
@@ -19,7 +19,7 @@ export const CALENDAR_SOURCES = {
   MANUAL: 'manual',
 } as const;
 
-export type CalendarSourceValue = typeof CALENDAR_SOURCES[keyof typeof CALENDAR_SOURCES];
+export type CalendarSourceValue = (typeof CALENDAR_SOURCES)[keyof typeof CALENDAR_SOURCES];
 
 // User theme preferences
 export const THEMES = {
@@ -28,7 +28,7 @@ export const THEMES = {
   SYSTEM: 'system',
 } as const;
 
-export type ThemeValue = typeof THEMES[keyof typeof THEMES];
+export type ThemeValue = (typeof THEMES)[keyof typeof THEMES];
 
 // Sort order options
 export const SORT_ORDERS = {
@@ -36,7 +36,7 @@ export const SORT_ORDERS = {
   DESC: 'desc',
 } as const;
 
-export type SortOrderValue = typeof SORT_ORDERS[keyof typeof SORT_ORDERS];
+export type SortOrderValue = (typeof SORT_ORDERS)[keyof typeof SORT_ORDERS];
 
 // Card export formats
 export const EXPORT_FORMATS = {
@@ -45,7 +45,7 @@ export const EXPORT_FORMATS = {
   VCARD: 'vcard',
 } as const;
 
-export type ExportFormatValue = typeof EXPORT_FORMATS[keyof typeof EXPORT_FORMATS];
+export type ExportFormatValue = (typeof EXPORT_FORMATS)[keyof typeof EXPORT_FORMATS];
 
 // Card import formats
 export const IMPORT_FORMATS = {
@@ -53,7 +53,7 @@ export const IMPORT_FORMATS = {
   CSV: 'csv',
 } as const;
 
-export type ImportFormatValue = typeof IMPORT_FORMATS[keyof typeof IMPORT_FORMATS];
+export type ImportFormatValue = (typeof IMPORT_FORMATS)[keyof typeof IMPORT_FORMATS];
 
 // Enrichment types
 export const ENRICHMENT_TYPES = {
@@ -63,7 +63,7 @@ export const ENRICHMENT_TYPES = {
   ALL: 'all',
 } as const;
 
-export type EnrichmentTypeValue = typeof ENRICHMENT_TYPES[keyof typeof ENRICHMENT_TYPES];
+export type EnrichmentTypeValue = (typeof ENRICHMENT_TYPES)[keyof typeof ENRICHMENT_TYPES];
 
 // Activity types for user activity tracking
 export const ACTIVITY_TYPES = {
@@ -76,7 +76,7 @@ export const ACTIVITY_TYPES = {
   PROFILE_UPDATED: 'profile_updated',
 } as const;
 
-export type ActivityTypeValue = typeof ACTIVITY_TYPES[keyof typeof ACTIVITY_TYPES];
+export type ActivityTypeValue = (typeof ACTIVITY_TYPES)[keyof typeof ACTIVITY_TYPES];
 
 // News sentiment classifications
 export const NEWS_SENTIMENTS = {
@@ -85,7 +85,7 @@ export const NEWS_SENTIMENTS = {
   NEGATIVE: 'negative',
 } as const;
 
-export type NewsSentimentValue = typeof NEWS_SENTIMENTS[keyof typeof NEWS_SENTIMENTS];
+export type NewsSentimentValue = (typeof NEWS_SENTIMENTS)[keyof typeof NEWS_SENTIMENTS];
 
 // Data source types for company enrichment
 export const DATA_SOURCE_TYPES = {
@@ -95,39 +95,39 @@ export const DATA_SOURCE_TYPES = {
   MANUAL: 'manual',
 } as const;
 
-export type DataSourceTypeValue = typeof DATA_SOURCE_TYPES[keyof typeof DATA_SOURCE_TYPES];
+export type DataSourceTypeValue = (typeof DATA_SOURCE_TYPES)[keyof typeof DATA_SOURCE_TYPES];
 
 // Default values for UI and business logic
 export const DEFAULTS = {
   // Pagination
   PAGE_SIZE: 20,
   MAX_PAGE_SIZE: 100,
-  
+
   // Card processing
   MIN_OCR_CONFIDENCE: 0.5,
   DEFAULT_OCR_CONFIDENCE: 0.8,
-  
+
   // File constraints
   MAX_FILE_SIZE_MB: 10,
   MAX_IMAGE_DIMENSION: 4096,
-  
+
   // Text limits
   MAX_CARD_NAME_LENGTH: 100,
   MAX_COMPANY_NAME_LENGTH: 200,
   MAX_NOTES_LENGTH: 2000,
   MAX_TAG_LENGTH: 50,
   MAX_TAGS_PER_CARD: 20,
-  
+
   // User preferences
   DEFAULT_THEME: THEMES.SYSTEM,
   DEFAULT_LANGUAGE: 'en',
   DEFAULT_TIMEZONE: 'UTC',
-  
+
   // Search and filtering
   MIN_SEARCH_LENGTH: 2,
   MAX_SEARCH_LENGTH: 100,
   SEARCH_DEBOUNCE_MS: 300,
-  
+
   // Cache and sync
   CACHE_TTL_HOURS: 24,
   SYNC_INTERVAL_HOURS: 6,
@@ -157,12 +157,12 @@ export const INDUSTRIES = [
   'Other',
 ] as const;
 
-export type IndustryValue = typeof INDUSTRIES[number];
+export type IndustryValue = (typeof INDUSTRIES)[number];
 
 // Supported languages for localization
 export const SUPPORTED_LANGUAGES = {
   EN: 'en',
-  ES: 'es', 
+  ES: 'es',
   FR: 'fr',
   DE: 'de',
   JA: 'ja',
@@ -173,7 +173,7 @@ export const SUPPORTED_LANGUAGES = {
   KO: 'ko',
 } as const;
 
-export type LanguageValue = typeof SUPPORTED_LANGUAGES[keyof typeof SUPPORTED_LANGUAGES];
+export type LanguageValue = (typeof SUPPORTED_LANGUAGES)[keyof typeof SUPPORTED_LANGUAGES];
 
 // Common error messages
 export const ERROR_MESSAGES = {

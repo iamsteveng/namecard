@@ -1,21 +1,24 @@
 /**
  * Perplexity AI Enrichment Service
- * 
+ *
  * Real-time AI-powered company research using Perplexity's structured output API
  */
 
-import { PrismaClient } from '@prisma/client';
-import fetch, { Response } from 'node-fetch';
-import { 
+import {
   EnrichmentSourceConfig,
-  EnrichCompanyRequest, 
+  EnrichCompanyRequest,
   EnrichCompanyResponse,
   EnrichBusinessCardRequest,
   EnrichBusinessCardResponse,
   CompanyEnrichmentData,
-  BusinessCardEnrichmentData
+  BusinessCardEnrichmentData,
+  PerplexityCompanyResponse,
+  PerplexityBusinessCardResponse,
 } from '@namecard/shared/types/enrichment.types';
-import { BaseEnrichmentService } from './base-enrichment.service';
+import { PrismaClient } from '@prisma/client';
+import fetch from 'node-fetch';
+
+import { BaseEnrichmentService } from './base-enrichment.service.js';
 
 export class PerplexityEnrichmentService extends BaseEnrichmentService {
   private apiKey: string;
@@ -25,12 +28,12 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
 
   constructor(prisma: PrismaClient, config: EnrichmentSourceConfig) {
     super(prisma, 'perplexity', config);
-    
+
     this.apiKey = config.apiKey || '';
     this.baseUrl = config.baseUrl || 'https://api.perplexity.ai';
     this.model = 'sonar'; // Use the standard sonar model
     this.timeout = config.timeout || 30000; // 30 seconds timeout
-    
+
     if (!this.apiKey) {
       console.warn('Perplexity API key not configured');
     }
@@ -39,7 +42,7 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
   /**
    * Check if service is properly configured and enabled
    */
-  isEnabled(): boolean {
+  override isEnabled(): boolean {
     return this.config.enabled && !!this.apiKey;
   }
 
@@ -61,9 +64,9 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
   /**
    * Enrich company data using Perplexity AI research
    */
-  async enrichCompany(request: EnrichCompanyRequest): Promise<EnrichCompanyResponse> {
+  override async enrichCompany(request: EnrichCompanyRequest): Promise<EnrichCompanyResponse> {
     const startTime = Date.now();
-    
+
     try {
       if (!this.isEnabled()) {
         throw new Error('Perplexity enrichment service is not enabled or configured');
@@ -75,10 +78,10 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
 
       // Make API request with structured output
       const researchResponse = await this.callPerplexityAPI(query);
-      
+
       // Transform Perplexity response to our enrichment format
       const enrichmentData = this.transformPerplexityResponse(researchResponse, query);
-      
+
       // Calculate confidence based on data quality and citation count
       const confidence = this.calculateConfidence(researchResponse);
 
@@ -93,16 +96,15 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
             status: 'enriched',
             confidence,
             dataPoints: this.countDataPoints(enrichmentData),
-            error: undefined
-          }
+            error: undefined,
+          },
         },
         overallConfidence: confidence,
-        processingTimeMs
+        processingTimeMs,
       };
-
     } catch (error) {
       console.error('Perplexity enrichment failed:', error);
-      
+
       return {
         success: false,
         companyId: request.companyName || request.domain || 'unknown',
@@ -112,11 +114,11 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
             status: 'failed',
             confidence: 0,
             dataPoints: 0,
-            error: error instanceof Error ? error.message : 'Unknown error'
-          }
+            error: error instanceof Error ? error.message : 'Unknown error',
+          },
         },
         overallConfidence: 0,
-        processingTimeMs: Date.now() - startTime
+        processingTimeMs: Date.now() - startTime,
       };
     }
   }
@@ -124,9 +126,11 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
   /**
    * Enrich business card data with combined person and company research
    */
-  async enrichBusinessCard(request: EnrichBusinessCardRequest): Promise<EnrichBusinessCardResponse> {
+  async enrichBusinessCard(
+    request: EnrichBusinessCardRequest
+  ): Promise<EnrichBusinessCardResponse> {
     const startTime = Date.now();
-    
+
     try {
       if (!this.isEnabled()) {
         throw new Error('Perplexity enrichment service is not enabled or configured');
@@ -138,10 +142,10 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
 
       // Make API request with unified structured output
       const researchResponse = await this.callPerplexityBusinessCardAPI(query);
-      
+
       // Transform response to our enrichment format
       const enrichmentData = this.transformBusinessCardResponse(researchResponse, query);
-      
+
       // Calculate confidence scores
       const personConfidence = this.calculatePersonConfidence(researchResponse);
       const companyConfidence = this.calculateCompanyConfidence(researchResponse);
@@ -158,16 +162,15 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
             status: 'enriched',
             confidence: overallConfidence,
             dataPoints: this.countBusinessCardDataPoints(enrichmentData),
-            error: undefined
-          }
+            error: undefined,
+          },
         },
         overallConfidence,
-        processingTimeMs
+        processingTimeMs,
       };
-
     } catch (error) {
       console.error('Perplexity business card enrichment failed:', error);
-      
+
       return {
         success: false,
         cardId: request.cardId || undefined,
@@ -177,11 +180,11 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
             status: 'failed',
             confidence: 0,
             dataPoints: 0,
-            error: error instanceof Error ? error.message : 'Unknown error'
-          }
+            error: error instanceof Error ? error.message : 'Unknown error',
+          },
         },
         overallConfidence: 0,
-        processingTimeMs: Date.now() - startTime
+        processingTimeMs: Date.now() - startTime,
       };
     }
   }
@@ -193,17 +196,17 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
     const companyName = request.companyName || 'Unknown Company';
     const domain = request.domain;
     const website = request.website;
-    
+
     let query = `Research comprehensive information about ${companyName}`;
-    
+
     if (domain) {
       query += ` (domain: ${domain})`;
     } else if (website) {
       query += ` (website: ${website})`;
     }
-    
+
     query += `. Provide current and accurate information including: business description, industry classification, company size and employee count, headquarters location, founding year, business model, market position, recent news and developments, key leadership team members, main competitors, technology stack used, social media presence, and recent funding or financial information. Focus on factual, up-to-date information with reliable sources.`;
-    
+
     return query;
   }
 
@@ -216,9 +219,9 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
     const companyName = request.companyName;
     const domain = request.domain;
     const website = request.website;
-    
+
     let query = `Research comprehensive information about`;
-    
+
     // Add person information if available
     if (personName) {
       query += ` the professional ${personName}`;
@@ -226,7 +229,7 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
         query += ` who works as ${personTitle}`;
       }
     }
-    
+
     // Add company information
     if (companyName) {
       if (personName) {
@@ -235,28 +238,28 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
         query += ` the company ${companyName}`;
       }
     }
-    
+
     // Add domain/website context
     if (domain) {
       query += ` (domain: ${domain})`;
     } else if (website) {
       query += ` (website: ${website})`;
     }
-    
+
     query += `. Provide current and accurate information including:`;
-    
+
     // Person research requirements
     if (personName && request.includePersonData !== false) {
       query += ` For the person: professional background, education, work experience, expertise areas, achievements, publications, speaking engagements, awards, recent activities, social media presence, and industry influence.`;
     }
-    
-    // Company research requirements  
+
+    // Company research requirements
     if (companyName && request.includeCompanyData !== false) {
       query += ` For the company: business description, industry classification, size and employee count, headquarters location, founding year, business model, market position, recent news and developments, key leadership team, main competitors, technology stack, social media presence, and financial information.`;
     }
-    
+
     query += ` Focus on factual, up-to-date information with reliable sources and provide proper citations for all information.`;
-    
+
     return query;
   }
 
@@ -266,13 +269,13 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
   private async callPerplexityAPI(query: string): Promise<PerplexityCompanyResponse> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
-    
+
     try {
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json'
+          Authorization: `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
         },
         signal: controller.signal,
         body: JSON.stringify({
@@ -280,45 +283,50 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
           messages: [
             {
               role: 'system',
-              content: 'You are a professional business research assistant. Provide comprehensive, accurate company information with proper citations. Always include source URLs for verification.'
+              content:
+                'You are a professional business research assistant. Provide comprehensive, accurate company information with proper citations. Always include source URLs for verification.',
             },
             {
               role: 'user',
-              content: query
-            }
+              content: query,
+            },
           ],
           response_format: {
             type: 'json_schema',
             json_schema: {
-              schema: this.getCompanyResearchSchema()
-            }
+              schema: this.getCompanyResearchSchema(),
+            },
           },
           temperature: 0.1, // Low temperature for consistent, factual responses
-          max_tokens: 2000
-        })
+          max_tokens: 2000,
+        }),
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Perplexity API error: ${response.status} ${response.statusText} - ${errorText}`);
+        throw new Error(
+          `Perplexity API error: ${response.status} ${response.statusText} - ${errorText}`
+        );
       }
 
-      const data = await response.json() as any;
-      
+      const data = (await response.json()) as any;
+
       if (!data.choices?.[0]?.message?.content) {
         throw new Error('Invalid response from Perplexity API');
       }
 
       // Parse the JSON response
-      const structuredResponse = JSON.parse(data.choices[0].message.content) as PerplexityCompanyResponse;
-      
+      const structuredResponse = JSON.parse(
+        data.choices[0].message.content
+      ) as PerplexityCompanyResponse;
+
       // Add processing metadata
       structuredResponse.researchMetadata = {
         ...structuredResponse.researchMetadata,
         processingTimeMs: Date.now() - Date.now(), // Will be updated by caller
-        researchDate: new Date().toISOString()
+        researchDate: new Date().toISOString(),
       };
-      
+
       return structuredResponse;
     } catch (error) {
       if (error instanceof Error) {
@@ -336,16 +344,18 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
   /**
    * Call Perplexity API with business card structured output
    */
-  private async callPerplexityBusinessCardAPI(query: string): Promise<PerplexityBusinessCardResponse> {
+  private async callPerplexityBusinessCardAPI(
+    query: string
+  ): Promise<PerplexityBusinessCardResponse> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
-    
+
     try {
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json'
+          Authorization: `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
         },
         signal: controller.signal,
         body: JSON.stringify({
@@ -353,45 +363,50 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
           messages: [
             {
               role: 'system',
-              content: 'You are a professional business research assistant specializing in comprehensive person and company intelligence. Provide accurate, detailed information with proper citations. Always include source URLs for verification and categorize citations by relevance to person, company, or both.'
+              content:
+                'You are a professional business research assistant specializing in comprehensive person and company intelligence. Provide accurate, detailed information with proper citations. Always include source URLs for verification and categorize citations by relevance to person, company, or both.',
             },
             {
               role: 'user',
-              content: query
-            }
+              content: query,
+            },
           ],
           response_format: {
             type: 'json_schema',
             json_schema: {
-              schema: this.getBusinessCardResearchSchema()
-            }
+              schema: this.getBusinessCardResearchSchema(),
+            },
           },
           temperature: 0.1, // Low temperature for consistent, factual responses
-          max_tokens: 4000 // Increased for combined person+company data
-        })
+          max_tokens: 4000, // Increased for combined person+company data
+        }),
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Perplexity API error: ${response.status} ${response.statusText} - ${errorText}`);
+        throw new Error(
+          `Perplexity API error: ${response.status} ${response.statusText} - ${errorText}`
+        );
       }
 
-      const data = await response.json() as any;
-      
+      const data = (await response.json()) as any;
+
       if (!data.choices?.[0]?.message?.content) {
         throw new Error('Invalid response from Perplexity API');
       }
 
       // Parse the JSON response
-      const structuredResponse = JSON.parse(data.choices[0].message.content) as PerplexityBusinessCardResponse;
-      
+      const structuredResponse = JSON.parse(
+        data.choices[0].message.content
+      ) as PerplexityBusinessCardResponse;
+
       // Add processing metadata
       structuredResponse.researchMetadata = {
         ...structuredResponse.researchMetadata,
         processingTimeMs: Date.now() - Date.now(), // Will be updated by caller
-        researchDate: new Date().toISOString()
+        researchDate: new Date().toISOString(),
       };
-      
+
       return structuredResponse;
     } catch (error) {
       if (error instanceof Error) {
@@ -409,14 +424,14 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
   /**
    * Get the JSON schema for structured company research output
    */
-  private getCompanyResearchSchema(): PerplexityCompanySchema {
+  private getCompanyResearchSchema(): any {
     return this.getLegacyCompanySchema();
   }
 
   /**
    * Get the JSON schema for combined business card research output
    */
-  private getBusinessCardResearchSchema(): PerplexityBusinessCardSchema {
+  private getBusinessCardResearchSchema(): any {
     return {
       type: 'object',
       properties: {
@@ -434,10 +449,10 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
                   institution: { type: 'string' },
                   degree: { type: 'string' },
                   field: { type: 'string' },
-                  year: { type: 'number' }
+                  year: { type: 'number' },
                 },
-                required: ['institution']
-              }
+                required: ['institution'],
+              },
             },
             experience: {
               type: 'array',
@@ -447,18 +462,18 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
                   company: { type: 'string' },
                   role: { type: 'string' },
                   duration: { type: 'string' },
-                  description: { type: 'string' }
+                  description: { type: 'string' },
                 },
-                required: ['company', 'role']
-              }
+                required: ['company', 'role'],
+              },
             },
             expertise: {
               type: 'array',
-              items: { type: 'string' }
+              items: { type: 'string' },
             },
             achievements: {
               type: 'array',
-              items: { type: 'string' }
+              items: { type: 'string' },
             },
             publications: {
               type: 'array',
@@ -468,10 +483,10 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
                   title: { type: 'string' },
                   url: { type: 'string' },
                   publishDate: { type: 'string' },
-                  venue: { type: 'string' }
+                  venue: { type: 'string' },
                 },
-                required: ['title']
-              }
+                required: ['title'],
+              },
             },
             recentActivities: {
               type: 'array',
@@ -482,10 +497,10 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
                   description: { type: 'string' },
                   date: { type: 'string' },
                   url: { type: 'string' },
-                  source: { type: 'string' }
+                  source: { type: 'string' },
                 },
-                required: ['title', 'description', 'source']
-              }
+                required: ['title', 'description', 'source'],
+              },
             },
             socialMedia: {
               type: 'object',
@@ -494,11 +509,11 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
                 twitterHandle: { type: 'string' },
                 personalWebsite: { type: 'string' },
                 blogUrl: { type: 'string' },
-                githubUrl: { type: 'string' }
-              }
-            }
+                githubUrl: { type: 'string' },
+              },
+            },
           },
-          required: ['name']
+          required: ['name'],
         },
         company: {
           type: 'object',
@@ -512,9 +527,9 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
             founded: { type: 'number' },
             annualRevenue: { type: 'string' },
             businessModel: { type: 'string' },
-            marketPosition: { type: 'string' }
+            marketPosition: { type: 'string' },
           },
-          required: ['name']
+          required: ['name'],
         },
         recentNews: {
           type: 'array',
@@ -525,10 +540,10 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
               summary: { type: 'string' },
               url: { type: 'string' },
               publishDate: { type: 'string' },
-              source: { type: 'string' }
+              source: { type: 'string' },
             },
-            required: ['title', 'summary', 'source']
-          }
+            required: ['title', 'summary', 'source'],
+          },
         },
         keyPeople: {
           type: 'array',
@@ -537,30 +552,30 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
             properties: {
               name: { type: 'string' },
               role: { type: 'string' },
-              description: { type: 'string' }
+              description: { type: 'string' },
             },
-            required: ['name', 'role']
-          }
+            required: ['name', 'role'],
+          },
         },
         competitors: {
           type: 'array',
-          items: { type: 'string' }
+          items: { type: 'string' },
         },
         recentDevelopments: {
           type: 'array',
-          items: { type: 'string' }
+          items: { type: 'string' },
         },
         technologies: {
           type: 'array',
-          items: { type: 'string' }
+          items: { type: 'string' },
         },
         socialMedia: {
           type: 'object',
           properties: {
             linkedinUrl: { type: 'string' },
             twitterHandle: { type: 'string' },
-            facebookUrl: { type: 'string' }
-          }
+            facebookUrl: { type: 'string' },
+          },
         },
         citations: {
           type: 'array',
@@ -571,10 +586,10 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
               title: { type: 'string' },
               source: { type: 'string' },
               relevance: { type: 'number' },
-              category: { type: 'string', enum: ['person', 'company', 'both'] }
+              category: { type: 'string', enum: ['person', 'company', 'both'] },
             },
-            required: ['url', 'title', 'source', 'relevance', 'category']
-          }
+            required: ['url', 'title', 'source', 'relevance', 'category'],
+          },
         },
         researchMetadata: {
           type: 'object',
@@ -584,19 +599,25 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
             companyConfidence: { type: 'number' },
             overallConfidence: { type: 'number' },
             processingTimeMs: { type: 'number' },
-            researchDate: { type: 'string' }
+            researchDate: { type: 'string' },
           },
-          required: ['query', 'personConfidence', 'companyConfidence', 'overallConfidence', 'researchDate']
-        }
+          required: [
+            'query',
+            'personConfidence',
+            'companyConfidence',
+            'overallConfidence',
+            'researchDate',
+          ],
+        },
       },
-      required: ['citations', 'researchMetadata']
+      required: ['citations', 'researchMetadata'],
     };
   }
 
   /**
    * Legacy company schema for backward compatibility
    */
-  private getLegacyCompanySchema(): PerplexityCompanySchema {
+  private getLegacyCompanySchema(): any {
     return {
       type: 'object',
       properties: {
@@ -612,9 +633,9 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
             founded: { type: 'number' },
             annualRevenue: { type: 'string' },
             businessModel: { type: 'string' },
-            marketPosition: { type: 'string' }
+            marketPosition: { type: 'string' },
           },
-          required: ['name']
+          required: ['name'],
         },
         recentNews: {
           type: 'array',
@@ -625,10 +646,10 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
               summary: { type: 'string' },
               url: { type: 'string' },
               publishDate: { type: 'string' },
-              source: { type: 'string' }
+              source: { type: 'string' },
             },
-            required: ['title', 'summary', 'source']
-          }
+            required: ['title', 'summary', 'source'],
+          },
         },
         keyPeople: {
           type: 'array',
@@ -637,30 +658,30 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
             properties: {
               name: { type: 'string' },
               role: { type: 'string' },
-              description: { type: 'string' }
+              description: { type: 'string' },
             },
-            required: ['name', 'role']
-          }
+            required: ['name', 'role'],
+          },
         },
         competitors: {
           type: 'array',
-          items: { type: 'string' }
+          items: { type: 'string' },
         },
         recentDevelopments: {
           type: 'array',
-          items: { type: 'string' }
+          items: { type: 'string' },
         },
         technologies: {
           type: 'array',
-          items: { type: 'string' }
+          items: { type: 'string' },
         },
         socialMedia: {
           type: 'object',
           properties: {
             linkedinUrl: { type: 'string' },
             twitterHandle: { type: 'string' },
-            facebookUrl: { type: 'string' }
-          }
+            facebookUrl: { type: 'string' },
+          },
         },
         citations: {
           type: 'array',
@@ -670,10 +691,10 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
               url: { type: 'string' },
               title: { type: 'string' },
               source: { type: 'string' },
-              relevance: { type: 'number' }
+              relevance: { type: 'number' },
             },
-            required: ['url', 'title', 'source', 'relevance']
-          }
+            required: ['url', 'title', 'source', 'relevance'],
+          },
         },
         researchMetadata: {
           type: 'object',
@@ -681,12 +702,12 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
             query: { type: 'string' },
             confidence: { type: 'number' },
             processingTimeMs: { type: 'number' },
-            researchDate: { type: 'string' }
+            researchDate: { type: 'string' },
           },
-          required: ['query', 'confidence', 'researchDate']
-        }
+          required: ['query', 'confidence', 'researchDate'],
+        },
       },
-      required: ['company', 'citations', 'researchMetadata']
+      required: ['company', 'citations', 'researchMetadata'],
     };
   }
 
@@ -699,7 +720,7 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
   ): CompanyEnrichmentData {
     const company = response.company;
     const socialMedia = response.socialMedia;
-    
+
     return {
       // Basic company info
       name: company.name,
@@ -710,39 +731,39 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
       employeeCount: company.employeeCount,
       founded: company.founded,
       annualRevenue: company.annualRevenue,
-      
+
       // Business information
       businessModel: company.businessModel,
       marketPosition: company.marketPosition,
-      
+
       // Array data
       technologies: response.technologies,
       competitors: response.competitors,
-      
+
       // AI Research specific data
       recentNews: response.recentNews,
       keyPeople: response.keyPeople,
       recentDevelopments: response.recentDevelopments,
-      
+
       // Social media
       linkedinUrl: socialMedia?.linkedinUrl,
       twitterHandle: socialMedia?.twitterHandle,
       facebookUrl: socialMedia?.facebookUrl,
-      
+
       // Research metadata
-      citations: response.citations?.map(citation => ({
+      citations: response.citations?.map((citation: any) => ({
         url: citation.url,
         title: citation.title,
         source: citation.source,
         accessDate: new Date().toISOString(),
-        relevance: citation.relevance
+        relevance: citation.relevance,
       })),
       researchQuery: originalQuery,
       researchDate: new Date(),
-      
+
       // Metadata
       confidence: (response as any).researchMetadata?.confidence || 85,
-      lastUpdated: new Date()
+      lastUpdated: new Date(),
     };
   }
 
@@ -753,76 +774,82 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
     response: PerplexityBusinessCardResponse,
     originalQuery: string
   ): BusinessCardEnrichmentData {
-    const personData = response.person ? {
-      name: response.person.name,
-      title: response.person.title,
-      currentRole: response.person.currentRole,
-      education: response.person.education,
-      experience: response.person.experience,
-      expertise: response.person.expertise,
-      achievements: response.person.achievements,
-      publications: response.person.publications,
-      speakingEngagements: response.person.speakingEngagements,
-      awards: response.person.awards,
-      recentActivities: response.person.recentActivities,
-      linkedinUrl: response.person.socialMedia?.linkedinUrl,
-      twitterHandle: response.person.socialMedia?.twitterHandle,
-      personalWebsite: response.person.socialMedia?.personalWebsite,
-      blogUrl: response.person.socialMedia?.blogUrl,
-      githubUrl: response.person.socialMedia?.githubUrl,
-      confidence: response.researchMetadata?.personConfidence || 85,
-      lastUpdated: new Date()
-    } : undefined;
+    const personData = response.person
+      ? {
+          name: response.person.name,
+          title: response.person.title,
+          currentRole: response.person.currentRole,
+          education: response.person.education,
+          experience: response.person.experience,
+          expertise: response.person.expertise,
+          achievements: response.person.achievements,
+          publications: response.person.publications,
+          speakingEngagements: response.person.speakingEngagements,
+          awards: response.person.awards,
+          recentActivities: response.person.recentActivities,
+          linkedinUrl: response.person.socialMedia?.linkedinUrl,
+          twitterHandle: response.person.socialMedia?.twitterHandle,
+          personalWebsite: response.person.socialMedia?.personalWebsite,
+          blogUrl: response.person.socialMedia?.blogUrl,
+          githubUrl: response.person.socialMedia?.githubUrl,
+          confidence: response.researchMetadata?.personConfidence || 85,
+          lastUpdated: new Date(),
+        }
+      : undefined;
 
-    const companyData = response.company ? {
-      name: response.company.name,
-      description: response.company.description,
-      industry: response.company.industry,
-      website: response.company.website,
-      headquarters: response.company.headquarters,
-      employeeCount: response.company.employeeCount,
-      founded: response.company.founded,
-      annualRevenue: response.company.annualRevenue,
-      businessModel: response.company.businessModel,
-      marketPosition: response.company.marketPosition,
-      technologies: response.technologies,
-      competitors: response.competitors,
-      recentNews: response.recentNews,
-      keyPeople: response.keyPeople,
-      recentDevelopments: response.recentDevelopments,
-      linkedinUrl: response.socialMedia?.linkedinUrl,
-      twitterHandle: response.socialMedia?.twitterHandle,
-      facebookUrl: response.socialMedia?.facebookUrl,
-      citations: response.citations?.filter(c => c.category === 'company' || c.category === 'both').map(citation => ({
-        url: citation.url,
-        title: citation.title,
-        source: citation.source,
-        accessDate: new Date().toISOString(),
-        relevance: citation.relevance
-      })),
-      researchQuery: originalQuery,
-      researchDate: new Date(),
-      confidence: response.researchMetadata?.companyConfidence || 85,
-      lastUpdated: new Date()
-    } : undefined;
+    const companyData = response.company
+      ? {
+          name: response.company.name,
+          description: response.company.description,
+          industry: response.company.industry,
+          website: response.company.website,
+          headquarters: response.company.headquarters,
+          employeeCount: response.company.employeeCount,
+          founded: response.company.founded,
+          annualRevenue: response.company.annualRevenue,
+          businessModel: response.company.businessModel,
+          marketPosition: response.company.marketPosition,
+          technologies: response.technologies,
+          competitors: response.competitors,
+          recentNews: response.recentNews,
+          keyPeople: response.keyPeople,
+          recentDevelopments: response.recentDevelopments,
+          linkedinUrl: response.socialMedia?.linkedinUrl,
+          twitterHandle: response.socialMedia?.twitterHandle,
+          facebookUrl: response.socialMedia?.facebookUrl,
+          citations: response.citations
+            ?.filter((c: any) => c.category === 'company' || c.category === 'both')
+            .map((citation: any) => ({
+              url: citation.url,
+              title: citation.title,
+              source: citation.source,
+              accessDate: new Date().toISOString(),
+              relevance: citation.relevance,
+            })),
+          researchQuery: originalQuery,
+          researchDate: new Date(),
+          confidence: response.researchMetadata?.companyConfidence || 85,
+          lastUpdated: new Date(),
+        }
+      : undefined;
 
     return {
       personData,
       companyData,
-      citations: response.citations?.map(citation => ({
+      citations: response.citations?.map((citation: any) => ({
         url: citation.url,
         title: citation.title,
         source: citation.source,
         accessDate: new Date().toISOString(),
         relevance: citation.relevance,
-        category: citation.category
+        category: citation.category,
       })),
       researchQuery: originalQuery,
       researchDate: new Date(),
       personConfidence: response.researchMetadata?.personConfidence || 0,
       companyConfidence: response.researchMetadata?.companyConfidence || 0,
       overallConfidence: response.researchMetadata?.overallConfidence || 0,
-      lastUpdated: new Date()
+      lastUpdated: new Date(),
     };
   }
 
@@ -831,14 +858,24 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
    */
   private calculateConfidence(response: PerplexityCompanyResponse): number {
     let confidence = (response as any).researchMetadata?.confidence || 85;
-    
+
     // Boost confidence based on data richness
-    if (response.citations?.length >= 5) confidence += 5;
-    if (response.recentNews?.length >= 3) confidence += 3;
-    if (response.keyPeople?.length >= 2) confidence += 2;
-    if (response.competitors?.length >= 3) confidence += 3;
-    if (response.technologies?.length >= 3) confidence += 2;
-    
+    if (response.citations?.length >= 5) {
+      confidence += 5;
+    }
+    if (response.recentNews?.length >= 3) {
+      confidence += 3;
+    }
+    if (response.keyPeople?.length >= 2) {
+      confidence += 2;
+    }
+    if (response.competitors?.length >= 3) {
+      confidence += 3;
+    }
+    if (response.technologies?.length >= 3) {
+      confidence += 2;
+    }
+
     // Ensure confidence stays within bounds
     return Math.min(100, Math.max(0, Math.round(confidence)));
   }
@@ -848,17 +885,29 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
    */
   private calculatePersonConfidence(response: PerplexityBusinessCardResponse): number {
     let confidence = response.researchMetadata?.personConfidence || 75;
-    
+
     if (response.person) {
       // Boost confidence based on data richness
-      if (response.person.education?.length >= 1) confidence += 5;
-      if (response.person.experience?.length >= 2) confidence += 5;
-      if (response.person.achievements?.length >= 1) confidence += 3;
-      if (response.person.publications?.length >= 1) confidence += 3;
-      if (response.person.recentActivities?.length >= 1) confidence += 2;
-      if (response.person.socialMedia?.linkedinUrl) confidence += 2;
+      if (response.person.education?.length >= 1) {
+        confidence += 5;
+      }
+      if (response.person.experience?.length >= 2) {
+        confidence += 5;
+      }
+      if (response.person.achievements?.length >= 1) {
+        confidence += 3;
+      }
+      if (response.person.publications?.length >= 1) {
+        confidence += 3;
+      }
+      if (response.person.recentActivities?.length >= 1) {
+        confidence += 2;
+      }
+      if (response.person.socialMedia?.linkedinUrl) {
+        confidence += 2;
+      }
     }
-    
+
     // Ensure confidence stays within bounds
     return Math.min(100, Math.max(0, Math.round(confidence)));
   }
@@ -868,16 +917,29 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
    */
   private calculateCompanyConfidence(response: PerplexityBusinessCardResponse): number {
     let confidence = response.researchMetadata?.companyConfidence || 75;
-    
+
     if (response.company) {
       // Boost confidence based on data richness
-      if (response.citations?.filter(c => c.category === 'company' || c.category === 'both').length >= 3) confidence += 5;
-      if (response.recentNews?.length >= 2) confidence += 3;
-      if (response.keyPeople?.length >= 2) confidence += 2;
-      if (response.competitors?.length >= 2) confidence += 3;
-      if (response.technologies?.length >= 2) confidence += 2;
+      if (
+        response.citations?.filter((c: any) => c.category === 'company' || c.category === 'both')
+          .length >= 3
+      ) {
+        confidence += 5;
+      }
+      if (response.recentNews?.length >= 2) {
+        confidence += 3;
+      }
+      if (response.keyPeople?.length >= 2) {
+        confidence += 2;
+      }
+      if (response.competitors?.length >= 2) {
+        confidence += 3;
+      }
+      if (response.technologies?.length >= 2) {
+        confidence += 2;
+      }
     }
-    
+
     // Ensure confidence stays within bounds
     return Math.min(100, Math.max(0, Math.round(confidence)));
   }
@@ -887,26 +949,50 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
    */
   protected override countDataPoints(data: CompanyEnrichmentData): number {
     let count = 0;
-    
+
     // Count basic fields
     const basicFields = [
-      'name', 'description', 'industry', 'website', 'headquarters',
-      'employeeCount', 'founded', 'annualRevenue', 'businessModel', 
-      'marketPosition', 'linkedinUrl', 'twitterHandle', 'facebookUrl'
+      'name',
+      'description',
+      'industry',
+      'website',
+      'headquarters',
+      'employeeCount',
+      'founded',
+      'annualRevenue',
+      'businessModel',
+      'marketPosition',
+      'linkedinUrl',
+      'twitterHandle',
+      'facebookUrl',
     ];
-    
+
     for (const field of basicFields) {
-      if (data[field as keyof CompanyEnrichmentData]) count++;
+      if (data[field as keyof CompanyEnrichmentData]) {
+        count++;
+      }
     }
-    
+
     // Count array fields
-    if (data.technologies?.length) count += data.technologies.length;
-    if (data.competitors?.length) count += data.competitors.length;
-    if (data.recentNews?.length) count += data.recentNews.length;
-    if (data.keyPeople?.length) count += data.keyPeople.length;
-    if (data.recentDevelopments?.length) count += data.recentDevelopments.length;
-    if (data.citations?.length) count += data.citations.length;
-    
+    if (data.technologies?.length) {
+      count += data.technologies.length;
+    }
+    if (data.competitors?.length) {
+      count += data.competitors.length;
+    }
+    if (data.recentNews?.length) {
+      count += data.recentNews.length;
+    }
+    if (data.keyPeople?.length) {
+      count += data.keyPeople.length;
+    }
+    if (data.recentDevelopments?.length) {
+      count += data.recentDevelopments.length;
+    }
+    if (data.citations?.length) {
+      count += data.citations.length;
+    }
+
     return count;
   }
 
@@ -915,49 +1001,94 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
    */
   private countBusinessCardDataPoints(data: BusinessCardEnrichmentData): number {
     let count = 0;
-    
+
     // Count person data points
     if (data.personData) {
       const personFields = [
-        'name', 'title', 'currentRole', 'linkedinUrl', 'twitterHandle', 'personalWebsite', 'blogUrl', 'githubUrl'
+        'name',
+        'title',
+        'currentRole',
+        'linkedinUrl',
+        'twitterHandle',
+        'personalWebsite',
+        'blogUrl',
+        'githubUrl',
       ];
-      
+
       for (const field of personFields) {
-        if (data.personData[field as keyof typeof data.personData]) count++;
+        if (data.personData[field as keyof typeof data.personData]) {
+          count++;
+        }
       }
-      
+
       // Count array fields
-      if (data.personData.education?.length) count += data.personData.education.length;
-      if (data.personData.experience?.length) count += data.personData.experience.length;
-      if (data.personData.expertise?.length) count += data.personData.expertise.length;
-      if (data.personData.achievements?.length) count += data.personData.achievements.length;
-      if (data.personData.publications?.length) count += data.personData.publications.length;
-      if (data.personData.recentActivities?.length) count += data.personData.recentActivities.length;
+      if (data.personData.education?.length) {
+        count += data.personData.education.length;
+      }
+      if (data.personData.experience?.length) {
+        count += data.personData.experience.length;
+      }
+      if (data.personData.expertise?.length) {
+        count += data.personData.expertise.length;
+      }
+      if (data.personData.achievements?.length) {
+        count += data.personData.achievements.length;
+      }
+      if (data.personData.publications?.length) {
+        count += data.personData.publications.length;
+      }
+      if (data.personData.recentActivities?.length) {
+        count += data.personData.recentActivities.length;
+      }
     }
-    
+
     // Count company data points
     if (data.companyData) {
       const companyFields = [
-        'name', 'description', 'industry', 'website', 'headquarters',
-        'employeeCount', 'founded', 'annualRevenue', 'businessModel', 
-        'marketPosition', 'linkedinUrl', 'twitterHandle', 'facebookUrl'
+        'name',
+        'description',
+        'industry',
+        'website',
+        'headquarters',
+        'employeeCount',
+        'founded',
+        'annualRevenue',
+        'businessModel',
+        'marketPosition',
+        'linkedinUrl',
+        'twitterHandle',
+        'facebookUrl',
       ];
-      
+
       for (const field of companyFields) {
-        if (data.companyData[field as keyof typeof data.companyData]) count++;
+        if (data.companyData[field as keyof typeof data.companyData]) {
+          count++;
+        }
       }
-      
+
       // Count array fields
-      if (data.companyData.technologies?.length) count += data.companyData.technologies.length;
-      if (data.companyData.competitors?.length) count += data.companyData.competitors.length;
-      if (data.companyData.recentNews?.length) count += data.companyData.recentNews.length;
-      if (data.companyData.keyPeople?.length) count += data.companyData.keyPeople.length;
-      if (data.companyData.recentDevelopments?.length) count += data.companyData.recentDevelopments.length;
+      if (data.companyData.technologies?.length) {
+        count += data.companyData.technologies.length;
+      }
+      if (data.companyData.competitors?.length) {
+        count += data.companyData.competitors.length;
+      }
+      if (data.companyData.recentNews?.length) {
+        count += data.companyData.recentNews.length;
+      }
+      if (data.companyData.keyPeople?.length) {
+        count += data.companyData.keyPeople.length;
+      }
+      if (data.companyData.recentDevelopments?.length) {
+        count += data.companyData.recentDevelopments.length;
+      }
     }
-    
+
     // Count citations
-    if (data.citations?.length) count += data.citations.length;
-    
+    if (data.citations?.length) {
+      count += data.citations.length;
+    }
+
     return count;
   }
 
@@ -967,7 +1098,7 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
   async testConnection(): Promise<boolean> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
-    
+
     try {
       if (!this.isEnabled()) {
         return false;
@@ -977,8 +1108,8 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json'
+          Authorization: `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
         },
         signal: controller.signal,
         body: JSON.stringify({
@@ -986,11 +1117,11 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
           messages: [
             {
               role: 'user',
-              content: 'Test connection'
-            }
+              content: 'Test connection',
+            },
           ],
-          max_tokens: 10
-        })
+          max_tokens: 10,
+        }),
       });
 
       return response.ok;

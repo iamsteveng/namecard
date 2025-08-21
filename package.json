@@ -30,7 +30,7 @@
     "fullstack:test": "docker-compose up -d && sleep 15 && curl http://localhost:3001/health && curl http://localhost:8080/health",
     "frontend:up": "docker-compose up -d frontend",
     "frontend:logs": "docker-compose logs -f frontend",
-    "prepare": "husky install"
+    "prepare": "husky install || echo 'Husky install failed, continuing...'"
   },
   "workspaces": [
     "packages/*"

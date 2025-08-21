@@ -1,0 +1,61 @@
+# Git and version control
+.git
+.gitignore
+.github/
+
+# CDK output and infrastructure
+infrastructure/cdk.out/
+infrastructure/node_modules/
+infrastructure/*.d.ts
+infrastructure/*.js
+infrastructure/.env*
+
+# Development and build artifacts
+node_modules/
+dist/
+build/
+coverage/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env*
+!.env.example
+
+# Documentation
+docs/
+*.md
+!packages/*/README.md
+
+# Testing
+cypress/videos/
+cypress/screenshots/
+jest-results/
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+
+# Package manager files
+.pnpm-store/
+.yarn/
+pnpm-lock.yaml
+
+# Docker related
+Dockerfile*
+docker-compose*
+.dockerignore

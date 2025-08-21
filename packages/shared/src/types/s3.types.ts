@@ -1,6 +1,6 @@
 /**
  * S3 Storage Types
- * 
+ *
  * Shared types for S3 file storage operations across the application
  */
 

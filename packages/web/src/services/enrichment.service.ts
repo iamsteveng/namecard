@@ -1,21 +1,28 @@
 /**
  * Frontend Enrichment Service
- * 
+ *
  * Service for enrichment API calls from the frontend
  */
 
-import type { EnrichCardRequest, EnrichCardResponse } from '../types/enrichment.types';
-import type { CompanyEnrichmentData, EnrichmentSource } from '@namecard/shared/types/enrichment.types';
+import type {
+  CompanyEnrichmentData,
+  EnrichmentSource,
+} from '@namecard/shared/types/enrichment.types';
 
-const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3001';
+import type { EnrichCardRequest, EnrichCardResponse } from '../types/enrichment.types';
+
+const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || '';
 
 export interface EnrichmentHealthResponse {
   status: 'healthy' | 'unhealthy';
-  sources: Record<EnrichmentSource, {
-    enabled: boolean;
-    status: 'healthy' | 'unhealthy';
-    lastChecked: string;
-  }>;
+  sources: Record<
+    EnrichmentSource,
+    {
+      enabled: boolean;
+      status: 'healthy' | 'unhealthy';
+      lastChecked: string;
+    }
+  >;
   availableSources: EnrichmentSource[];
   timestamp: string;
 }
@@ -64,7 +71,7 @@ class EnrichmentService {
    */
   private getAuthHeaders(accessToken: string) {
     return {
-      'Authorization': `Bearer ${accessToken}`,
+      Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
     };
   }
@@ -120,17 +127,14 @@ class EnrichmentService {
   /**
    * Enrich a specific business card
    */
-  async enrichCard(
-    request: EnrichCardRequest,
-    accessToken: string
-  ): Promise<EnrichCardResponse> {
+  async enrichCard(request: EnrichCardRequest, accessToken: string): Promise<EnrichCardResponse> {
     const response = await fetch(`${this.baseUrl}/card`, {
       method: 'POST',
       headers: this.getAuthHeaders(accessToken),
       body: JSON.stringify({
         cardId: request.cardId,
         sources: request.sources || ['perplexity'],
-        triggeredBy: 'manual'
+        triggeredBy: 'manual',
       }),
     });
 

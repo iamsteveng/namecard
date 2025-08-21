@@ -1,7 +1,12 @@
 // Common validation schemas
 import { z } from 'zod';
 import { VALIDATION_PATTERNS } from '../constants/validation.constants.js';
-import { THEMES, SORT_ORDERS, COMPANY_SIZES, CALENDAR_SOURCES } from '../constants/app.constants.js';
+import {
+  THEMES,
+  SORT_ORDERS,
+  COMPANY_SIZES,
+  CALENDAR_SOURCES,
+} from '../constants/app.constants.js';
 
 // Base entity schema
 export const baseEntitySchema = z.object({
@@ -17,17 +22,11 @@ export const emailSchema = z
   .min(5, 'Email must be at least 5 characters')
   .max(254, 'Email must not exceed 254 characters');
 
-export const uuidSchema = z
-  .string()
-  .regex(VALIDATION_PATTERNS.UUID, 'Invalid UUID format');
+export const uuidSchema = z.string().regex(VALIDATION_PATTERNS.UUID, 'Invalid UUID format');
 
-export const cuidSchema = z
-  .string()
-  .regex(VALIDATION_PATTERNS.CUID, 'Invalid CUID format');
+export const cuidSchema = z.string().regex(VALIDATION_PATTERNS.CUID, 'Invalid CUID format');
 
-export const idSchema = z
-  .string()
-  .regex(VALIDATION_PATTERNS.ID, 'Invalid ID format');
+export const idSchema = z.string().regex(VALIDATION_PATTERNS.ID, 'Invalid ID format');
 
 export const urlSchema = z
   .string()
@@ -65,13 +64,15 @@ export const searchParamsSchema = z.object({
 });
 
 // User preference schema
-export const userPreferencesSchema = z.object({
-  theme: z.enum([THEMES.LIGHT, THEMES.DARK, THEMES.SYSTEM]).default(THEMES.SYSTEM),
-  notifications: z.boolean().default(true),
-  emailUpdates: z.boolean().default(true),
-  language: z.string().min(2).max(5).default('en'),
-  timezone: z.string().default('UTC'),
-}).passthrough(); // Allow additional properties
+export const userPreferencesSchema = z
+  .object({
+    theme: z.enum([THEMES.LIGHT, THEMES.DARK, THEMES.SYSTEM]).default(THEMES.SYSTEM),
+    notifications: z.boolean().default(true),
+    emailUpdates: z.boolean().default(true),
+    language: z.string().min(2).max(5).default('en'),
+    timezone: z.string().default('UTC'),
+  })
+  .passthrough(); // Allow additional properties
 
 // Company size validation
 export const companySizeSchema = z.enum([
@@ -123,7 +124,7 @@ export const createArraySchema = <T>(
   itemSchema: z.ZodSchema<T>,
   minItems = 0,
   maxItems = 100
-) => {
+): z.ZodArray<z.ZodSchema<T>> => {
   return z
     .array(itemSchema)
     .min(minItems, `Must have at least ${minItems} items`)
@@ -133,11 +134,8 @@ export const createArraySchema = <T>(
 export const createOptionalArraySchema = <T>(
   itemSchema: z.ZodSchema<T>,
   maxItems = 100
-) => {
-  return z
-    .array(itemSchema)
-    .max(maxItems, `Must have at most ${maxItems} items`)
-    .optional();
+): z.ZodOptional<z.ZodArray<z.ZodSchema<T>>> => {
+  return z.array(itemSchema).max(maxItems, `Must have at most ${maxItems} items`).optional();
 };
 
 // String validation helpers
@@ -146,16 +144,16 @@ export const createStringSchema = (
   maxLength = 255,
   pattern?: RegExp,
   patternMessage?: string
-) => {
+): z.ZodString => {
   let schema = z
     .string()
     .min(minLength, `Must be at least ${minLength} characters`)
     .max(maxLength, `Must not exceed ${maxLength} characters`);
-  
+
   if (pattern) {
     schema = schema.regex(pattern, patternMessage || 'Invalid format');
   }
-  
+
   return schema;
 };
 
@@ -165,12 +163,10 @@ export const transformToNumber = z
   .transform(val => Number(val))
   .refine(val => !isNaN(val), 'Must be a valid number');
 
-export const transformToBoolean = z
-  .union([z.string(), z.boolean()])
-  .transform(val => {
-    if (typeof val === 'boolean') return val;
-    return val === 'true' || val === '1';
-  });
+export const transformToBoolean = z.union([z.string(), z.boolean()]).transform(val => {
+  if (typeof val === 'boolean') return val;
+  return val === 'true' || val === '1';
+});
 
 export const transformToDate = z
   .union([z.string(), z.date()])

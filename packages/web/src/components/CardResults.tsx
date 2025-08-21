@@ -1,9 +1,24 @@
-import { useState, useEffect } from 'react';
-import { Edit, Save, X, User, Briefcase, Mail, Phone, Globe, MapPin, AlertTriangle, CheckCircle, Copy } from 'lucide-react';
 import { clsx } from 'clsx';
+import {
+  Edit,
+  Save,
+  X,
+  User,
+  Briefcase,
+  Mail,
+  Phone,
+  Globe,
+  MapPin,
+  AlertTriangle,
+  CheckCircle,
+  Copy,
+} from 'lucide-react';
+import { useState, useEffect } from 'react';
+
 import type { ScanCardResponse } from '../services/cards.service';
-import EnrichmentButton, { useEnrichmentStatus } from './enrichment/EnrichmentButton';
+
 import CompanyInfo from './enrichment/CompanyInfo';
+import EnrichmentButton, { useEnrichmentStatus } from './enrichment/EnrichmentButton';
 // Remove unused import
 
 interface CardResultsProps {
@@ -42,31 +57,37 @@ interface FieldProps {
 
 function ConfidenceBadge({ confidence }: { confidence: number }) {
   const getConfidenceColor = (conf: number) => {
-    if (conf >= 0.9) return 'text-green-700 bg-green-100';
-    if (conf >= 0.7) return 'text-yellow-700 bg-yellow-100';
+    if (conf >= 0.9) {
+      return 'text-green-700 bg-green-100';
+    }
+    if (conf >= 0.7) {
+      return 'text-yellow-700 bg-yellow-100';
+    }
     return 'text-red-700 bg-red-100';
   };
 
   return (
-    <span className={clsx(
-      'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium',
-      getConfidenceColor(confidence)
-    )}>
+    <span
+      className={clsx(
+        'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium',
+        getConfidenceColor(confidence)
+      )}
+    >
       {Math.round(confidence * 100)}%
     </span>
   );
 }
 
-function Field({ 
-  label, 
-  value, 
-  confidence, 
-  icon, 
-  type = 'text', 
-  placeholder, 
-  isEditing, 
-  onChange, 
-  onCopy 
+function Field({
+  label,
+  value,
+  confidence,
+  icon,
+  type = 'text',
+  placeholder,
+  isEditing,
+  onChange,
+  onCopy,
 }: FieldProps) {
   const handleCopy = async () => {
     if (value && navigator.clipboard) {
@@ -88,13 +109,13 @@ function Field({
         </label>
         {confidence !== undefined && <ConfidenceBadge confidence={confidence} />}
       </div>
-      
+
       <div className="relative">
         {isEditing ? (
           <input
             type={type}
             value={value || ''}
-            onChange={(e) => onChange(e.target.value)}
+            onChange={e => onChange(e.target.value)}
             placeholder={placeholder}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
@@ -130,7 +151,7 @@ export default function CardResults({
 }: CardResultsProps) {
   const [editing, setEditing] = useState(isEditing);
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
-  
+
   // Enrichment functionality
   const {
     isEnriching,
@@ -139,8 +160,8 @@ export default function CardResults({
     handleEnrichmentStart,
     handleEnrichmentComplete,
     handleEnrichmentError,
-    clearError
-  } = useEnrichmentStatus(result.data?.cardId);
+    clearError,
+  } = useEnrichmentStatus();
   const [editedData, setEditedData] = useState<EditedCardData>({});
 
   // Initialize edited data from result
@@ -197,7 +218,12 @@ export default function CardResults({
   const { extractedData, confidence, duplicateCardId, processingTime, imageUrls } = result.data;
 
   return (
-    <div className={clsx('bg-white rounded-lg border border-gray-200 p-4 md:p-6 space-y-4 md:space-y-6', className)}>
+    <div
+      className={clsx(
+        'bg-white rounded-lg border border-gray-200 p-4 md:p-6 space-y-4 md:space-y-6',
+        className
+      )}
+    >
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -206,7 +232,9 @@ export default function CardResults({
             Business Card Extracted
           </h3>
           <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-1 text-sm text-gray-500">
-            <span>Overall confidence: <ConfidenceBadge confidence={confidence} /></span>
+            <span>
+              Overall confidence: <ConfidenceBadge confidence={confidence} />
+            </span>
             <span>Processing: {processingTime}ms</span>
             {duplicateCardId && (
               <span className="flex items-center gap-1 text-amber-600">
@@ -216,7 +244,7 @@ export default function CardResults({
             )}
           </div>
         </div>
-        
+
         <div className="flex flex-col sm:flex-row gap-2">
           {!editing ? (
             <button
@@ -251,9 +279,7 @@ export default function CardResults({
       {/* Copy success notification */}
       {copySuccess && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-          <p className="text-sm text-green-700">
-            {copySuccess} copied to clipboard!
-          </p>
+          <p className="text-sm text-green-700">{copySuccess} copied to clipboard!</p>
         </div>
       )}
 
@@ -266,7 +292,7 @@ export default function CardResults({
           icon={<User className="h-4 w-4" />}
           placeholder="Enter full name"
           isEditing={editing}
-          onChange={(value) => setEditedData(prev => ({ ...prev, name: value }))}
+          onChange={value => setEditedData(prev => ({ ...prev, name: value }))}
           onCopy={() => handleCopy('Name')}
         />
 
@@ -277,7 +303,7 @@ export default function CardResults({
           icon={<Briefcase className="h-4 w-4" />}
           placeholder="Enter job title"
           isEditing={editing}
-          onChange={(value) => setEditedData(prev => ({ ...prev, title: value }))}
+          onChange={value => setEditedData(prev => ({ ...prev, title: value }))}
           onCopy={() => handleCopy('Job Title')}
         />
 
@@ -288,43 +314,51 @@ export default function CardResults({
           icon={<Briefcase className="h-4 w-4" />}
           placeholder="Enter company name"
           isEditing={editing}
-          onChange={(value) => setEditedData(prev => ({ ...prev, company: value }))}
+          onChange={value => setEditedData(prev => ({ ...prev, company: value }))}
           onCopy={() => handleCopy('Company')}
         />
 
         <Field
           label="Email"
-          value={editing ? editedData.email : (extractedData.normalizedEmail || extractedData.email?.text)}
+          value={
+            editing ? editedData.email : extractedData.normalizedEmail || extractedData.email?.text
+          }
           confidence={extractedData.email?.confidence}
           icon={<Mail className="h-4 w-4" />}
           type="email"
           placeholder="Enter email address"
           isEditing={editing}
-          onChange={(value) => setEditedData(prev => ({ ...prev, email: value }))}
+          onChange={value => setEditedData(prev => ({ ...prev, email: value }))}
           onCopy={() => handleCopy('Email')}
         />
 
         <Field
           label="Phone"
-          value={editing ? editedData.phone : (extractedData.normalizedPhone || extractedData.phone?.text)}
+          value={
+            editing ? editedData.phone : extractedData.normalizedPhone || extractedData.phone?.text
+          }
           confidence={extractedData.phone?.confidence}
           icon={<Phone className="h-4 w-4" />}
           type="tel"
           placeholder="Enter phone number"
           isEditing={editing}
-          onChange={(value) => setEditedData(prev => ({ ...prev, phone: value }))}
+          onChange={value => setEditedData(prev => ({ ...prev, phone: value }))}
           onCopy={() => handleCopy('Phone')}
         />
 
         <Field
           label="Website"
-          value={editing ? editedData.website : (extractedData.normalizedWebsite || extractedData.website?.text)}
+          value={
+            editing
+              ? editedData.website
+              : extractedData.normalizedWebsite || extractedData.website?.text
+          }
           confidence={extractedData.website?.confidence}
           icon={<Globe className="h-4 w-4" />}
           type="url"
           placeholder="Enter website URL"
           isEditing={editing}
-          onChange={(value) => setEditedData(prev => ({ ...prev, website: value }))}
+          onChange={value => setEditedData(prev => ({ ...prev, website: value }))}
           onCopy={() => handleCopy('Website')}
         />
       </div>
@@ -337,7 +371,7 @@ export default function CardResults({
         icon={<MapPin className="h-4 w-4" />}
         placeholder="Enter address"
         isEditing={editing}
-        onChange={(value) => setEditedData(prev => ({ ...prev, address: value }))}
+        onChange={value => setEditedData(prev => ({ ...prev, address: value }))}
         onCopy={() => handleCopy('Address')}
       />
 
@@ -347,7 +381,7 @@ export default function CardResults({
           <label className="block text-sm font-medium text-gray-700">Notes</label>
           <textarea
             value={editedData.notes || ''}
-            onChange={(e) => setEditedData(prev => ({ ...prev, notes: e.target.value }))}
+            onChange={e => setEditedData(prev => ({ ...prev, notes: e.target.value }))}
             placeholder="Add any additional notes..."
             rows={3}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -363,7 +397,9 @@ export default function CardResults({
             <EnrichmentButton
               cardId={result.data?.cardId}
               company={editedData.company || extractedData.company?.text}
-              domain={editedData.website || extractedData.normalizedWebsite || extractedData.website?.text}
+              domain={
+                editedData.website || extractedData.normalizedWebsite || extractedData.website?.text
+              }
               onEnrichmentStart={handleEnrichmentStart}
               onEnrichmentComplete={handleEnrichmentComplete}
               onEnrichmentError={handleEnrichmentError}
@@ -381,10 +417,7 @@ export default function CardResults({
                   <AlertTriangle className="h-5 w-5 text-red-500" />
                   <span className="text-red-800 font-medium">Enrichment Failed</span>
                 </div>
-                <button
-                  onClick={clearError}
-                  className="text-red-500 hover:text-red-700"
-                >
+                <button onClick={clearError} className="text-red-500 hover:text-red-700">
                   <X className="h-4 w-4" />
                 </button>
               </div>
@@ -398,7 +431,9 @@ export default function CardResults({
             isLoading={isEnriching}
             onEnrich={() => {
               // Trigger enrichment
-              const enrichButton = document.querySelector('[data-enrichment-button]') as HTMLButtonElement;
+              const enrichButton = document.querySelector(
+                '[data-enrichment-button]'
+              ) as HTMLButtonElement;
               enrichButton?.click();
             }}
             showEnrichButton={false} // We have the main button above

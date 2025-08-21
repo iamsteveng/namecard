@@ -1,9 +1,11 @@
+import crypto from 'crypto';
+
 import {
   CognitoIdentityProviderClient,
   AdminCreateUserCommand,
   AdminSetUserPasswordCommand,
   AdminInitiateAuthCommand,
-  AdminConfirmSignUpCommand,
+  // AdminConfirmSignUpCommand, // Currently unused
   AdminDeleteUserCommand,
   AdminUpdateUserAttributesCommand,
   AdminGetUserCommand,
@@ -11,10 +13,10 @@ import {
   ConfirmForgotPasswordCommand,
   AuthFlowType,
   ChallengeName,
-  AdminRespondToAuthChallengeCommand,
+  // AdminRespondToAuthChallengeCommand, // Currently unused
   GlobalSignOutCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
-import crypto from 'crypto';
+
 import { env } from '../config/env.js';
 import logger from '../utils/logger.js';
 
@@ -52,22 +54,25 @@ class CognitoService {
       hasAccessKey: !!env.aws.accessKeyId,
       awsProfile: process.env.AWS_PROFILE || 'not-set',
       userPoolId: env.cognito.userPoolId,
-      clientId: env.cognito.clientId
+      clientId: env.cognito.clientId,
     });
 
     this.client = new CognitoIdentityProviderClient({
       region: env.cognito.region,
       // Only use explicit credentials if both are provided and valid
       // Otherwise, let AWS SDK use the default credential chain (profile, IAM role, etc.)
-      ...(env.aws.accessKeyId && env.aws.secretAccessKey && 
-          env.aws.accessKeyId !== 'your-access-key-here' ? {
-        credentials: {
-          accessKeyId: env.aws.accessKeyId,
-          secretAccessKey: env.aws.secretAccessKey,
-        }
-      } : {})
+      ...(env.aws.accessKeyId &&
+      env.aws.secretAccessKey &&
+      env.aws.accessKeyId !== 'your-access-key-here'
+        ? {
+            credentials: {
+              accessKeyId: env.aws.accessKeyId,
+              secretAccessKey: env.aws.secretAccessKey,
+            },
+          }
+        : {}),
     });
-    
+
     this.userPoolId = env.cognito.userPoolId;
     this.clientId = env.cognito.clientId;
   }
@@ -85,7 +90,11 @@ class CognitoService {
   /**
    * Register a new user in Cognito
    */
-  async registerUser(email: string, password: string, name: string): Promise<{ userSub: string; tempPassword?: string }> {
+  async registerUser(
+    email: string,
+    password: string,
+    name: string
+  ): Promise<{ userSub: string; tempPassword?: string }> {
     try {
       logger.info('Registering user with Cognito', { email });
 
@@ -130,7 +139,6 @@ class CognitoService {
 
       logger.info('User registered successfully', { email, userSub });
       return { userSub };
-
     } catch (error: any) {
       logger.error('Error registering user', { email, error: error.message });
       throw new Error(`Registration failed: ${error.message}`);
@@ -175,7 +183,8 @@ class CognitoService {
         throw new Error('Authentication failed - no result returned');
       }
 
-      const { AccessToken, RefreshToken, IdToken, ExpiresIn, TokenType } = authResult.AuthenticationResult;
+      const { AccessToken, RefreshToken, IdToken, ExpiresIn, TokenType } =
+        authResult.AuthenticationResult;
 
       if (!AccessToken || !RefreshToken || !IdToken) {
         throw new Error('Authentication failed - missing tokens');
@@ -194,7 +203,6 @@ class CognitoService {
         tokenType: TokenType || 'Bearer',
         user,
       };
-
     } catch (error: any) {
       logger.error('Error authenticating user', { email, error: error.message });
       throw new Error(`Authentication failed: ${error.message}`);
@@ -234,7 +242,6 @@ class CognitoService {
         expiresIn: ExpiresIn || 3600,
         tokenType: TokenType || 'Bearer',
       };
-
     } catch (error: any) {
       logger.error('Error refreshing token', { error: error.message });
       throw new Error(`Token refresh failed: ${error.message}`);
@@ -257,12 +264,15 @@ class CognitoService {
         throw new Error('User not found');
       }
 
-      const attributes = result.UserAttributes.reduce((acc, attr) => {
-        if (attr.Name && attr.Value) {
-          acc[attr.Name] = attr.Value;
-        }
-        return acc;
-      }, {} as Record<string, string>);
+      const attributes = result.UserAttributes.reduce(
+        (acc, attr) => {
+          if (attr.Name && attr.Value) {
+            acc[attr.Name] = attr.Value;
+          }
+          return acc;
+        },
+        {} as Record<string, string>
+      );
 
       return {
         sub: attributes.sub,
@@ -271,7 +281,6 @@ class CognitoService {
         email_verified: attributes.email_verified === 'true',
         preferred_username: attributes.preferred_username,
       };
-
     } catch (error: any) {
       logger.error('Error getting user', { username, error: error.message });
       throw new Error(`Failed to get user: ${error.message}`);
@@ -296,7 +305,6 @@ class CognitoService {
 
       await this.client.send(updateCommand);
       logger.info('User updated successfully', { username });
-
     } catch (error: any) {
       logger.error('Error updating user', { username, error: error.message });
       throw new Error(`Failed to update user: ${error.message}`);
@@ -316,7 +324,6 @@ class CognitoService {
 
       await this.client.send(forgotPasswordCommand);
       logger.info('Forgot password initiated', { email });
-
     } catch (error: any) {
       logger.error('Error initiating forgot password', { email, error: error.message });
       throw new Error(`Forgot password failed: ${error.message}`);
@@ -326,7 +333,11 @@ class CognitoService {
   /**
    * Confirm forgot password with verification code
    */
-  async confirmForgotPassword(email: string, confirmationCode: string, newPassword: string): Promise<void> {
+  async confirmForgotPassword(
+    email: string,
+    confirmationCode: string,
+    newPassword: string
+  ): Promise<void> {
     try {
       const confirmCommand = new ConfirmForgotPasswordCommand({
         ClientId: this.clientId,
@@ -338,7 +349,6 @@ class CognitoService {
 
       await this.client.send(confirmCommand);
       logger.info('Password reset confirmed', { email });
-
     } catch (error: any) {
       logger.error('Error confirming password reset', { email, error: error.message });
       throw new Error(`Password reset confirmation failed: ${error.message}`);
@@ -356,7 +366,6 @@ class CognitoService {
 
       await this.client.send(signOutCommand);
       logger.info('User signed out globally');
-
     } catch (error: any) {
       logger.error('Error signing out user', { error: error.message });
       throw new Error(`Sign out failed: ${error.message}`);
@@ -375,7 +384,6 @@ class CognitoService {
 
       await this.client.send(deleteCommand);
       logger.info('User deleted from Cognito', { username });
-
     } catch (error: any) {
       logger.error('Error deleting user', { username, error: error.message });
       throw new Error(`Failed to delete user: ${error.message}`);
@@ -405,7 +413,7 @@ class CognitoService {
     try {
       const payload = idToken.split('.')[1];
       const decoded = JSON.parse(Buffer.from(payload, 'base64').toString());
-      
+
       return {
         sub: decoded.sub,
         email: decoded.email,

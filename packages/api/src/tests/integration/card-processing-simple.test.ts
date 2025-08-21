@@ -1,6 +1,7 @@
-import { CardProcessingService } from '../../services/card-processing.service.js';
 import { PrismaClient } from '@prisma/client';
 import sharp from 'sharp';
+
+import { CardProcessingService } from '../../services/card-processing.service.js';
 
 // Mock all the dependencies
 jest.mock('../../services/textract.service.js', () => ({
@@ -41,7 +42,7 @@ const mockPrisma = {
 
 describe('Card Processing Service - Integration Tests', () => {
   let cardProcessingService: CardProcessingService;
-  
+
   beforeEach(() => {
     cardProcessingService = new CardProcessingService(mockPrisma);
     jest.clearAllMocks();
@@ -96,10 +97,10 @@ describe('Card Processing Service - Integration Tests', () => {
         imageSize: { width: 600, height: 400 },
       },
     });
-    
+
     textractService.parseBusinessCard.mockReturnValue({
       name: { text: 'John Doe', confidence: 0.95 },
-      jobTitle: { text: 'Software Engineer', confidence: 0.90 },
+      jobTitle: { text: 'Software Engineer', confidence: 0.9 },
       company: { text: 'Tech Corp', confidence: 0.92 },
       email: { text: 'john.doe@techcorp.com', confidence: 0.98 },
       phone: { text: '+1-555-123-4567', confidence: 0.88 },

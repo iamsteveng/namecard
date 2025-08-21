@@ -1,0 +1,219 @@
+name: Deploy to AWS Staging
+
+on:
+  push:
+    branches: [cicd-pipeline-setup, main]
+  workflow_dispatch:
+    inputs:
+      run_migrations:
+        description: 'Force run database schema sync (uses db push for existing databases)'
+        required: false
+        default: 'true'
+        type: boolean
+
+env:
+  AWS_REGION: ap-southeast-1
+  ECS_CLUSTER: namecard-cluster-staging
+  ECS_SERVICE: namecard-api-staging
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: |
+          cd packages/api
+          npm run db:generate
+
+      - name: Run linting
+        run: npx turbo run lint --filter="@namecard/*"
+
+      - name: Run type checking
+        run: npx turbo run type-check --filter="@namecard/*"
+
+      - name: Run tests
+        run: npx turbo run test --filter="@namecard/*"
+
+  build-and-deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/cicd-pipeline-setup' || github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Deploy infrastructure updates
+        run: |
+          cd infrastructure
+          npm ci
+          npx cdk deploy NameCardProd-staging --context environment=staging --require-approval never --outputs-file outputs.json
+
+      - name: Detect schema changes
+        id: schema_changes
+        run: |
+          echo "🔍 Detecting database schema changes..."
+          
+          # Check if prisma schema or migrations have changed
+          SCHEMA_CHANGED=$(git diff --name-only HEAD^ HEAD | grep -E "(packages/api/prisma/|\.prisma$)" || echo "")
+          
+          if [ -n "$SCHEMA_CHANGED" ]; then
+            echo "schema_changed=true" >> $GITHUB_OUTPUT
+            echo "📊 Schema changes detected:"
+            echo "$SCHEMA_CHANGED"
+          else
+            echo "schema_changed=false" >> $GITHUB_OUTPUT
+            echo "✅ No schema changes detected"
+          fi
+
+      - name: Run database schema sync
+        if: steps.schema_changes.outputs.schema_changed == 'true' || github.event.inputs.run_migrations != 'false'
+        run: |
+          echo "🔄 Syncing database schema via ECS task..."
+          
+          # Get database credentials from AWS Secrets Manager
+          DB_SECRET=$(aws secretsmanager get-secret-value --secret-id namecard/database/staging --region ${{ env.AWS_REGION }} --query 'SecretString' --output text)
+          DB_HOST=$(echo "$DB_SECRET" | jq -r '.host')
+          DB_USER=$(echo "$DB_SECRET" | jq -r '.username') 
+          DB_PASS=$(echo "$DB_SECRET" | jq -r '.password')
+          DB_NAME=$(echo "$DB_SECRET" | jq -r '.dbname')
+          
+          DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@${DB_HOST}:5432/${DB_NAME}?sslmode=require"
+          
+          # URL encode the password
+          ENCODED_DB_PASS=$(echo "$DB_PASS" | python3 -c "import sys, urllib.parse; print(urllib.parse.quote(sys.stdin.read().strip(), safe=''))")
+          ENCODED_DATABASE_URL="postgresql://${DB_USER}:${ENCODED_DB_PASS}@${DB_HOST}:5432/${DB_NAME}?sslmode=require"
+          
+          echo "Running ECS schema sync task..."
+          
+          # Use 'db push' for existing databases to avoid P3005 migration baseline issues
+          # This command synchronizes the database schema without migration history tracking
+          TASK_ARN=$(aws ecs run-task \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --task-definition NameCardProdstagingAPIServiceTaskDef909B2074 \
+            --launch-type FARGATE \
+            --network-configuration 'awsvpcConfiguration={subnets=["subnet-08cef10adb4cf31e6","subnet-00ca2562f3fabffaf"],securityGroups=["sg-0aa8f05b02d726a66"],assignPublicIp=ENABLED}' \
+            --overrides "{\"containerOverrides\":[{\"name\":\"namecard-api\",\"command\":[\"sh\",\"-c\",\"cd /app/packages/api && npx prisma db push --accept-data-loss\"],\"environment\":[{\"name\":\"DATABASE_URL\",\"value\":\"$ENCODED_DATABASE_URL\"}]}]}" \
+            --region ${{ env.AWS_REGION }} \
+            --query 'tasks[0].taskArn' --output text)
+          
+          echo "Schema sync task started: $TASK_ARN"
+          TASK_ID=$(echo "$TASK_ARN" | sed 's/.*\///')
+          
+          # Wait for task to complete
+          echo "⏳ Waiting for schema sync task to complete..."
+          aws ecs wait tasks-stopped --cluster ${{ env.ECS_CLUSTER }} --tasks "$TASK_ID" --region ${{ env.AWS_REGION }}
+          
+          # Check task exit code
+          EXIT_CODE=$(aws ecs describe-tasks --cluster ${{ env.ECS_CLUSTER }} --tasks "$TASK_ID" --region ${{ env.AWS_REGION }} --query 'tasks[0].containers[0].exitCode' --output text)
+          
+          if [ "$EXIT_CODE" = "0" ]; then
+            echo "✅ Database schema sync completed successfully!"
+            
+            # Get sync logs
+            LOG_STREAM="namecard-api/namecard-api/$TASK_ID"
+            echo "📋 Schema sync logs:"
+            aws logs get-log-events --log-group-name "/namecard/api-service/staging" --log-stream-name "$LOG_STREAM" --region ${{ env.AWS_REGION }} --query 'events[].message' --output text 2>/dev/null || echo "Log stream not available yet"
+          else
+            echo "❌ Database schema sync failed! Exit code: $EXIT_CODE"
+            
+            # Get error logs
+            LOG_STREAM="namecard-api/namecard-api/$TASK_ID"
+            echo "📋 Schema sync error logs:"
+            aws logs get-log-events --log-group-name "/namecard/api-service/staging" --log-stream-name "$LOG_STREAM" --region ${{ env.AWS_REGION }} --query 'events[].message' --output text 2>/dev/null || echo "Log stream not available yet"
+            exit 1
+          fi
+
+      - name: Update ECS service
+        run: |
+          echo "Updating ECS service..."
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ${{ env.ECS_SERVICE }} \
+            --force-new-deployment
+          
+          echo "Waiting for service to stabilize..."
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.ECS_SERVICE }}
+
+      - name: Verify deployment
+        run: |
+          # Health endpoint is at /health (root level) - not proxied by CloudFront
+          # Use direct load balancer URL for health check since CloudFront only forwards /api/*
+          HEALTH_URL="http://NameCa-APISe-N5y96ivnIVEm-949793622.ap-southeast-1.elb.amazonaws.com/health"
+          
+          # API endpoints are accessible via CloudFront
+          API_BASE_URL="https://d1357e576dd65p.cloudfront.net/api"
+          
+          echo "🔍 Health check URL: $HEALTH_URL"
+          echo "🔍 API base URL: $API_BASE_URL"
+          
+          # Health check with retry
+          echo "Running health check..."
+          for i in {1..5}; do
+            response=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || echo "000")
+            
+            if [ "$response" = "200" ]; then
+              echo "✅ Deployment successful! API is healthy."
+              echo "🚀 Health check passed at: $HEALTH_URL"
+              echo "📊 Testing API info endpoint via CloudFront..."
+              
+              # Test database connectivity by checking API info endpoint via CloudFront
+              info_response=$(curl -s -o /dev/null -w "%{http_code}" "$API_BASE_URL/v1/" || echo "000")
+              if [ "$info_response" = "200" ]; then
+                echo "✅ Database connectivity verified - API endpoints responding via CloudFront"
+              else
+                echo "⚠️  API info endpoint returned: $info_response"
+              fi
+              exit 0
+            else
+              echo "Attempt $i: HTTP status $response, retrying in 10 seconds..."
+              sleep 10
+            fi
+          done
+          
+          echo "❌ Health check failed after 5 attempts. Final HTTP status: $response"
+          exit 1
+
+      - name: Notify deployment status
+        if: always()
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "🎉 Deployment to staging completed successfully!"
+          else
+            echo "💥 Deployment failed. Please check the logs."
+          fi

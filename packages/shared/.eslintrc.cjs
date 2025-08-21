@@ -13,6 +13,9 @@ module.exports = {
     ecmaVersion: 'latest',
     sourceType: 'module',
   },
+  globals: {
+    NodeJS: 'readonly',
+  },
   plugins: ['@typescript-eslint', 'import', 'prettier'],
   rules: {
     'no-console': 'off',
@@ -21,4 +24,16 @@ module.exports = {
     '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     'prettier/prettier': 'error',
   },
+  overrides: [
+    {
+      files: ['**/__tests__/**/*', '**/*.test.*'],
+      env: {
+        jest: true,
+      },
+      rules: {
+        '@typescript-eslint/explicit-function-return-type': 'off',
+        '@typescript-eslint/explicit-module-boundary-types': 'off',
+      },
+    },
+  ],
 };

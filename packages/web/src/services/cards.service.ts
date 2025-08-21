@@ -1,7 +1,7 @@
 import type { BusinessCardData } from '@namecard/shared';
 import type { BusinessCardEnrichmentData } from '@namecard/shared/types/enrichment.types';
 
-const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3001';
+const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || '';
 
 export interface ScanCardOptions {
   minConfidence?: number;
@@ -55,54 +55,57 @@ export interface Card {
   updatedAt: string;
   lastEnrichmentDate?: string;
   // Enriched data - companies come through junction table
-  companies?: Array<{
-    cardId?: string;
-    companyId?: string;
-    company?: {
-      id: string;
-      name: string;
-      domain?: string;
-      industry?: string;
-      size?: string;
-      headquarters?: string;
-      website?: string;
-      description?: string;
-      logoUrl?: string;
-      founded?: number;
-      employeeCount?: number;
-      annualRevenue?: string;
-      funding?: string;
-      technologies?: string[];
-      keywords?: string[];
-      linkedinUrl?: string;
-      twitterHandle?: string;
-      facebookUrl?: string;
-      overallEnrichmentScore?: number;
-      lastEnrichmentDate?: string;
-    };
-  } | {
-    // Or directly as company data (fallback)
-    id: string;
-    name: string;
-    domain?: string;
-    industry?: string;
-    size?: string;
-    headquarters?: string;
-    website?: string;
-    description?: string;
-    logoUrl?: string;
-    founded?: number;
-    employeeCount?: number;
-    annualRevenue?: string;
-    funding?: string;
-    technologies?: string[];
-    keywords?: string[];
-    linkedinUrl?: string;
-    twitterHandle?: string;
-    facebookUrl?: string;
-    overallEnrichmentScore?: number;
-    lastEnrichmentDate?: string;
-  }>;
+  companies?: Array<
+    | {
+        cardId?: string;
+        companyId?: string;
+        company?: {
+          id: string;
+          name: string;
+          domain?: string;
+          industry?: string;
+          size?: string;
+          headquarters?: string;
+          website?: string;
+          description?: string;
+          logoUrl?: string;
+          founded?: number;
+          employeeCount?: number;
+          annualRevenue?: string;
+          funding?: string;
+          technologies?: string[];
+          keywords?: string[];
+          linkedinUrl?: string;
+          twitterHandle?: string;
+          facebookUrl?: string;
+          overallEnrichmentScore?: number;
+          lastEnrichmentDate?: string;
+        };
+      }
+    | {
+        // Or directly as company data (fallback)
+        id: string;
+        name: string;
+        domain?: string;
+        industry?: string;
+        size?: string;
+        headquarters?: string;
+        website?: string;
+        description?: string;
+        logoUrl?: string;
+        founded?: number;
+        employeeCount?: number;
+        annualRevenue?: string;
+        funding?: string;
+        technologies?: string[];
+        keywords?: string[];
+        linkedinUrl?: string;
+        twitterHandle?: string;
+        facebookUrl?: string;
+        overallEnrichmentScore?: number;
+        lastEnrichmentDate?: string;
+      }
+  >;
   enrichments?: Array<{
     id: string;
     enrichmentType: string;
@@ -183,7 +186,7 @@ class CardsService {
    */
   private getAuthHeaders(accessToken: string) {
     return {
-      'Authorization': `Bearer ${accessToken}`,
+      Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
     };
   }
@@ -201,7 +204,7 @@ class CardsService {
   ): Promise<ScanCardResponse> {
     const formData = new FormData();
     formData.append('image', file);
-    
+
     // Add options as form fields
     if (options.minConfidence !== undefined) {
       formData.append('minConfidence', options.minConfidence.toString());
@@ -227,7 +230,7 @@ class CardsService {
 
       // Track upload progress
       if (onProgress) {
-        xhr.upload.addEventListener('progress', (event) => {
+        xhr.upload.addEventListener('progress', event => {
           if (event.lengthComputable) {
             const progress = Math.round((event.loaded / event.total) * 100);
             onProgress(progress);
@@ -238,7 +241,7 @@ class CardsService {
       xhr.addEventListener('load', () => {
         try {
           const data = JSON.parse(xhr.responseText);
-          
+
           if (xhr.status >= 200 && xhr.status < 300) {
             resolve(data);
           } else {
@@ -282,7 +285,7 @@ class CardsService {
     } = {}
   ): Promise<GetCardsResponse> {
     const searchParams = new URLSearchParams();
-    
+
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
         if (Array.isArray(value)) {
@@ -400,7 +403,7 @@ class CardsService {
     } = {}
   ): Promise<GetCardsResponse> {
     const searchParams = new URLSearchParams({ q: query });
-    
+
     Object.entries(filters).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
         if (Array.isArray(value)) {
@@ -428,7 +431,9 @@ class CardsService {
   /**
    * Get available tags
    */
-  async getTags(accessToken: string): Promise<{ success: boolean; data: { tags: Array<{ name: string; count: number }> } }> {
+  async getTags(
+    accessToken: string
+  ): Promise<{ success: boolean; data: { tags: Array<{ name: string; count: number }> } }> {
     const response = await fetch(`${this.baseUrl}/tags`, {
       method: 'GET',
       headers: this.getAuthHeaders(accessToken),
@@ -446,17 +451,17 @@ class CardsService {
   /**
    * Get companies list
    */
-  async getCompanies(accessToken: string): Promise<{ 
-    success: boolean; 
-    data: { 
-      companies: Array<{ 
-        id?: string; 
-        name: string; 
-        industry?: string; 
-        cardCount: number; 
-        isRegistered: boolean 
-      }> 
-    } 
+  async getCompanies(accessToken: string): Promise<{
+    success: boolean;
+    data: {
+      companies: Array<{
+        id?: string;
+        name: string;
+        industry?: string;
+        cardCount: number;
+        isRegistered: boolean;
+      }>;
+    };
   }> {
     const response = await fetch(`${this.baseUrl}/companies`, {
       method: 'GET',

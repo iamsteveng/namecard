@@ -1,12 +1,14 @@
-import { CardProcessingService } from '../../services/card-processing.service.js';
 import { PrismaClient } from '@prisma/client';
 import sharp from 'sharp';
+
+import { CardProcessingService } from '../../services/card-processing.service.js';
 
 // Mock the dependencies
 jest.mock('../../services/textract.service.js', () => ({
   textractService: {
     extractText: jest.fn(),
     parseBusinessCard: jest.fn(),
+    processBusinessCard: jest.fn(),
   },
 }));
 
@@ -41,7 +43,7 @@ const mockPrisma = {
 
 describe('Card Processing Service Tests', () => {
   let cardProcessingService: CardProcessingService;
-  
+
   beforeEach(() => {
     cardProcessingService = new CardProcessingService(mockPrisma);
     jest.clearAllMocks();
@@ -61,7 +63,7 @@ describe('Card Processing Service Tests', () => {
         background: { r: 255, g: 255, b: 255 },
       },
     });
-    
+
     if (format === 'jpeg') {
       return image.jpeg().toBuffer();
     } else {
@@ -84,7 +86,9 @@ describe('Card Processing Service Tests', () => {
       });
 
       // Mock image preprocessing
-      const { ImagePreprocessingService } = require('../../services/image-preprocessing.service.js');
+      const {
+        ImagePreprocessingService,
+      } = require('../../services/image-preprocessing.service.js');
       ImagePreprocessingService.processImage.mockResolvedValue({
         buffer: testImageBuffer,
         metadata: { processingTime: 100 },
@@ -101,25 +105,27 @@ describe('Card Processing Service Tests', () => {
       const { textractService } = require('../../services/textract.service.js');
       textractService.extractText.mockResolvedValue({
         blocks: [],
-        rawText: 'John Doe\nSoftware Engineer\nTech Corp\njohn.doe@techcorp.com\n+1-555-123-4567\ntechcorp.com\n123 Tech Street, Silicon Valley, CA',
+        rawText:
+          'John Doe\nSoftware Engineer\nTech Corp\njohn.doe@techcorp.com\n+1-555-123-4567\ntechcorp.com\n123 Tech Street, Silicon Valley, CA',
         confidence: 0.91,
         metadata: {
           processingTime: 2500,
           imageSize: { width: 600, height: 400 },
         },
       });
-      
+
       textractService.parseBusinessCard.mockReturnValue({
         name: { text: 'John Doe', confidence: 0.95 },
-        jobTitle: { text: 'Software Engineer', confidence: 0.90 },
+        jobTitle: { text: 'Software Engineer', confidence: 0.9 },
         company: { text: 'Tech Corp', confidence: 0.92 },
         email: { text: 'john.doe@techcorp.com', confidence: 0.98 },
         phone: { text: '+1-555-123-4567', confidence: 0.88 },
         website: { text: 'techcorp.com', confidence: 0.85 },
-        address: { text: '123 Tech Street, Silicon Valley, CA', confidence: 0.80 },
-        rawText: 'John Doe\nSoftware Engineer\nTech Corp\njohn.doe@techcorp.com\n+1-555-123-4567\ntechcorp.com\n123 Tech Street, Silicon Valley, CA',
+        address: { text: '123 Tech Street, Silicon Valley, CA', confidence: 0.8 },
+        rawText:
+          'John Doe\nSoftware Engineer\nTech Corp\njohn.doe@techcorp.com\n+1-555-123-4567\ntechcorp.com\n123 Tech Street, Silicon Valley, CA',
         confidence: 0.91,
-            metadata: { processingTime: 2500 },
+        metadata: { processingTime: 2500 },
       });
 
       // Mock database operations
@@ -160,15 +166,14 @@ describe('Card Processing Service Tests', () => {
         fileName,
         {}
       );
-      expect(ImagePreprocessingService.processImage).toHaveBeenCalledWith(
-        testImageBuffer,
-        { purpose: 'ocr', removeMetadata: true }
-      );
-      expect(s3Service.uploadFile).toHaveBeenCalledWith(
-        testImageBuffer,
-        fileName,
-        { userId, purpose: 'storage' }
-      );
+      expect(ImagePreprocessingService.processImage).toHaveBeenCalledWith(testImageBuffer, {
+        purpose: 'ocr',
+        removeMetadata: true,
+      });
+      expect(s3Service.uploadFile).toHaveBeenCalledWith(testImageBuffer, fileName, {
+        userId,
+        purpose: 'storage',
+      });
       expect(textractService.extractText).toHaveBeenCalled();
       expect(textractService.parseBusinessCard).toHaveBeenCalled();
       expect(mockPrisma.card.create).toHaveBeenCalled();
@@ -213,7 +218,9 @@ describe('Card Processing Service Tests', () => {
       });
 
       // Mock image preprocessing
-      const { ImagePreprocessingService } = require('../../services/image-preprocessing.service.js');
+      const {
+        ImagePreprocessingService,
+      } = require('../../services/image-preprocessing.service.js');
       ImagePreprocessingService.processImage.mockResolvedValue({
         buffer: testImageBuffer,
         metadata: { processingTime: 100 },
@@ -254,7 +261,9 @@ describe('Card Processing Service Tests', () => {
         warnings: [],
       });
 
-      const { ImagePreprocessingService } = require('../../services/image-preprocessing.service.js');
+      const {
+        ImagePreprocessingService,
+      } = require('../../services/image-preprocessing.service.js');
       ImagePreprocessingService.processImage.mockResolvedValue({
         buffer: testImageBuffer,
         metadata: { processingTime: 100 },
@@ -267,8 +276,8 @@ describe('Card Processing Service Tests', () => {
       });
 
       // Mock OCR processing
-      const { TextractService } = require('../../services/textract.service.js');
-      TextractService.processBusinessCard.mockResolvedValue({
+      const { textractService } = require('../../services/textract.service.js');
+      textractService.processBusinessCard.mockResolvedValue({
         success: true,
         data: {
           businessCardData: {
@@ -317,7 +326,9 @@ describe('Card Processing Service Tests', () => {
         warnings: [],
       });
 
-      const { ImagePreprocessingService } = require('../../services/image-preprocessing.service.js');
+      const {
+        ImagePreprocessingService,
+      } = require('../../services/image-preprocessing.service.js');
       ImagePreprocessingService.processImage.mockResolvedValue({
         buffer: testImageBuffer,
         metadata: { processingTime: 100 },
@@ -329,8 +340,8 @@ describe('Card Processing Service Tests', () => {
         cdnUrl: 'https://cdn.example.com/original.jpg',
       });
 
-      const { TextractService } = require('../../services/textract.service.js');
-      TextractService.processBusinessCard.mockResolvedValue({
+      const { textractService } = require('../../services/textract.service.js');
+      textractService.processBusinessCard.mockResolvedValue({
         success: true,
         data: {
           businessCardData: {
@@ -458,7 +469,9 @@ describe('Card Processing Service Tests', () => {
         warnings: [],
       });
 
-      const { ImagePreprocessingService } = require('../../services/image-preprocessing.service.js');
+      const {
+        ImagePreprocessingService,
+      } = require('../../services/image-preprocessing.service.js');
       ImagePreprocessingService.processImage.mockResolvedValue({
         buffer: testImageBuffer,
         metadata: { processingTime: 100 },
@@ -469,8 +482,8 @@ describe('Card Processing Service Tests', () => {
         url: 'https://s3.example.com/original.jpg',
       });
 
-      const { TextractService } = require('../../services/textract.service.js');
-      TextractService.processBusinessCard.mockResolvedValue({
+      const { textractService } = require('../../services/textract.service.js');
+      textractService.processBusinessCard.mockResolvedValue({
         success: true,
         data: {
           businessCardData: {
@@ -483,7 +496,9 @@ describe('Card Processing Service Tests', () => {
       });
 
       // Mock database error
-      (mockPrisma.card.create as jest.Mock).mockRejectedValue(new Error('Database connection failed'));
+      (mockPrisma.card.create as jest.Mock).mockRejectedValue(
+        new Error('Database connection failed')
+      );
 
       const result = await cardProcessingService.processBusinessCard(
         testImageBuffer,

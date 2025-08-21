@@ -1,6 +1,6 @@
-import { useState, useCallback, DragEvent, ChangeEvent, useRef } from 'react';
-import { Upload, Camera, X, FileImage, AlertCircle } from 'lucide-react';
 import { clsx } from 'clsx';
+import { Upload, Camera, X, FileImage, AlertCircle } from 'lucide-react';
+import { useState, useCallback, DragEvent, ChangeEvent, useRef } from 'react';
 
 interface FileUploadProps {
   onFileSelect: (file: File) => void;
@@ -33,7 +33,9 @@ export default function FileUpload({
 
   // Format file size for display
   const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 Bytes';
+    if (bytes === 0) {
+      return '0 Bytes';
+    }
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
@@ -62,7 +64,7 @@ export default function FileUpload({
   const createPreview = useCallback((file: File) => {
     if (file.type.startsWith('image/')) {
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = e => {
         setPreview(e.target?.result as string);
       };
       reader.readAsDataURL(file);
@@ -72,46 +74,59 @@ export default function FileUpload({
   }, []);
 
   // Handle file selection
-  const handleFileSelect = useCallback((file: File) => {
-    setError(null);
-    
-    const validationError = validateFile(file);
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
+  const handleFileSelect = useCallback(
+    (file: File) => {
+      setError(null);
 
-    createPreview(file);
-    onFileSelect(file);
-  }, [onFileSelect, maxSizeBytes, acceptedFormats, createPreview]);
+      const validationError = validateFile(file);
+      if (validationError) {
+        setError(validationError);
+        return;
+      }
+
+      createPreview(file);
+      onFileSelect(file);
+    },
+    [onFileSelect, maxSizeBytes, acceptedFormats, createPreview]
+  );
 
   // Handle drag events
-  const handleDrag = useCallback((e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    if (disabled) return;
-    
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
-    }
-  }, [disabled]);
+  const handleDrag = useCallback(
+    (e: DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (disabled) {
+        return;
+      }
+
+      if (e.type === 'dragenter' || e.type === 'dragover') {
+        setDragActive(true);
+      } else if (e.type === 'dragleave') {
+        setDragActive(false);
+      }
+    },
+    [disabled]
+  );
 
   // Handle drop
-  const handleDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
+  const handleDrop = useCallback(
+    (e: DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setDragActive(false);
 
-    if (disabled) return;
+      if (disabled) {
+        return;
+      }
 
-    const files = Array.from(e.dataTransfer.files);
-    if (files.length > 0 && files[0]) {
-      handleFileSelect(files[0]);
-    }
-  }, [disabled, handleFileSelect]);
+      const files = Array.from(e.dataTransfer.files);
+      if (files.length > 0 && files[0]) {
+        handleFileSelect(files[0]);
+      }
+    },
+    [disabled, handleFileSelect]
+  );
 
   // Handle file input change
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -180,7 +195,7 @@ export default function FileUpload({
                     className="max-w-48 max-h-32 object-contain rounded-lg border border-gray-200"
                   />
                   <button
-                    onClick={(e) => {
+                    onClick={e => {
                       e.stopPropagation();
                       handleClearFile();
                     }}
@@ -193,7 +208,7 @@ export default function FileUpload({
               ) : (
                 <FileImage className="h-12 w-12 text-green-600 mx-auto" />
               )}
-              
+
               <div>
                 <h3 className="text-lg font-medium text-gray-900">{selectedFile.name}</h3>
                 <p className="text-sm text-gray-500">
@@ -204,11 +219,13 @@ export default function FileUpload({
           ) : (
             // Upload prompt
             <div className="space-y-4">
-              <Upload className={clsx(
-                'h-12 w-12 mx-auto',
-                error ? 'text-red-400' : dragActive ? 'text-blue-500' : 'text-gray-400'
-              )} />
-              
+              <Upload
+                className={clsx(
+                  'h-12 w-12 mx-auto',
+                  error ? 'text-red-400' : dragActive ? 'text-blue-500' : 'text-gray-400'
+                )}
+              />
+
               <div>
                 <h3 className="text-lg font-medium text-gray-900">
                   Choose a file or drag and drop
@@ -229,11 +246,11 @@ export default function FileUpload({
                   <Upload className="h-4 w-4" />
                   Choose File
                 </button>
-                
+
                 {onCameraClick && (
                   <button
                     type="button"
-                    onClick={(e) => {
+                    onClick={e => {
                       e.stopPropagation();
                       onCameraClick();
                     }}
@@ -261,7 +278,8 @@ export default function FileUpload({
       {/* File format info */}
       <div className="text-center">
         <p className="text-xs text-gray-500">
-          Supported formats: {acceptedFormats.map(f => f.split('/')[1]?.toUpperCase() || f.toUpperCase()).join(', ')} 
+          Supported formats:{' '}
+          {acceptedFormats.map(f => f.split('/')[1]?.toUpperCase() || f.toUpperCase()).join(', ')}
           {' • '}
           Max size: {formatFileSize(maxSizeBytes)}
         </p>

@@ -1,7 +1,8 @@
+import { schemas } from '@namecard/shared';
 import { Request, Response, NextFunction } from 'express';
 import { ZodSchema } from 'zod';
+
 import { AppError } from './error.middleware.js';
-import { schemas } from '@namecard/shared';
 
 // type ValidationSource = 'body' | 'params' | 'query' | 'headers';
 
@@ -43,7 +44,7 @@ export const validate = (schemas: ValidationOptions) => {
 };
 
 // Using shared validation schemas from @namecard/shared
-const { 
+const {
   paginationParamsSchema,
   searchParamsSchema,
   getCardParamsSchema,
@@ -51,7 +52,7 @@ const {
   createCardSchema,
   listCardsParamsSchema,
   userRegistrationSchema,
-  userLoginSchema
+  userLoginSchema,
 } = schemas;
 
 // Specific validation middleware functions
@@ -60,8 +61,8 @@ export const validateId = validate({ params: getCardParamsSchema });
 export const validateSearch = validate({ query: searchParamsSchema });
 
 // Combined pagination and search validation
-export const validatePaginationAndSearch = validate({ 
-  query: listCardsParamsSchema 
+export const validatePaginationAndSearch = validate({
+  query: listCardsParamsSchema,
 });
 export const validateUserRegistration = validate({ body: userRegistrationSchema });
 export const validateUserLogin = validate({ body: userLoginSchema });

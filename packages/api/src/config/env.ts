@@ -11,8 +11,13 @@ const envSchema = Joi.object({
   PORT: Joi.number().port().default(3001),
   API_VERSION: Joi.string().default('v1'),
 
-  // Database
-  DATABASE_URL: Joi.string().required(),
+  // Database - support both DATABASE_URL and individual components
+  DATABASE_URL: Joi.string().optional(),
+  DB_HOST: Joi.string().optional(),
+  DB_PORT: Joi.string().optional(),
+  DB_NAME: Joi.string().optional(),
+  DB_USER: Joi.string().optional(),
+  DB_PASS: Joi.string().optional(),
 
   // Authentication
   JWT_SECRET: Joi.string().required(),
@@ -53,7 +58,9 @@ const envSchema = Joi.object({
   // Security
   RATE_LIMIT_WINDOW_MS: Joi.number().default(900000), // 15 minutes
   RATE_LIMIT_MAX_REQUESTS: Joi.number().default(100),
-  CORS_ORIGIN: Joi.string().default('http://localhost:3000,http://localhost:5173,http://localhost:8080'),
+  CORS_ORIGIN: Joi.string().default(
+    'http://localhost:3000,http://localhost:5173,http://localhost:8080'
+  ),
 
   // Logging
   LOG_LEVEL: Joi.string().valid('error', 'warn', 'info', 'debug').default('info'),
@@ -70,6 +77,25 @@ if (error) {
   throw new Error(`Config validation error: ${error.message}`);
 }
 
+// Construct DATABASE_URL from individual components if needed
+let databaseUrl = envVars.DATABASE_URL;
+if (
+  !databaseUrl &&
+  envVars.DB_HOST &&
+  envVars.DB_PORT &&
+  envVars.DB_NAME &&
+  envVars.DB_USER &&
+  envVars.DB_PASS
+) {
+  databaseUrl = `postgresql://${envVars.DB_USER}:${envVars.DB_PASS}@${envVars.DB_HOST}:${envVars.DB_PORT}/${envVars.DB_NAME}`;
+}
+
+if (!databaseUrl) {
+  throw new Error(
+    'Database configuration error: Either DATABASE_URL or individual DB_* components (DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASS) must be provided'
+  );
+}
+
 export const env = {
   node: envVars.NODE_ENV,
   port: envVars.PORT,
@@ -79,7 +105,7 @@ export const env = {
   isTest: envVars.NODE_ENV === 'test',
 
   database: {
-    url: envVars.DATABASE_URL,
+    url: databaseUrl,
   },
 
   jwt: {

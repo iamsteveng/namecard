@@ -1,7 +1,8 @@
 import { Router, Request, Response } from 'express';
+
+import { getS3ConfigSummary } from '../config/s3.config.js';
 import { authenticateToken } from '../middleware/auth.middleware.js';
 import s3Service from '../services/s3.service.js';
-import { getS3ConfigSummary } from '../config/s3.config.js';
 import logger from '../utils/logger.js';
 
 const router = Router();
