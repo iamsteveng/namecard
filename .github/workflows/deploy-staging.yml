@@ -76,6 +76,13 @@ jobs:
       - name: Build application
         run: npm run build
 
+      - name: Validate and deploy secrets
+        uses: ./.github/workflows/secret-management.yml
+        with:
+          environment: staging
+          operation: validate-secrets
+          deploy_new_secrets: true
+
       - name: Deploy infrastructure updates
         run: |
           cd infrastructure

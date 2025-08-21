@@ -47,10 +47,43 @@ The secret management system provides:
 
 ### Automatic Triggers
 
-The secret management workflow automatically runs when:
-- **Push to main**: Validates and deploys secret infrastructure changes
-- **Pull requests**: Validates secret configuration changes
-- **Schedule**: Daily health checks (configurable)
+The secret management workflow automatically runs in these scenarios:
+
+#### 1. **Infrastructure Changes** (Push/PR)
+- **Files monitored**:
+  - `infrastructure/lib/secrets-stack.ts`
+  - `infrastructure/lib/production-stack.ts` 
+  - `infrastructure/config/**`
+  - `.github/workflows/secret-management.yml`
+  - `.github/workflows/deploy-staging.yml`
+- **Actions**: Detects new secrets, validates configuration, auto-deploys on main branch
+
+#### 2. **Scheduled Health Checks**
+- **Schedule**: Daily at 2 AM UTC (`0 2 * * *`)
+- **Actions**: Validates all secrets, checks for aging secrets (>90 days), generates health reports
+
+#### 3. **Called by Other Workflows**  
+- **Deploy staging workflow**: Calls secret validation before infrastructure deployment
+- **Deploy production workflow**: Validates secrets before production deployment
+- **Custom workflows**: Can call using `workflow_call` trigger
+
+#### 4. **New Secret Detection**
+When new secrets are added to the infrastructure:
+1. **Detection**: CDK synthesis detects new `AWS::SecretsManager::Secret` resources
+2. **Validation**: Checks if secrets already exist in AWS
+3. **Deployment**: Automatically deploys new secrets if they don't exist
+4. **Verification**: Validates deployed secrets are accessible and properly structured
+
+#### 5. **Integration with Deployment Pipeline**
+```yaml
+# Example integration in deploy-staging.yml
+- name: Validate and deploy secrets
+  uses: ./.github/workflows/secret-management.yml
+  with:
+    environment: staging
+    operation: validate-secrets
+    deploy_new_secrets: true
+```
 
 ### Manual Operations
 
@@ -372,6 +405,85 @@ Generate compliance reports:
 # Review GitHub Actions workflow history for secret operations
 gh run list --workflow=secret-management.yml
 ```
+
+## Adding New Secrets - Complete Workflow
+
+### Scenario 1: Adding a New API Key Secret
+
+When you need to add a new third-party API integration:
+
+1. **Update Infrastructure Code**:
+   ```typescript
+   // infrastructure/lib/secrets-stack.ts
+   const newApiSecret = new secretsmanager.Secret(this, 'NewAPISecret', {
+     secretName: `namecard/new-api/${environment}`,
+     description: `New API credentials for ${environment}`,
+     secretStringValue: SecretValue.unsafePlainText(JSON.stringify({
+       API_KEY: props.newApiKey,
+       API_SECRET: props.newApiSecret,
+     })),
+   });
+   ```
+
+2. **Push to Feature Branch**:
+   ```bash
+   git add infrastructure/lib/secrets-stack.ts
+   git commit -m "feat: Add new API secret infrastructure"
+   git push origin feature/new-api-integration
+   ```
+
+3. **Create Pull Request**:
+   - **Automatic**: Secret management workflow validates the changes
+   - **Manual**: Review and approve the PR
+
+4. **Merge to Main**:
+   ```bash
+   git checkout main
+   git pull origin main
+   # Push triggers automatic deployment
+   ```
+
+5. **Automatic Deployment**:
+   - Secret change detection runs
+   - New secrets are deployed to staging/production
+   - Validation confirms secrets are accessible
+   - Integration with main deployment pipeline
+
+### Scenario 2: Adding Secrets for New Environment
+
+When creating a new environment (e.g., `development`):
+
+1. **Manual Deployment**:
+   ```bash
+   # Deploy new environment secrets
+   gh workflow run secret-management.yml \
+     -f operation=update-secrets \
+     -f environment=development \
+     -f dry_run=false
+   ```
+
+2. **Or Use Local Tool**:
+   ```bash
+   ./scripts/secret-management.sh deploy-stack development
+   ./scripts/secret-management.sh validate development
+   ```
+
+### Scenario 3: Emergency Secret Rotation
+
+When a secret is compromised:
+
+1. **Immediate Rotation**:
+   ```bash
+   gh workflow run secret-management.yml \
+     -f operation=rotate-api-keys \
+     -f environment=production \
+     -f dry_run=false
+   ```
+
+2. **Monitor Services**:
+   - ECS services automatically restart
+   - Applications pick up new secrets
+   - Health checks validate functionality
 
 ## Integration with Development Workflow
 
