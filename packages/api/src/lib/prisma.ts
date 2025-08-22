@@ -16,23 +16,6 @@ let connectionPromise: Promise<void> | null = null;
 function createPrismaClient(): PrismaClient {
   const client = new PrismaClient({
     datasourceUrl: env.database.url,
-    log: env.isProduction 
-      ? [
-          { emit: 'event', level: 'error' },
-          { emit: 'event', level: 'warn' },
-        ]
-      : env.isTest 
-        ? [] 
-        : ['error', 'warn'],
-    errorFormat: 'minimal',
-  });
-
-  return client;
-}
-
-function createPrismaClient(): PrismaClient {
-  const client = new PrismaClient({
-    datasourceUrl: env.database.url,
     log: env.isProduction
       ? [
           { emit: 'event', level: 'error' },
