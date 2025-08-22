@@ -132,7 +132,7 @@ jobs:
             --cluster ${{ env.ECS_CLUSTER }} \
             --task-definition NameCardProdstagingAPIServiceTaskDef909B2074 \
             --launch-type FARGATE \
-            --network-configuration 'awsvpcConfiguration={subnets=["subnet-08cef10adb4cf31e6","subnet-00ca2562f3fabffaf"],securityGroups=["sg-0aa8f05b02d726a66"],assignPublicIp=ENABLED}' \
+            --network-configuration 'awsvpcConfiguration={subnets=["subnet-0164b38c14b856e51","subnet-0c193b53575bb0dae"],securityGroups=["sg-0c647bcea441ba772"],assignPublicIp=ENABLED}' \
             --overrides "{\"containerOverrides\":[{\"name\":\"namecard-api\",\"command\":[\"sh\",\"-c\",\"cd /app/packages/api && npx prisma db push --accept-data-loss\"],\"environment\":[{\"name\":\"DATABASE_URL\",\"value\":\"$ENCODED_DATABASE_URL\"}]}]}" \
             --region ${{ env.AWS_REGION }} \
             --query 'tasks[0].taskArn' --output text)
