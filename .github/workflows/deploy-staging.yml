@@ -77,11 +77,12 @@ jobs:
         run: npm run build
 
       - name: Validate and deploy secrets
-        uses: ./.github/workflows/secret-management.yml
-        with:
-          environment: staging
-          operation: validate-secrets
-          deploy_new_secrets: true
+        run: |
+          echo "🔐 Validating and deploying secrets for staging environment..."
+          # Check if secrets exist and are accessible
+          aws secretsmanager get-secret-value --secret-id namecard/api/staging --region ${{ env.AWS_REGION }} --query 'SecretString' --output text > /dev/null
+          aws secretsmanager get-secret-value --secret-id namecard/database/staging --region ${{ env.AWS_REGION }} --query 'SecretString' --output text > /dev/null
+          echo "✅ All required secrets are accessible"
 
       - name: Deploy infrastructure updates
         run: |
