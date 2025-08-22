@@ -87,7 +87,9 @@ if (
   envVars.DB_USER &&
   envVars.DB_PASS
 ) {
-  databaseUrl = `postgresql://${envVars.DB_USER}:${envVars.DB_PASS}@${envVars.DB_HOST}:${envVars.DB_PORT}/${envVars.DB_NAME}`;
+  // URL-encode the password to handle special characters like commas
+  const encodedPassword = encodeURIComponent(envVars.DB_PASS);
+  databaseUrl = `postgresql://${envVars.DB_USER}:${encodedPassword}@${envVars.DB_HOST}:${envVars.DB_PORT}/${envVars.DB_NAME}`;
 }
 
 if (!databaseUrl) {
