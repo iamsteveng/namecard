@@ -15,8 +15,12 @@ COPY tsconfig.json ./
 COPY packages/shared/tsconfig.json ./packages/shared/
 COPY packages/api/tsconfig.json ./packages/api/
 
-# Install dependencies (including devDependencies for build)
-RUN npm ci --include=dev
+# Install dependencies with retry logic for network resilience (including devDependencies for build)
+RUN npm config set fetch-retries 3 && \
+    npm config set fetch-retry-factor 2 && \
+    npm config set fetch-retry-mintimeout 10000 && \
+    npm config set fetch-retry-maxtimeout 60000 && \
+    npm ci --include=dev || (sleep 5 && npm ci --include=dev) || (sleep 10 && npm ci --include=dev)
 
 # Copy source code
 COPY packages/api ./packages/api/
@@ -54,8 +58,13 @@ COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/packages/api/package*.json ./packages/api/
 COPY --from=builder /app/packages/shared/package*.json ./packages/shared/
 
-# Install only production dependencies (skip scripts to avoid husky issues)
-RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
+# Install only production dependencies with retry logic (skip scripts to avoid husky issues)
+RUN npm config set fetch-retries 3 && \
+    npm config set fetch-retry-factor 2 && \
+    npm config set fetch-retry-mintimeout 10000 && \
+    npm config set fetch-retry-maxtimeout 60000 && \
+    (npm ci --omit=dev --ignore-scripts || (sleep 5 && npm ci --omit=dev --ignore-scripts) || (sleep 10 && npm ci --omit=dev --ignore-scripts)) && \
+    npm cache clean --force
 
 # Copy built application and dependencies
 COPY --from=builder /app/packages/api/dist ./packages/api/dist/
