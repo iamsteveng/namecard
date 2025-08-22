@@ -11,7 +11,6 @@ declare global {
 
 // Create Prisma client instance with enhanced error handling
 let prisma: PrismaClient;
-let connectionPromise: Promise<void> | null = null;
 
 function createPrismaClient(): PrismaClient {
   const client = new PrismaClient({
