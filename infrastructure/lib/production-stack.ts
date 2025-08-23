@@ -145,6 +145,8 @@ export class ProductionStack extends cdk.Stack {
         JWT_SECRET: cdk.SecretValue.unsafePlainText(this.generateRandomString(64)),
         SESSION_SECRET: cdk.SecretValue.unsafePlainText(this.generateRandomString(32)),
         ENCRYPTION_KEY: cdk.SecretValue.unsafePlainText(this.generateRandomString(32)),
+        // Perplexity AI API key for company enrichment services
+        PERPLEXITY_API_KEY: cdk.SecretValue.unsafePlainText('dummy-key-for-deployment'),
       },
     });
 
