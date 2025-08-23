@@ -1,0 +1,217 @@
+name: Fix Stuck CloudFormation Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      stack_name:
+        description: 'CloudFormation stack name to fix'
+        required: true
+        default: 'NameCardProd-staging'
+        type: string
+      action_type:
+        description: 'Action to take for stuck rollback'
+        required: true
+        default: 'fix-secrets-and-wait'
+        type: choice
+        options:
+          - fix-secrets-and-wait
+          - cancel-rollback
+          - continue-rollback-skip-resources
+
+env:
+  AWS_REGION: ap-southeast-1
+
+jobs:
+  fix-stuck-rollback:
+    name: Fix Stuck CloudFormation Rollback
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Check current stack status
+        id: stack_status
+        run: |
+          echo "🔍 Checking current CloudFormation stack status..."
+          
+          STACK_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name ${{ inputs.stack_name }} \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Stacks[0].StackStatus' --output text)
+          
+          echo "Current stack status: $STACK_STATUS"
+          echo "stack_status=$STACK_STATUS" >> $GITHUB_OUTPUT
+          
+          # Get recent stack events for context
+          echo "📋 Recent stack events:"
+          aws cloudformation describe-stack-events \
+            --stack-name ${{ inputs.stack_name }} \
+            --region ${{ env.AWS_REGION }} \
+            --query 'StackEvents[:5].[Timestamp,LogicalResourceId,ResourceStatus,ResourceStatusReason]' \
+            --output table
+
+      - name: Fix secrets and wait for rollback completion
+        if: inputs.action_type == 'fix-secrets-and-wait'
+        run: |
+          echo "🔧 Fixing missing PERPLEXITY_API_KEY in secrets to allow rollback completion..."
+          
+          # Get the current API secret value
+          echo "📋 Retrieving current secret..."
+          CURRENT_SECRET=$(aws secretsmanager get-secret-value \
+            --secret-id namecard/api/staging \
+            --region ${{ env.AWS_REGION }} \
+            --query 'SecretString' --output text)
+          
+          # Check if PERPLEXITY_API_KEY already exists
+          EXISTING_KEY=$(echo "$CURRENT_SECRET" | jq -r '.PERPLEXITY_API_KEY // empty')
+          
+          if [ -z "$EXISTING_KEY" ] || [ "$EXISTING_KEY" = "null" ]; then
+            echo "⚠️ PERPLEXITY_API_KEY missing from secret - adding it for rollback completion..."
+            
+            # Add PERPLEXITY_API_KEY to the existing secret
+            UPDATED_SECRET=$(echo "$CURRENT_SECRET" | jq '. + {"PERPLEXITY_API_KEY": "pplx-dummy-key-for-rollback-resolution"}')
+            
+            # Update the secret in AWS Secrets Manager
+            aws secretsmanager update-secret \
+              --secret-id namecard/api/staging \
+              --secret-string "$UPDATED_SECRET" \
+              --region ${{ env.AWS_REGION }}
+            
+            echo "✅ Added PERPLEXITY_API_KEY to API secrets for rollback resolution"
+            
+            # Wait for secrets to propagate
+            echo "⏳ Waiting 60 seconds for secrets to propagate to ECS tasks..."
+            sleep 60
+          else
+            echo "✅ PERPLEXITY_API_KEY already exists: ${EXISTING_KEY:0:10}..."
+          fi
+          
+          # Now wait for rollback to complete (max 30 minutes)
+          echo "⌛ Waiting for rollback to complete (max 30 minutes)..."
+          
+          for i in {1..180}; do  # 30 minutes = 180 * 10 seconds
+            CURRENT_STATUS=$(aws cloudformation describe-stacks \
+              --stack-name ${{ inputs.stack_name }} \
+              --region ${{ env.AWS_REGION }} \
+              --query 'Stacks[0].StackStatus' --output text)
+            
+            echo "Attempt $i/180: Current status: $CURRENT_STATUS"
+            
+            if [[ "$CURRENT_STATUS" == "ROLLBACK_COMPLETE" ]]; then
+              echo "✅ Rollback completed successfully!"
+              exit 0
+            elif [[ "$CURRENT_STATUS" == *"FAILED"* ]]; then
+              echo "❌ Rollback failed with status: $CURRENT_STATUS"
+              echo "🔍 Recent stack events:"
+              aws cloudformation describe-stack-events \
+                --stack-name ${{ inputs.stack_name }} \
+                --region ${{ env.AWS_REGION }} \
+                --query 'StackEvents[:5].[Timestamp,LogicalResourceId,ResourceStatus,ResourceStatusReason]' \
+                --output table
+              exit 1
+            elif [[ "$CURRENT_STATUS" != *"IN_PROGRESS"* ]]; then
+              echo "✅ Stack reached stable state: $CURRENT_STATUS"
+              exit 0
+            fi
+            
+            # Show progress every 5 minutes
+            if [ $((i % 30)) -eq 0 ]; then
+              echo "🔍 Progress check - Recent stack events:"
+              aws cloudformation describe-stack-events \
+                --stack-name ${{ inputs.stack_name }} \
+                --region ${{ env.AWS_REGION }} \
+                --query 'StackEvents[:3].[Timestamp,LogicalResourceId,ResourceStatus]' \
+                --output table
+            fi
+            
+            sleep 10
+          done
+          
+          echo "⚠️ Rollback did not complete within 30 minutes"
+          echo "🔍 Final status check:"
+          aws cloudformation describe-stacks \
+            --stack-name ${{ inputs.stack_name }} \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Stacks[0].StackStatus' --output text
+          exit 1
+
+      - name: Cancel stuck rollback
+        if: inputs.action_type == 'cancel-rollback'
+        run: |
+          echo "🛑 Attempting to cancel stuck rollback..."
+          
+          aws cloudformation cancel-update-stack \
+            --stack-name ${{ inputs.stack_name }} \
+            --region ${{ env.AWS_REGION }} || {
+            echo "⚠️ Cancel operation failed - checking if operation is allowed for current state"
+            
+            STACK_STATUS=$(aws cloudformation describe-stacks \
+              --stack-name ${{ inputs.stack_name }} \
+              --region ${{ env.AWS_REGION }} \
+              --query 'Stacks[0].StackStatus' --output text)
+            
+            echo "Current stack status: $STACK_STATUS"
+            echo "❌ Cancel operation not allowed for status: $STACK_STATUS"
+            exit 1
+          }
+          
+          echo "✅ Cancel rollback initiated successfully"
+
+      - name: Continue rollback with resource skip
+        if: inputs.action_type == 'continue-rollback-skip-resources'
+        run: |
+          echo "⏭️ Attempting to continue rollback with problematic resources skipped..."
+          
+          # First check if this operation is allowed
+          STACK_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name ${{ inputs.stack_name }} \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Stacks[0].StackStatus' --output text)
+          
+          echo "Current stack status: $STACK_STATUS"
+          
+          if [[ "$STACK_STATUS" != "UPDATE_ROLLBACK_FAILED" ]]; then
+            echo "⚠️ Continue rollback only works for UPDATE_ROLLBACK_FAILED status"
+            echo "Current status is: $STACK_STATUS"
+            echo "Try 'fix-secrets-and-wait' option instead"
+            exit 1
+          fi
+          
+          aws cloudformation continue-update-rollback \
+            --stack-name ${{ inputs.stack_name }} \
+            --resources-to-skip APIService8DA8F328 \
+            --region ${{ env.AWS_REGION }}
+          
+          echo "✅ Continue rollback with resource skip initiated"
+
+      - name: Verify final stack state
+        run: |
+          echo "🔍 Final stack status verification..."
+          
+          FINAL_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name ${{ inputs.stack_name }} \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Stacks[0].StackStatus' --output text)
+          
+          echo "Final stack status: $FINAL_STATUS"
+          
+          if [[ "$FINAL_STATUS" == *"COMPLETE"* ]]; then
+            echo "✅ Stack is now in a stable state and ready for new deployments"
+            echo "🚀 You can now proceed with regular GitHub Actions deployments"
+          else
+            echo "⚠️ Stack status: $FINAL_STATUS"
+            echo "📋 Recent events:"
+            aws cloudformation describe-stack-events \
+              --stack-name ${{ inputs.stack_name }} \
+              --region ${{ env.AWS_REGION }} \
+              --query 'StackEvents[:3].[Timestamp,LogicalResourceId,ResourceStatus,ResourceStatusReason]' \
+              --output table
+          fi
