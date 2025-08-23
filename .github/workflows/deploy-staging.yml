@@ -51,7 +51,7 @@ jobs:
     name: Build and Deploy
     runs-on: ubuntu-latest
     needs: test
-    if: github.ref == 'refs/heads/cicd-pipeline-setup' || github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/cicd-pipeline-setup' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/fix-github-actions-load-balancer-url'
     
     steps:
       - name: Checkout code
