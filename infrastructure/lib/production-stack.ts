@@ -435,7 +435,7 @@ export class ProductionStack extends cdk.Stack {
       healthCheckGracePeriod: cdk.Duration.seconds(300),
     });
 
-    // Configure health check
+    // Configure load balancer health check
     fargateService.targetGroup.configureHealthCheck({
       path: '/health',
       healthyHttpCodes: '200',
@@ -444,6 +444,22 @@ export class ProductionStack extends cdk.Stack {
       healthyThresholdCount: 2,
       unhealthyThresholdCount: 5,
     });
+
+    // Configure container health check for ECS task health status
+    // This is separate from load balancer health check and required for proper ECS task health reporting
+    const containerDef = fargateService.taskDefinition.defaultContainer;
+    if (containerDef) {
+      containerDef.addHealthCheck({
+        command: [
+          'CMD-SHELL',
+          'node -e "const http = require(\'http\'); const options = { hostname: \'localhost\', port: 3001, path: \'/health\', method: \'GET\', timeout: 5000 }; const req = http.request(options, (res) => { if (res.statusCode === 200) { process.exit(0); } else { process.exit(1); } }); req.on(\'error\', () => { process.exit(1); }); req.on(\'timeout\', () => { process.exit(1); }); req.end();"'
+        ],
+        interval: cdk.Duration.seconds(30),
+        timeout: cdk.Duration.seconds(10),
+        startPeriod: cdk.Duration.seconds(60),
+        retries: 3,
+      });
+    }
 
     // Auto-scaling configuration
     const scalableTarget = fargateService.service.autoScaleTaskCount({
