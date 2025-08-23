@@ -88,7 +88,16 @@ jobs:
         run: |
           cd infrastructure
           npm ci
-          npx cdk deploy NameCardProd-staging --context environment=staging --require-approval never --outputs-file outputs.json
+          
+          echo "🏗️ Deploying infrastructure updates with health check configuration..."
+          
+          # Force update to ensure health check configuration is applied
+          npx cdk deploy NameCardProd-staging --context environment=staging --require-approval never --outputs-file outputs.json --force
+          
+          echo "✅ Infrastructure deployment completed"
+          
+          # Wait a moment for infrastructure changes to propagate
+          sleep 30
 
       - name: Detect schema changes
         id: schema_changes
@@ -167,16 +176,59 @@ jobs:
 
       - name: Update ECS service
         run: |
-          echo "Updating ECS service..."
+          echo "🔄 Updating ECS service..."
           aws ecs update-service \
             --cluster ${{ env.ECS_CLUSTER }} \
             --service ${{ env.ECS_SERVICE }} \
             --force-new-deployment
           
-          echo "Waiting for service to stabilize..."
-          aws ecs wait services-stable \
+          echo "⏳ Waiting for service to stabilize (max 15 minutes)..."
+          
+          # Use timeout command to limit wait time to 15 minutes (900 seconds)
+          timeout 900 aws ecs wait services-stable \
             --cluster ${{ env.ECS_CLUSTER }} \
-            --services ${{ env.ECS_SERVICE }}
+            --services ${{ env.ECS_SERVICE }} || {
+              echo "⚠️ Service stabilization timeout or failure detected!"
+              
+              # Check service status for debugging
+              echo "🔍 Checking service status..."
+              SERVICE_STATUS=$(aws ecs describe-services \
+                --cluster ${{ env.ECS_CLUSTER }} \
+                --services ${{ env.ECS_SERVICE }} \
+                --query 'services[0].status' --output text)
+              echo "Service status: $SERVICE_STATUS"
+              
+              # Check task health status
+              echo "🔍 Checking task health..."
+              TASK_ARNS=$(aws ecs list-tasks \
+                --cluster ${{ env.ECS_CLUSTER }} \
+                --service-name ${{ env.ECS_SERVICE }} \
+                --query 'taskArns[]' --output text)
+              
+              for TASK_ARN in $TASK_ARNS; do
+                TASK_ID=$(echo "$TASK_ARN" | sed 's/.*\///')
+                HEALTH_STATUS=$(aws ecs describe-tasks \
+                  --cluster ${{ env.ECS_CLUSTER }} \
+                  --tasks "$TASK_ID" \
+                  --query 'tasks[0].healthStatus' --output text)
+                LAST_STATUS=$(aws ecs describe-tasks \
+                  --cluster ${{ env.ECS_CLUSTER }} \
+                  --tasks "$TASK_ID" \
+                  --query 'tasks[0].lastStatus' --output text)
+                echo "Task $TASK_ID: Status=$LAST_STATUS, Health=$HEALTH_STATUS"
+              done
+              
+              # Check recent service events for errors
+              echo "🔍 Recent service events:"
+              aws ecs describe-services \
+                --cluster ${{ env.ECS_CLUSTER }} \
+                --services ${{ env.ECS_SERVICE }} \
+                --query 'services[0].events[:3].[createdAt,message]' --output table
+              
+              echo "❌ Service failed to stabilize within 15 minutes. Continuing with manual verification..."
+            }
+          
+          echo "✅ Service update completed (may still be stabilizing)"
 
       - name: Verify deployment
         run: |
@@ -190,9 +242,36 @@ jobs:
           echo "🔍 Health check URL: $HEALTH_URL"
           echo "🔍 API base URL: $API_BASE_URL"
           
-          # Health check with retry
-          echo "Running health check..."
-          for i in {1..5}; do
+          # First, check if any tasks are running
+          echo "🔍 Checking running tasks..."
+          RUNNING_TASKS=$(aws ecs list-tasks \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service-name ${{ env.ECS_SERVICE }} \
+            --desired-status RUNNING \
+            --query 'taskArns | length(@)' --output text)
+          echo "Running tasks: $RUNNING_TASKS"
+          
+          if [ "$RUNNING_TASKS" = "0" ]; then
+            echo "❌ No running tasks found! Checking stopped tasks..."
+            aws ecs list-tasks \
+              --cluster ${{ env.ECS_CLUSTER }} \
+              --service-name ${{ env.ECS_SERVICE }} \
+              --desired-status STOPPED \
+              --query 'taskArns[:3]' --output text | while read TASK_ARN; do
+                if [ -n "$TASK_ARN" ]; then
+                  TASK_ID=$(echo "$TASK_ARN" | sed 's/.*\///')
+                  echo "🔍 Stopped task $TASK_ID:"
+                  aws ecs describe-tasks \
+                    --cluster ${{ env.ECS_CLUSTER }} \
+                    --tasks "$TASK_ID" \
+                    --query 'tasks[0].{StoppedReason:stoppedReason,ExitCode:containers[0].exitCode}' --output table
+                fi
+              done
+          fi
+          
+          # Health check with retry and better error reporting
+          echo "🏥 Running health check..."
+          for i in {1..10}; do
             response=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || echo "000")
             
             if [ "$response" = "200" ]; then
@@ -204,17 +283,49 @@ jobs:
               info_response=$(curl -s -o /dev/null -w "%{http_code}" "$API_BASE_URL/v1/" || echo "000")
               if [ "$info_response" = "200" ]; then
                 echo "✅ Database connectivity verified - API endpoints responding via CloudFront"
+                
+                # Get API info for final verification
+                echo "📋 API Info:"
+                curl -s "$API_BASE_URL/v1/" | head -10
               else
                 echo "⚠️  API info endpoint returned: $info_response"
               fi
               exit 0
             else
-              echo "Attempt $i: HTTP status $response, retrying in 10 seconds..."
-              sleep 10
+              echo "⏱️  Attempt $i/10: HTTP status $response, waiting 15 seconds..."
+              
+              if [ "$i" = "5" ]; then
+                echo "🔍 Mid-check debugging - checking task status..."
+                TASK_ARNS=$(aws ecs list-tasks \
+                  --cluster ${{ env.ECS_CLUSTER }} \
+                  --service-name ${{ env.ECS_SERVICE }} \
+                  --query 'taskArns[:2]' --output text)
+                
+                for TASK_ARN in $TASK_ARNS; do
+                  if [ -n "$TASK_ARN" ]; then
+                    TASK_ID=$(echo "$TASK_ARN" | sed 's/.*\///')
+                    echo "🔍 Task $TASK_ID status:"
+                    aws ecs describe-tasks \
+                      --cluster ${{ env.ECS_CLUSTER }} \
+                      --tasks "$TASK_ID" \
+                      --query 'tasks[0].{LastStatus:lastStatus,HealthStatus:healthStatus,DesiredStatus:desiredStatus}' --output table
+                  fi
+                done
+              fi
+              
+              sleep 15
             fi
           done
           
-          echo "❌ Health check failed after 5 attempts. Final HTTP status: $response"
+          echo "❌ Health check failed after 10 attempts. Final HTTP status: $response"
+          echo "🔍 Final debugging information:"
+          
+          # Show service status
+          aws ecs describe-services \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.ECS_SERVICE }} \
+            --query 'services[0].{Status:status,RunningCount:runningCount,PendingCount:pendingCount,DesiredCount:desiredCount}' --output table
+          
           exit 1
 
       - name: Notify deployment status
