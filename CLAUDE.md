@@ -918,6 +918,33 @@ generator client {
 - **Current Branch**: `cicd-pipeline-setup`
 - **Status**: 🚀 **PRODUCTION READY** - Complete automated deployment pipeline functional
 
+### Session 20 (August 23, 2025)
+- **GitHub Actions Deployment Failure Resolution (COMPLETE)**:
+  - **Problem**: "Deploy to AWS Staging" workflow failing on health check verification step
+    - Health check getting HTTP 000 (connection failed) instead of HTTP 200
+    - ECS service showing healthy (Status: ACTIVE, Running: 1, Health: HEALTHY)
+    - API logs showing successful health check responses from load balancer
+  - **Root Cause Analysis**: Load balancer URL mismatch in GitHub Actions workflow
+    - **Hardcoded (old)**: `NameCa-APISe-N5y96ivnIVEm-949793622.ap-southeast-1.elb.amazonaws.com` ❌
+    - **Current (actual)**: `NameCa-APISe-INXf1idRi9a5-56915796.ap-southeast-1.elb.amazonaws.com` ✅
+    - Infrastructure changes (CDK deployments) can create new load balancers
+    - Workflow was using hardcoded URL instead of dynamic CloudFormation output query
+  - **Fix Applied**: Dynamic load balancer URL resolution in GitHub Actions
+    - Added new step "Get current load balancer URL" to fetch URL from CloudFormation stack outputs
+    - Query: `NameCardProd-staging` stack for `APIServiceLoadBalancerDNS6CF2FD04` output
+    - Replace hardcoded URL with environment variable from stack output
+    - Added error handling and debugging for missing stack outputs
+  - **Infrastructure Validation**:
+    - ✅ ECS Service: ACTIVE with 1 running, healthy task
+    - ✅ API Health: HTTP 200 responses logged continuously
+    - ✅ Load Balancer: Active state with correct DNS name
+    - ✅ CloudFormation: Stack outputs contain correct load balancer URL
+  - **Files Modified**: `.github/workflows/deploy-staging.yml`, `CLAUDE.md`
+  - **Impact**: GitHub Actions workflow now resilient to AWS infrastructure changes
+- **Progress**: **GITHUB ACTIONS DYNAMIC URL RESOLUTION** - CI/CD pipeline will adapt to infrastructure changes
+- **Current Branch**: `fix-github-actions-load-balancer-url`
+- **Status**: 🔧 **FIXING CI/CD INFRASTRUCTURE** - Making deployment pipeline resilient to AWS changes
+
 ---
 
 *This file should be updated after each major task completion to maintain development continuity across Claude sessions.*
