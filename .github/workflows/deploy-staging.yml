@@ -99,31 +99,45 @@ jobs:
           # Wait a moment for infrastructure changes to propagate
           sleep 30
 
-      - name: Update API secrets with real values
+      - name: Ensure PERPLEXITY_API_KEY exists in secrets
         run: |
-          echo "🔐 Updating API secrets with production values..."
+          echo "🔐 Ensuring PERPLEXITY_API_KEY exists in API secrets..."
           
           # Get the current API secret value
+          echo "📋 Retrieving current secret..."
           CURRENT_SECRET=$(aws secretsmanager get-secret-value --secret-id namecard/api/staging --region ${{ env.AWS_REGION }} --query 'SecretString' --output text)
           
-          # Update the PERPLEXITY_API_KEY with a real dummy value (can be updated manually later)
-          # Note: Replace 'your-perplexity-api-key-here' with actual key in AWS Console if needed
-          UPDATED_SECRET=$(echo "$CURRENT_SECRET" | jq '.PERPLEXITY_API_KEY = "pplx-dummy-key-replace-in-console"')
+          # Check if PERPLEXITY_API_KEY already exists
+          EXISTING_KEY=$(echo "$CURRENT_SECRET" | jq -r '.PERPLEXITY_API_KEY // empty')
           
-          # Update the secret in AWS Secrets Manager
-          aws secretsmanager update-secret \
-            --secret-id namecard/api/staging \
-            --secret-string "$UPDATED_SECRET" \
-            --region ${{ env.AWS_REGION }}
-          
-          echo "✅ API secrets updated with PERPLEXITY_API_KEY"
-          
-          # Verify the key exists
-          VERIFICATION=$(aws secretsmanager get-secret-value --secret-id namecard/api/staging --region ${{ env.AWS_REGION }} --query 'SecretString' --output text | jq -r '.PERPLEXITY_API_KEY')
-          if [ "$VERIFICATION" != "null" ] && [ -n "$VERIFICATION" ]; then
-            echo "✅ PERPLEXITY_API_KEY verified in secrets: ${VERIFICATION:0:10}..."
+          if [ -z "$EXISTING_KEY" ] || [ "$EXISTING_KEY" = "null" ]; then
+            echo "⚠️ PERPLEXITY_API_KEY missing from secret - adding it..."
+            
+            # Add PERPLEXITY_API_KEY to the existing secret
+            UPDATED_SECRET=$(echo "$CURRENT_SECRET" | jq '. + {"PERPLEXITY_API_KEY": "pplx-dummy-key-replace-in-console"}')
+            
+            # Update the secret in AWS Secrets Manager
+            aws secretsmanager update-secret \
+              --secret-id namecard/api/staging \
+              --secret-string "$UPDATED_SECRET" \
+              --region ${{ env.AWS_REGION }}
+            
+            echo "✅ Added PERPLEXITY_API_KEY to API secrets"
           else
-            echo "❌ PERPLEXITY_API_KEY verification failed"
+            echo "✅ PERPLEXITY_API_KEY already exists in secret: ${EXISTING_KEY:0:10}..."
+          fi
+          
+          # Final verification that the key exists
+          echo "🔍 Final verification..."
+          FINAL_CHECK=$(aws secretsmanager get-secret-value --secret-id namecard/api/staging --region ${{ env.AWS_REGION }} --query 'SecretString' --output text | jq -r '.PERPLEXITY_API_KEY')
+          if [ "$FINAL_CHECK" != "null" ] && [ -n "$FINAL_CHECK" ]; then
+            echo "✅ PERPLEXITY_API_KEY confirmed in secrets: ${FINAL_CHECK:0:10}..."
+            echo "📊 All secret keys:"
+            aws secretsmanager get-secret-value --secret-id namecard/api/staging --region ${{ env.AWS_REGION }} --query 'SecretString' --output text | jq -r 'keys[]'
+          else
+            echo "❌ PERPLEXITY_API_KEY verification failed - ECS tasks will fail!"
+            echo "🔍 Current secret keys:"
+            aws secretsmanager get-secret-value --secret-id namecard/api/staging --region ${{ env.AWS_REGION }} --query 'SecretString' --output text | jq -r 'keys[]'
             exit 1
           fi
 
@@ -204,19 +218,34 @@ jobs:
 
       - name: Update ECS service
         run: |
-          echo "🔄 Updating ECS service with new secrets..."
+          echo "🔄 Updating ECS service with verified secrets..."
+          
+          # Pre-deployment secret verification
+          echo "🔍 Pre-deployment secret verification..."
+          SECRET_KEYS=$(aws secretsmanager get-secret-value --secret-id namecard/api/staging --region ${{ env.AWS_REGION }} --query 'SecretString' --output text | jq -r 'keys[]')
+          echo "Available secret keys:"
+          echo "$SECRET_KEYS"
+          
+          # Ensure PERPLEXITY_API_KEY is present
+          if echo "$SECRET_KEYS" | grep -q "PERPLEXITY_API_KEY"; then
+            echo "✅ PERPLEXITY_API_KEY confirmed present before ECS deployment"
+          else
+            echo "❌ PERPLEXITY_API_KEY still missing! Cannot proceed with ECS deployment."
+            exit 1
+          fi
           
           # Wait for secrets to propagate before forcing new deployment
           echo "⏳ Waiting 60 seconds for secrets to propagate..."
           sleep 60
           
           # Force new deployment to pick up updated secrets
+          echo "🚀 Forcing new ECS deployment with all required secrets..."
           aws ecs update-service \
             --cluster ${{ env.ECS_CLUSTER }} \
             --service ${{ env.ECS_SERVICE }} \
             --force-new-deployment
           
-          echo "🚀 ECS service update initiated - new tasks will use updated secrets"
+          echo "✅ ECS service update initiated - new tasks will use updated secrets"
           
           echo "⏳ Waiting for service to stabilize (max 15 minutes)..."
           
