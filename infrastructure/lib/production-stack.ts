@@ -447,19 +447,18 @@ export class ProductionStack extends cdk.Stack {
 
     // Configure container health check for ECS task health status
     // This is separate from load balancer health check and required for proper ECS task health reporting
-    const containerDef = fargateService.taskDefinition.defaultContainer;
-    if (containerDef) {
-      containerDef.addHealthCheck({
-        command: [
-          'CMD-SHELL',
-          'node -e "const http = require(\'http\'); const options = { hostname: \'localhost\', port: 3001, path: \'/health\', method: \'GET\', timeout: 5000 }; const req = http.request(options, (res) => { if (res.statusCode === 200) { process.exit(0); } else { process.exit(1); } }); req.on(\'error\', () => { process.exit(1); }); req.on(\'timeout\', () => { process.exit(1); }); req.end();"'
-        ],
-        interval: cdk.Duration.seconds(30),
-        timeout: cdk.Duration.seconds(10),
-        startPeriod: cdk.Duration.seconds(60),
-        retries: 3,
-      });
-    }
+    // Use addPropertyOverride to set the health check at the CloudFormation level
+    const cfnTaskDef = fargateService.taskDefinition.node.defaultChild as ecs.CfnTaskDefinition;
+    cfnTaskDef.addPropertyOverride('ContainerDefinitions.0.HealthCheck', {
+      Command: [
+        'CMD-SHELL',
+        'node -e "const http = require(\'http\'); const options = { hostname: \'localhost\', port: 3001, path: \'/health\', method: \'GET\', timeout: 5000 }; const req = http.request(options, (res) => { if (res.statusCode === 200) { process.exit(0); } else { process.exit(1); } }); req.on(\'error\', () => { process.exit(1); }); req.on(\'timeout\', () => { process.exit(1); }); req.end();"'
+      ],
+      Interval: 30,
+      Timeout: 10,
+      StartPeriod: 60,
+      Retries: 3,
+    });
 
     // Auto-scaling configuration
     const scalableTarget = fargateService.service.autoScaleTaskCount({
