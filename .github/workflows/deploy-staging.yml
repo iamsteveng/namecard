@@ -121,8 +121,12 @@ jobs:
           
           echo "🏗️ Deploying infrastructure updates with health check configuration..."
           
-          # Force update to ensure health check configuration is applied
+          # Deploy production stack with health check configuration
           npx cdk deploy NameCardProd-staging --context environment=staging --require-approval never --outputs-file outputs.json --force
+          
+          # Deploy frontend stack with CloudFront SPA routing configuration
+          echo "🌐 Deploying frontend stack with SPA routing updates..."
+          npx cdk deploy NameCardFrontend-staging --context environment=staging --require-approval never --force
           
           echo "✅ Infrastructure deployment completed"
           
