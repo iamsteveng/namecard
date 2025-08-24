@@ -36,6 +36,8 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
 
     if (!this.apiKey) {
       console.warn('Perplexity API key not configured');
+    } else if (this.isDummyApiKey(this.apiKey)) {
+      console.warn('Perplexity API key appears to be a dummy/placeholder value');
     }
   }
 
@@ -43,14 +45,32 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
    * Check if service is properly configured and enabled
    */
   override isEnabled(): boolean {
-    return this.config.enabled && !!this.apiKey;
+    return this.config.enabled && !!this.apiKey && !this.isDummyApiKey(this.apiKey);
   }
 
   /**
    * Validate Perplexity-specific configuration
    */
   protected override hasValidConfig(): boolean {
-    return !!this.apiKey && !!this.baseUrl;
+    return !!this.apiKey && !this.isDummyApiKey(this.apiKey) && !!this.baseUrl;
+  }
+
+  /**
+   * Check if API key is a dummy/placeholder value
+   */
+  private isDummyApiKey(key: string): boolean {
+    const dummyPatterns = [
+      /^dummy/i,
+      /^test/i,
+      /^placeholder/i,
+      /^example/i,
+      /^fake/i,
+      /^mock/i,
+      /development/i,
+      /staging/i,
+    ];
+    
+    return dummyPatterns.some(pattern => pattern.test(key)) || key.length < 20;
   }
 
   /**
@@ -103,18 +123,29 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
         processingTimeMs,
       };
     } catch (error) {
-      console.error('Perplexity enrichment failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const companyId = request.companyName || request.domain || 'unknown';
+      
+      console.error('Perplexity company enrichment failed:', {
+        companyId,
+        error: errorMessage,
+        apiKeyConfigured: !!this.apiKey,
+        apiKeyValid: this.apiKey ? !this.isDummyApiKey(this.apiKey) : false,
+        baseUrl: this.baseUrl,
+        enabled: this.config.enabled,
+        processingTime: Date.now() - startTime,
+      });
 
       return {
         success: false,
-        companyId: request.companyName || request.domain || 'unknown',
+        companyId,
         enrichmentData: {},
         sources: {
           perplexity: {
             status: 'failed',
             confidence: 0,
             dataPoints: 0,
-            error: error instanceof Error ? error.message : 'Unknown error',
+            error: errorMessage,
           },
         },
         overallConfidence: 0,
@@ -169,7 +200,18 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
         processingTimeMs,
       };
     } catch (error) {
-      console.error('Perplexity business card enrichment failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const cardId = request.cardId || 'unknown';
+      
+      console.error('Perplexity business card enrichment failed:', {
+        cardId,
+        error: errorMessage,
+        apiKeyConfigured: !!this.apiKey,
+        apiKeyValid: this.apiKey ? !this.isDummyApiKey(this.apiKey) : false,
+        baseUrl: this.baseUrl,
+        enabled: this.config.enabled,
+        processingTime: Date.now() - startTime,
+      });
 
       return {
         success: false,
@@ -180,7 +222,7 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
             status: 'failed',
             confidence: 0,
             dataPoints: 0,
-            error: error instanceof Error ? error.message : 'Unknown error',
+            error: errorMessage,
           },
         },
         overallConfidence: 0,
@@ -304,6 +346,14 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
 
       if (!response.ok) {
         const errorText = await response.text();
+        console.error('Perplexity API HTTP error:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorText,
+          apiKeyLength: this.apiKey.length,
+          baseUrl: this.baseUrl,
+          model: this.model,
+        });
         throw new Error(
           `Perplexity API error: ${response.status} ${response.statusText} - ${errorText}`
         );
@@ -384,6 +434,14 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
 
       if (!response.ok) {
         const errorText = await response.text();
+        console.error('Perplexity API HTTP error:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorText,
+          apiKeyLength: this.apiKey.length,
+          baseUrl: this.baseUrl,
+          model: this.model,
+        });
         throw new Error(
           `Perplexity API error: ${response.status} ${response.statusText} - ${errorText}`
         );
