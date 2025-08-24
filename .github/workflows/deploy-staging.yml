@@ -2,7 +2,7 @@ name: Deploy to AWS Staging
 
 on:
   push:
-    branches: [cicd-pipeline-setup, main]
+    branches: [cicd-pipeline-setup, main, fix-cloudfront-spa-routing, fix-cloudfront-spa-routing-v2]
   workflow_dispatch:
     inputs:
       run_migrations:
