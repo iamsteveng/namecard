@@ -100,10 +100,23 @@ export class FrontendStack extends cdk.Stack {
         },
       },
       
-      // Custom error responses - COMPLETELY OMITTED to fix API proxy
-      // CloudFront error responses are global and interfere with API routes
-      // API routes must return their natural JSON error responses
-      // Frontend routing will handle 404s naturally through React Router
+      // Custom error responses for SPA routing
+      // Only applies to S3 origin (frontend), not API routes
+      // This ensures React Router can handle all frontend routes
+      errorResponses: [
+        {
+          httpStatus: 403,
+          responseHttpStatus: 200,
+          responsePagePath: '/index.html',
+          ttl: cdk.Duration.minutes(5),
+        },
+        {
+          httpStatus: 404,
+          responseHttpStatus: 200,
+          responsePagePath: '/index.html',
+          ttl: cdk.Duration.minutes(5),
+        },
+      ],
       
       // Default root object for SPA
       defaultRootObject: 'index.html',
