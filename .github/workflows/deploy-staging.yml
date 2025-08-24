@@ -51,7 +51,7 @@ jobs:
     name: Build and Deploy
     runs-on: ubuntu-latest
     needs: test
-    if: github.ref == 'refs/heads/cicd-pipeline-setup' || github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/cicd-pipeline-setup' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/fix-github-actions-load-balancer-url'
     
     steps:
       - name: Checkout code
@@ -325,11 +325,37 @@ jobs:
           
           echo "✅ Service update completed (may still be stabilizing)"
 
+      - name: Get current load balancer URL
+        id: get_lb_url
+        run: |
+          echo "🔍 Fetching current load balancer URL from CloudFormation stack..."
+          
+          # Get the load balancer URL from CloudFormation stack outputs
+          LB_URL=$(aws cloudformation describe-stacks \
+            --stack-name NameCardProd-staging \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Stacks[0].Outputs[?OutputKey==`APIServiceLoadBalancerDNS6CF2FD04`].OutputValue' \
+            --output text)
+          
+          if [ -z "$LB_URL" ] || [ "$LB_URL" = "None" ]; then
+            echo "❌ Could not retrieve load balancer URL from CloudFormation stack"
+            echo "🔍 Available stack outputs:"
+            aws cloudformation describe-stacks \
+              --stack-name NameCardProd-staging \
+              --region ${{ env.AWS_REGION }} \
+              --query 'Stacks[0].Outputs[].{Key:OutputKey,Value:OutputValue}' \
+              --output table
+            exit 1
+          fi
+          
+          echo "✅ Current load balancer URL: $LB_URL"
+          echo "load_balancer_url=$LB_URL" >> $GITHUB_OUTPUT
+
       - name: Verify deployment
         run: |
           # Health endpoint is at /health (root level) - not proxied by CloudFront
-          # Use direct load balancer URL for health check since CloudFront only forwards /api/*
-          HEALTH_URL="http://NameCa-APISe-N5y96ivnIVEm-949793622.ap-southeast-1.elb.amazonaws.com/health"
+          # Use dynamic load balancer URL from CloudFormation stack
+          HEALTH_URL="http://${{ steps.get_lb_url.outputs.load_balancer_url }}/health"
           
           # API endpoints are accessible via CloudFront
           API_BASE_URL="https://d1357e576dd65p.cloudfront.net/api"
