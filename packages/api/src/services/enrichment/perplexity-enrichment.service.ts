@@ -69,7 +69,7 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
       /development/i,
       /staging/i,
     ];
-    
+
     return dummyPatterns.some(pattern => pattern.test(key)) || key.length < 20;
   }
 
@@ -125,7 +125,7 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       const companyId = request.companyName || request.domain || 'unknown';
-      
+
       console.error('Perplexity company enrichment failed:', {
         companyId,
         error: errorMessage,
@@ -202,7 +202,7 @@ export class PerplexityEnrichmentService extends BaseEnrichmentService {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       const cardId = request.cardId || 'unknown';
-      
+
       console.error('Perplexity business card enrichment failed:', {
         cardId,
         error: errorMessage,
