@@ -2,7 +2,7 @@ name: Deploy to AWS Staging
 
 on:
   push:
-    branches: [cicd-pipeline-setup, main]
+    branches: [cicd-pipeline-setup, main, fix-cloudfront-spa-routing, fix-cloudfront-spa-routing-v2]
   workflow_dispatch:
     inputs:
       run_migrations:
@@ -51,7 +51,7 @@ jobs:
     name: Build and Deploy
     runs-on: ubuntu-latest
     needs: test
-    if: github.ref == 'refs/heads/cicd-pipeline-setup' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/fix-github-actions-load-balancer-url'
+    if: github.ref == 'refs/heads/cicd-pipeline-setup' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/fix-github-actions-load-balancer-url' || github.ref == 'refs/heads/fix-cloudfront-spa-routing' || github.ref == 'refs/heads/fix-cloudfront-spa-routing-v2'
     
     steps:
       - name: Checkout code
@@ -121,8 +121,12 @@ jobs:
           
           echo "🏗️ Deploying infrastructure updates with health check configuration..."
           
-          # Force update to ensure health check configuration is applied
+          # Deploy production stack with health check configuration
           npx cdk deploy NameCardProd-staging --context environment=staging --require-approval never --outputs-file outputs.json --force
+          
+          # Deploy frontend stack with CloudFront SPA routing configuration
+          echo "🌐 Deploying frontend stack with SPA routing updates..."
+          npx cdk deploy NameCardFrontend-staging --context environment=staging --require-approval never --force
           
           echo "✅ Infrastructure deployment completed"
           
