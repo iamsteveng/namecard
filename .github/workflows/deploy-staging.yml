@@ -119,16 +119,61 @@ jobs:
           cd infrastructure
           npm ci
           
-          echo "🏗️ Deploying infrastructure updates with health check configuration..."
+          echo "🏗️ Deploying infrastructure updates with retry logic for race conditions..."
           
-          # Deploy production stack with health check configuration
-          npx cdk deploy NameCardProd-staging --context environment=staging --require-approval never --outputs-file outputs.json --force
+          # Deploy production stack with retry logic for UPDATE_IN_PROGRESS errors
+          for attempt in {1..5}; do
+            echo "📦 NameCardProd-staging deployment attempt $attempt/5..."
+            
+            if npx cdk deploy NameCardProd-staging --context environment=staging --require-approval never --outputs-file outputs.json 2>&1 | tee /tmp/cdk_deploy.log; then
+              echo "✅ NameCardProd-staging deployed successfully"
+              break
+            else
+              EXIT_CODE=${PIPESTATUS[0]}
+              
+              # Check if error is due to UPDATE_IN_PROGRESS
+              if grep -q "UPDATE_IN_PROGRESS state and can not be updated" /tmp/cdk_deploy.log; then
+                if [ $attempt -eq 5 ]; then
+                  echo "❌ All deployment attempts failed - stack remained in UPDATE_IN_PROGRESS state"
+                  exit 1
+                fi
+                echo "⏳ Stack is in UPDATE_IN_PROGRESS state, waiting 2 minutes before retry $((attempt + 1))/5..."
+                sleep 120
+              else
+                echo "❌ CDK deployment failed with a different error"
+                cat /tmp/cdk_deploy.log
+                exit $EXIT_CODE
+              fi
+            fi
+          done
           
-          # Deploy frontend stack with CloudFront SPA routing configuration
-          echo "🌐 Deploying frontend stack with SPA routing updates..."
-          npx cdk deploy NameCardFrontend-staging --context environment=staging --require-approval never --force
+          # Deploy frontend stack with retry logic
+          for attempt in {1..3}; do
+            echo "🌐 NameCardFrontend-staging deployment attempt $attempt/3..."
+            
+            if npx cdk deploy NameCardFrontend-staging --context environment=staging --require-approval never 2>&1 | tee /tmp/cdk_frontend_deploy.log; then
+              echo "✅ NameCardFrontend-staging deployed successfully"
+              break
+            else
+              EXIT_CODE=${PIPESTATUS[0]}
+              
+              # Check if error is due to UPDATE_IN_PROGRESS
+              if grep -q "UPDATE_IN_PROGRESS state and can not be updated" /tmp/cdk_frontend_deploy.log; then
+                if [ $attempt -eq 3 ]; then
+                  echo "❌ Frontend deployment failed - stack remained in UPDATE_IN_PROGRESS state"
+                  exit 1
+                fi
+                echo "⏳ Frontend stack is in UPDATE_IN_PROGRESS state, waiting 90 seconds before retry $((attempt + 1))/3..."
+                sleep 90
+              else
+                echo "❌ CDK frontend deployment failed with a different error"
+                cat /tmp/cdk_frontend_deploy.log
+                exit $EXIT_CODE
+              fi
+            fi
+          done
           
-          echo "✅ Infrastructure deployment completed"
+          echo "✅ Infrastructure deployment completed successfully"
           
           # Wait a moment for infrastructure changes to propagate
           sleep 30
