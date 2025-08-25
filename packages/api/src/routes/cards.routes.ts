@@ -401,6 +401,33 @@ router.post(
   })
 );
 
+// GET /api/v1/cards/stats - Get user's card processing statistics
+router.get(
+  '/stats',
+  authenticateToken,
+  asyncHandler(async (req: Request, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const stats = await cardProcessingService.getProcessingStats(userId);
+
+      res.json({
+        success: true,
+        data: { stats },
+      });
+    } catch (error) {
+      logger.error('Card stats endpoint error', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: req.user?.id,
+      });
+
+      res.status(500).json({
+        success: false,
+        error: 'Internal server error',
+      });
+    }
+  })
+);
+
 // GET /api/v1/cards/:id - Get specific card details
 router.get(
   '/:id',
@@ -622,33 +649,6 @@ router.post(
         message: 'Card import endpoint - to be implemented',
       },
     });
-  })
-);
-
-// GET /api/v1/cards/stats - Get user's card processing statistics
-router.get(
-  '/stats',
-  authenticateToken,
-  asyncHandler(async (req: Request, res: Response) => {
-    try {
-      const userId = req.user!.id;
-      const stats = await cardProcessingService.getProcessingStats(userId);
-
-      res.json({
-        success: true,
-        data: { stats },
-      });
-    } catch (error) {
-      logger.error('Card stats endpoint error', {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        userId: req.user?.id,
-      });
-
-      res.status(500).json({
-        success: false,
-        error: 'Internal server error',
-      });
-    }
   })
 );
 

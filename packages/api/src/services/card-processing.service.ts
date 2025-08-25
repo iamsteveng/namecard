@@ -422,9 +422,14 @@ export class CardProcessingService {
       select: { scanDate: true },
     });
 
+    const rawConfidence = stats._avg.confidence || 0;
+    // Ensure confidence is in decimal format (0.0-1.0)
+    // If stored as percentage (>1), convert to decimal
+    const averageConfidence = rawConfidence > 1 ? rawConfidence / 100 : rawConfidence;
+
     return {
       totalCards: stats._count.id || 0,
-      averageConfidence: stats._avg.confidence || 0,
+      averageConfidence,
       processingSuccessRate: 0.95, // This would be calculated from processing logs
       duplicatesFound: 0, // This would be calculated from duplicate detection logs
       mostRecentScan: mostRecent?.scanDate || undefined,
