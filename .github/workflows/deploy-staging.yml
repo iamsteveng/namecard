@@ -119,16 +119,141 @@ jobs:
           cd infrastructure
           npm ci
           
-          echo "🏗️ Deploying infrastructure updates with health check configuration..."
+          echo "🏗️ Deploying infrastructure updates with stuck deployment detection..."
           
-          # Deploy production stack with health check configuration
-          npx cdk deploy NameCardProd-staging --context environment=staging --require-approval never --outputs-file outputs.json --force
+          # Function to monitor CloudFormation progress
+          monitor_stack_progress() {
+            local stack_name=$1
+            local max_no_progress_minutes=${2:-15}
+            local check_interval_seconds=300  # 5 minutes
+            local last_event_time=""
+            local no_progress_count=0
+            local max_no_progress_checks=$((max_no_progress_minutes * 60 / check_interval_seconds))
+            
+            echo "📊 Starting progress monitoring for $stack_name (max ${max_no_progress_minutes}min without progress)"
+            
+            while true; do
+              # Get latest stack events
+              local latest_event=$(aws cloudformation describe-stack-events \
+                --stack-name "$stack_name" \
+                --region ${{ env.AWS_REGION }} \
+                --query 'StackEvents[0].[Timestamp,LogicalResourceId,ResourceStatus,ResourceStatusReason]' \
+                --output text 2>/dev/null || echo "")
+              
+              if [ -n "$latest_event" ]; then
+                local current_event_time=$(echo "$latest_event" | cut -f1)
+                
+                if [ "$current_event_time" != "$last_event_time" ]; then
+                  # Progress detected - reset counter
+                  echo "📈 Progress: $(echo "$latest_event" | cut -f2-4 | tr '\t' ' ')"
+                  last_event_time="$current_event_time"
+                  no_progress_count=0
+                else
+                  # No new events - increment counter
+                  no_progress_count=$((no_progress_count + 1))
+                  echo "⏳ No progress for $((no_progress_count * check_interval_seconds / 60)) minutes (${no_progress_count}/${max_no_progress_checks} checks)"
+                  
+                  if [ $no_progress_count -ge $max_no_progress_checks ]; then
+                    echo "🚨 STUCK DEPLOYMENT DETECTED: No progress for ${max_no_progress_minutes} minutes!"
+                    echo "🔍 Current stack status:"
+                    aws cloudformation describe-stacks --stack-name "$stack_name" --region ${{ env.AWS_REGION }} \
+                      --query 'Stacks[0].{Status:StackStatus,Reason:StackStatusReason}' --output table
+                    
+                    echo "🔍 Resources still in progress:"
+                    aws cloudformation describe-stack-events --stack-name "$stack_name" --region ${{ env.AWS_REGION }} \
+                      --query 'StackEvents[?contains(ResourceStatus,`IN_PROGRESS`)][:5].[LogicalResourceId,ResourceStatus,ResourceType]' --output table
+                    
+                    return 1  # Signal stuck deployment
+                  fi
+                fi
+              fi
+              
+              # Check if deployment is still running
+              local stack_status=$(aws cloudformation describe-stacks --stack-name "$stack_name" --region ${{ env.AWS_REGION }} \
+                --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "")
+              
+              if [[ "$stack_status" != *"IN_PROGRESS"* ]]; then
+                echo "✅ Stack deployment completed with status: $stack_status"
+                return 0
+              fi
+              
+              sleep $check_interval_seconds
+            done
+          }
           
-          # Deploy frontend stack with CloudFront SPA routing configuration
-          echo "🌐 Deploying frontend stack with SPA routing updates..."
-          npx cdk deploy NameCardFrontend-staging --context environment=staging --require-approval never --force
+          # Deploy production stack with timeout and progress monitoring
+          echo "📦 Starting NameCardProd-staging deployment with 45-minute timeout..."
           
-          echo "✅ Infrastructure deployment completed"
+          # Start CDK deploy in background with timeout
+          timeout 2700 npx cdk deploy NameCardProd-staging --context environment=staging --require-approval never --outputs-file outputs.json &
+          CDK_PID=$!
+          
+          # Start progress monitoring in background
+          monitor_stack_progress "NameCardProd-staging" 15 &
+          MONITOR_PID=$!
+          
+          # Wait for either CDK deploy to complete or monitoring to detect stuck deployment
+          if wait $CDK_PID; then
+            kill $MONITOR_PID 2>/dev/null || true
+            echo "✅ NameCardProd-staging deployed successfully"
+          else
+            CDK_EXIT_CODE=$?
+            kill $MONITOR_PID 2>/dev/null || true
+            
+            if [ $CDK_EXIT_CODE -eq 124 ]; then
+              echo "❌ NameCardProd-staging deployment timed out after 45 minutes!"
+              echo "🚨 Cancelling stuck deployment..."
+              aws cloudformation cancel-update-stack --stack-name NameCardProd-staging --region ${{ env.AWS_REGION }} || true
+              echo "⏳ Waiting for cancellation to complete..."
+              aws cloudformation wait stack-update-complete --stack-name NameCardProd-staging --region ${{ env.AWS_REGION }} || true
+            fi
+            
+            echo "🔍 Final stack status and recent events:"
+            aws cloudformation describe-stacks --stack-name NameCardProd-staging --region ${{ env.AWS_REGION }} \
+              --query 'Stacks[0].{Status:StackStatus,Reason:StackStatusReason}' --output table
+            aws cloudformation describe-stack-events --stack-name NameCardProd-staging --region ${{ env.AWS_REGION }} \
+              --query 'StackEvents[:10].[Timestamp,LogicalResourceId,ResourceStatus,ResourceStatusReason]' --output table
+            
+            exit 1
+          fi
+          
+          # Deploy frontend stack with timeout and progress monitoring  
+          echo "🌐 Starting NameCardFrontend-staging deployment with 30-minute timeout..."
+          
+          # Start CDK deploy in background with timeout
+          timeout 1800 npx cdk deploy NameCardFrontend-staging --context environment=staging --require-approval never &
+          CDK_FRONTEND_PID=$!
+          
+          # Start progress monitoring in background
+          monitor_stack_progress "NameCardFrontend-staging" 10 &
+          FRONTEND_MONITOR_PID=$!
+          
+          # Wait for either CDK deploy to complete or monitoring to detect stuck deployment
+          if wait $CDK_FRONTEND_PID; then
+            kill $FRONTEND_MONITOR_PID 2>/dev/null || true
+            echo "✅ NameCardFrontend-staging deployed successfully"
+          else
+            CDK_FRONTEND_EXIT_CODE=$?
+            kill $FRONTEND_MONITOR_PID 2>/dev/null || true
+            
+            if [ $CDK_FRONTEND_EXIT_CODE -eq 124 ]; then
+              echo "❌ NameCardFrontend-staging deployment timed out after 30 minutes!"
+              echo "🚨 Cancelling stuck deployment..."
+              aws cloudformation cancel-update-stack --stack-name NameCardFrontend-staging --region ${{ env.AWS_REGION }} || true
+              echo "⏳ Waiting for cancellation to complete..."
+              aws cloudformation wait stack-update-complete --stack-name NameCardFrontend-staging --region ${{ env.AWS_REGION }} || true
+            fi
+            
+            echo "🔍 Final frontend stack status and recent events:"
+            aws cloudformation describe-stacks --stack-name NameCardFrontend-staging --region ${{ env.AWS_REGION }} \
+              --query 'Stacks[0].{Status:StackStatus,Reason:StackStatusReason}' --output table
+            aws cloudformation describe-stack-events --stack-name NameCardFrontend-staging --region ${{ env.AWS_REGION }} \
+              --query 'StackEvents[:10].[Timestamp,LogicalResourceId,ResourceStatus,ResourceStatusReason]' --output table
+            
+            exit 1
+          fi
+          
+          echo "✅ Infrastructure deployment completed successfully"
           
           # Wait a moment for infrastructure changes to propagate
           sleep 30
