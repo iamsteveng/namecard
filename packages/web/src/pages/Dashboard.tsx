@@ -165,10 +165,12 @@ export default function Dashboard() {
                     <Icon className="h-8 w-8 text-blue-600" />
                   </div>
                 </div>
-                <div className="mt-4">
-                  <span className="text-sm font-medium text-green-600">{stat.change}</span>
-                  <span className="text-sm text-gray-500 ml-1">from last month</span>
-                </div>
+                {stat.change !== '+0%' && (
+                  <div className="mt-4">
+                    <span className="text-sm font-medium text-green-600">{stat.change}</span>
+                    <span className="text-sm text-gray-500 ml-1">from last month</span>
+                  </div>
+                )}
               </div>
             );
           })
