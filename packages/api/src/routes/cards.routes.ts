@@ -1,6 +1,12 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
 
+import type {
+  BusinessCardEnrichmentData,
+  CompanyEnrichmentData,
+  PersonEnrichmentData,
+} from '@namecard/shared/types/enrichment.types';
+
 import prisma from '../lib/prisma.js';
 import { authenticateToken } from '../middleware/auth.middleware.js';
 import { asyncHandler, AppError } from '../middleware/error.middleware.js';
@@ -13,7 +19,6 @@ import {
 } from '../middleware/validation.middleware.js';
 import { CardProcessingService } from '../services/card-processing.service.js';
 import logger from '../utils/logger.js';
-// import { PersonEnrichmentData } from '@namecard/shared/types/enrichment.types'; // Temporarily disabled
 
 const router = Router();
 
@@ -443,12 +448,25 @@ router.get(
         },
         companies: {
           include: {
-            company: true,
+            company: {
+              include: {
+                enrichments: {
+                  where: {
+                    status: 'enriched',
+                  },
+                  orderBy: { enrichedAt: 'desc' },
+                },
+                newsArticles: {
+                  orderBy: { publishedDate: 'desc' },
+                  take: 5,
+                },
+              },
+            },
           },
         },
-        // enrichments: { // Temporarily disabled
-        //   orderBy: { createdAt: 'desc' },
-        // },
+        enrichments: {
+          orderBy: { createdAt: 'desc' },
+        },
         calendarEvents: {
           orderBy: { eventDate: 'desc' },
           take: 5,
@@ -467,33 +485,167 @@ router.get(
       });
     }
 
-    // TODO: Re-enable enrichment data when enrichment system is fixed
-    // Build basic company data from available sources
-    let enrichmentData = null;
+    // Build comprehensive enrichment data from database
+    let enrichmentData: BusinessCardEnrichmentData | null = null;
 
     if (card.companies && card.companies.length > 0) {
       const primaryCompany = card.companies[0];
       const company = primaryCompany.company;
 
       if (company) {
-        // Create basic enrichment data from company information
+        // Get the most recent enrichment data from multiple sources
+        const latestEnrichments = company.enrichments.filter(e => e.rawData);
+
+        // Build company enrichment data
+        const companyData: CompanyEnrichmentData = {
+          name: company.name,
+          domain: company.domain,
+          website: company.website,
+          description: company.description,
+          industry: company.industry,
+          headquarters: company.headquarters,
+          location: company.location,
+          size: company.size,
+          employeeCount: company.employeeCount,
+          founded: company.founded,
+          annualRevenue: company.annualRevenue,
+          funding: company.funding,
+          technologies: company.technologies,
+          keywords: company.keywords,
+          linkedinUrl: company.linkedinUrl,
+          twitterHandle: company.twitterHandle,
+          facebookUrl: company.facebookUrl,
+          logoUrl: company.logoUrl,
+          confidence: company.overallEnrichmentScore ? company.overallEnrichmentScore / 100 : 0.8,
+          lastUpdated: company.lastEnrichmentDate || company.lastUpdated,
+        };
+
+        // Add enhanced data from enrichment sources
+        const citations: BusinessCardEnrichmentData['citations'] = [];
+        const recentNews: CompanyEnrichmentData['recentNews'] = [];
+        const keyPeople: CompanyEnrichmentData['keyPeople'] = [];
+        const competitors: string[] = [];
+        const recentDevelopments: string[] = [];
+        let businessModel: string | undefined;
+        let marketPosition: string | undefined;
+
+        // Process enrichment data from sources like Perplexity
+        for (const enrichment of latestEnrichments) {
+          if (enrichment.rawData && typeof enrichment.rawData === 'object') {
+            const data = enrichment.rawData as any;
+
+            // Extract enhanced data based on source type
+            if (enrichment.source === 'perplexity' && data.company) {
+              if (data.company.businessModel) {
+                businessModel = data.company.businessModel;
+              }
+              if (data.company.marketPosition) {
+                marketPosition = data.company.marketPosition;
+              }
+            }
+
+            // Extract citations if available
+            if (data.citations && Array.isArray(data.citations)) {
+              citations?.push(
+                ...data.citations.map((c: any) => ({
+                  url: c.url || '',
+                  title: c.title || '',
+                  source: c.source || 'Unknown',
+                  accessDate: new Date().toISOString(),
+                  relevance: c.relevance || 0.8,
+                  category: (c.category as 'person' | 'company' | 'both') || 'company',
+                }))
+              );
+            }
+
+            // Extract recent news
+            if (data.recentNews && Array.isArray(data.recentNews)) {
+              recentNews?.push(...data.recentNews);
+            }
+
+            // Extract key people
+            if (data.keyPeople && Array.isArray(data.keyPeople)) {
+              keyPeople?.push(...data.keyPeople);
+            }
+
+            // Extract competitors
+            if (data.competitors && Array.isArray(data.competitors)) {
+              competitors.push(...data.competitors);
+            }
+
+            // Extract recent developments
+            if (data.recentDevelopments && Array.isArray(data.recentDevelopments)) {
+              recentDevelopments.push(...data.recentDevelopments);
+            }
+          }
+        }
+
+        // Add news articles from database
+        if (company.newsArticles && company.newsArticles.length > 0) {
+          const dbNews = company.newsArticles.map(article => ({
+            title: article.title,
+            summary: article.summary || '',
+            url: article.url || '',
+            publishDate: article.publishedDate?.toISOString(),
+            source: article.source || 'Database',
+          }));
+          recentNews.unshift(...dbNews);
+        }
+
+        // Add enhanced fields to company data
+        if (businessModel) {
+          companyData.businessModel = businessModel;
+        }
+        if (marketPosition) {
+          companyData.marketPosition = marketPosition;
+        }
+        if (recentNews.length > 0) {
+          companyData.recentNews = recentNews.slice(0, 10);
+        }
+        if (keyPeople.length > 0) {
+          companyData.keyPeople = keyPeople.slice(0, 8);
+        }
+        if (competitors.length > 0) {
+          companyData.competitors = [...new Set(competitors)].slice(0, 10);
+        }
+        if (recentDevelopments.length > 0) {
+          companyData.recentDevelopments = [...new Set(recentDevelopments)].slice(0, 8);
+        }
+        if (citations.length > 0) {
+          companyData.citations = citations.slice(0, 15);
+        }
+
+        // For now, personData will be null as we focus on company enrichment
+        // Future enhancement: Extract person data from enrichment sources
+        const personData: PersonEnrichmentData | null = null;
+
+        // Build comprehensive enrichment data structure
         enrichmentData = {
-          companyData: {
-            name: company.name,
-            website: company.website,
-            description: company.description,
-            industry: company.industry,
-            headquarters: company.headquarters,
-            size: company.size,
-            logoUrl: company.logoUrl,
-            confidence: 0.8, // Default confidence
-            lastUpdated: new Date(),
-          },
-          personData: null as any,
-          overallConfidence: 0.8,
-          lastUpdated: new Date(),
+          personData,
+          companyData,
+          citations: citations?.slice(0, 15),
+          researchQuery:
+            latestEnrichments.length > 0 ? `${card.name || ''} ${company.name}`.trim() : undefined,
+          researchDate: company.lastEnrichmentDate || undefined,
+          personConfidence: 0,
+          companyConfidence: companyData.confidence || 0,
+          overallConfidence: companyData.confidence || 0,
+          lastUpdated: company.lastEnrichmentDate || company.lastUpdated,
         };
       }
+    }
+
+    // If no company data available, create empty enrichment structure
+    if (!enrichmentData) {
+      enrichmentData = {
+        personData: null,
+        companyData: null,
+        citations: [],
+        personConfidence: 0,
+        companyConfidence: 0,
+        overallConfidence: 0,
+        lastUpdated: new Date(),
+      };
     }
 
     // Add enrichment data to card response
