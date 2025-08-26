@@ -8,8 +8,8 @@ import type {
   // RefreshTokenRequest, // Currently unused
   RefreshTokenResponse,
   GetUserProfileResponse,
-  // UpdateUserProfileRequest, // Currently unused
-  // UpdateUserProfileResponse, // Currently unused
+  UpdateUserProfileRequest,
+  UpdateUserProfileResponse
 } from '@namecard/shared';
 import { Router, Request, Response } from 'express';
 
@@ -362,6 +362,79 @@ router.get(
       }
 
       throw new AppError('Failed to get user profile', 500);
+    }
+  })
+);
+
+// PUT /api/v1/auth/profile
+router.put(
+  '/profile',
+  authenticateToken,
+  asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) {
+      throw new AppError('User not authenticated', 401);
+    }
+
+    const { name, avatarUrl, preferences } = req.body;
+
+    try {
+      // Validate input
+      if (name !== undefined && (typeof name !== 'string' || name.trim().length < 1)) {
+        throw new AppError('Name must be a non-empty string', 400);
+      }
+
+      if (avatarUrl !== undefined && avatarUrl !== null && typeof avatarUrl !== 'string') {
+        throw new AppError('Avatar URL must be a string', 400);
+      }
+
+      // Update user in database
+      const updateData: any = {};
+      if (name !== undefined) updateData.name = name.trim();
+      if (avatarUrl !== undefined) updateData.avatarUrl = avatarUrl;
+      if (preferences !== undefined) updateData.preferences = preferences;
+
+      const updatedUser = await prisma.user.update({
+        where: { id: req.user.id },
+        data: updateData,
+        include: {
+          _count: {
+            select: {
+              cards: true,
+            },
+          },
+        },
+      });
+
+      logger.info('Profile updated successfully', {
+        userId: updatedUser.id,
+        updatedFields: Object.keys(updateData),
+      });
+
+      const response = {
+        success: true,
+        data: {
+          id: updatedUser.id,
+          email: updatedUser.email,
+          name: updatedUser.name || undefined,
+          avatarUrl: updatedUser.avatarUrl || undefined,
+          preferences: updatedUser.preferences as any,
+          cardCount: updatedUser._count.cards,
+          lastActivity: updatedUser.updatedAt,
+          createdAt: updatedUser.createdAt,
+          updatedAt: updatedUser.updatedAt,
+        },
+        message: 'Profile updated successfully',
+      };
+
+      res.json(response);
+    } catch (error: any) {
+      logger.error('Profile update failed', { userId: req.user.id, error: error.message });
+
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw new AppError('Failed to update user profile', 500);
     }
   })
 );
