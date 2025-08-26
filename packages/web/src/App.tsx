@@ -8,6 +8,7 @@ import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
 import CardDetailsPage from './pages/CardDetailsPage';
+import CardEditPage from './pages/CardEditPage';
 import Cards from './pages/Cards';
 import Dashboard from './pages/Dashboard';
 import NotFound from './pages/NotFound';
@@ -72,6 +73,16 @@ export default function App() {
                 <ProtectedRoute>
                   <Layout>
                     <CardDetailsPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/cards/:cardId/edit"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <CardEditPage />
                   </Layout>
                 </ProtectedRoute>
               }

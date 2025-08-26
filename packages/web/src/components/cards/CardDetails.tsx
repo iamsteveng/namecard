@@ -19,8 +19,6 @@ import {
   Loader2,
   // AlertCircle, // unused
   Edit3,
-  Share,
-  Download,
   Trash2,
   Tag,
   Clock,
@@ -53,8 +51,6 @@ export interface CardDetailsProps {
   card: Card;
   onEdit?: () => void;
   onDelete?: () => void;
-  onShare?: () => void;
-  onExport?: () => void;
   onEnrich?: () => void;
   isEnriching?: boolean;
   className?: string;
@@ -66,8 +62,6 @@ export default function CardDetails({
   card,
   onEdit,
   onDelete,
-  onShare,
-  onExport,
   onEnrich,
   isEnriching,
   className,
@@ -149,24 +143,6 @@ export default function CardDetails({
             >
               <Edit3 className="h-4 w-4" />
               Edit
-            </button>
-          )}
-          {onShare && (
-            <button
-              onClick={onShare}
-              className="inline-flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              <Share className="h-4 w-4" />
-              Share
-            </button>
-          )}
-          {onExport && (
-            <button
-              onClick={onExport}
-              className="inline-flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              <Download className="h-4 w-4" />
-              Export
             </button>
           )}
           {onDelete && (
