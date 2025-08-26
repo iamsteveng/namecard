@@ -28,7 +28,7 @@ export const cardSchema = baseEntitySchema.extend({
   company: createStringSchema(1, 200).optional(),
   email: emailSchema.optional(),
   phone: phoneSchema.optional(),
-  address: createStringSchema(1, 500).optional(),
+  address: createStringSchema(0, 500).optional(),
   website: urlSchema.optional(),
 
   // Metadata
@@ -51,7 +51,7 @@ export const createCardSchema = z.object({
   company: createStringSchema(1, 200).optional(),
   email: emailSchema.optional(),
   phone: phoneSchema.optional(),
-  address: createStringSchema(1, 500).optional(),
+  address: createStringSchema(0, 500).optional(),
   website: urlSchema.optional(),
 
   // Metadata
@@ -68,7 +68,7 @@ export const updateCardSchema = z
     company: createStringSchema(1, 200).optional(),
     email: emailSchema.optional(),
     phone: phoneSchema.optional(),
-    address: createStringSchema(1, 500).optional(),
+    address: createStringSchema(0, 500).optional(),
     website: urlSchema.optional(),
     notes: createStringSchema(0, 2000).optional(),
     tags: createArraySchema(createStringSchema(1, 50), 0, 20).optional(),
