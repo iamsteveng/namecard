@@ -1,11 +1,10 @@
-import { Router, Request, Response } from 'express';
-import multer from 'multer';
-
 import type {
   BusinessCardEnrichmentData,
   CompanyEnrichmentData,
   PersonEnrichmentData,
 } from '@namecard/shared/types/enrichment.types';
+import { Router, Request, Response } from 'express';
+import multer from 'multer';
 
 import prisma from '../lib/prisma.js';
 import { authenticateToken } from '../middleware/auth.middleware.js';

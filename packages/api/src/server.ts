@@ -1,17 +1,36 @@
 import app from './app.js';
 import { env } from './config/env.js';
+import { searchService } from './services/search.service.js';
 import logger from './utils/logger.js';
 
 const PORT = env.port;
 
+// Initialize services
+async function initializeServices() {
+  try {
+    if (!env.isTest) {
+      logger.info('Initializing search service...');
+      await searchService.initialize();
+      logger.info('Search service initialized successfully');
+    }
+  } catch (error) {
+    logger.warn('Search service initialization failed:', error);
+    // Don't fail server startup if search service fails
+    // The service can be used in degraded mode
+  }
+}
+
 // Start the server
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, async () => {
   logger.info(`🚀 Server started successfully`, {
     port: PORT,
     environment: env.node,
     apiVersion: env.apiVersion,
     nodeVersion: process.version,
   });
+
+  // Initialize services after server starts
+  await initializeServices();
 });
 
 // Graceful shutdown
