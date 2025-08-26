@@ -30,14 +30,17 @@ export const idSchema = z.string().regex(VALIDATION_PATTERNS.ID, 'Invalid ID for
 
 export const urlSchema = z
   .string()
-  .url('Invalid URL format')
-  .max(2048, 'URL must not exceed 2048 characters');
+  .max(2048, 'URL must not exceed 2048 characters')
+  .refine(val => val === '' || z.string().url().safeParse(val).success, {
+    message: 'Invalid URL format'
+  });
 
 export const phoneSchema = z
   .string()
-  .regex(VALIDATION_PATTERNS.PHONE, 'Invalid phone number format')
-  .min(10, 'Phone number must be at least 10 characters')
-  .max(15, 'Phone number must not exceed 15 characters');
+  .max(15, 'Phone number must not exceed 15 characters')
+  .refine(val => val === '' || VALIDATION_PATTERNS.PHONE.test(val), {
+    message: 'Invalid phone number format'
+  });
 
 // Pagination schemas
 export const paginationParamsSchema = z.object({

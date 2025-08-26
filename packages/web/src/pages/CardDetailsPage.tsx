@@ -160,30 +160,6 @@ export default function CardDetailsPage() {
     }
   };
 
-  const handleShare = () => {
-    // Implement sharing functionality
-    const shareData = {
-      title: card?.name ? `Business Card: ${card.name}` : 'Business Card',
-      text: `${card?.name || 'Contact'} - ${card?.title || ''} at ${card?.company || ''}`.trim(),
-      url: window.location.href,
-    };
-
-    if (navigator.share && navigator.canShare(shareData)) {
-      navigator.share(shareData);
-    } else {
-      // Fallback to clipboard
-      navigator.clipboard.writeText(window.location.href);
-      // Show success message
-      alert('Link copied to clipboard!');
-    }
-  };
-
-  const handleExport = () => {
-    // Implement export functionality (vCard, PDF, etc.)
-    console.log('Exporting card:', card?.id);
-    alert('Export functionality coming soon!');
-  };
-
   // Loading state
   if (isLoading) {
     return (
@@ -255,8 +231,6 @@ export default function CardDetailsPage() {
           card={card}
           onEdit={handleEdit}
           onDelete={handleDelete}
-          onShare={handleShare}
-          onExport={handleExport}
           onEnrich={handleEnrich}
           isEnriching={isEnriching}
         />
