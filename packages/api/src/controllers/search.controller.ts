@@ -21,6 +21,17 @@ export class SearchController {
         index = 'cards',
       } = req.query;
 
+      logger.debug('Search request received', {
+        userId: req.user?.id,
+        query: q,
+        index,
+        limit,
+        offset,
+        fields,
+        sort,
+        filters,
+      });
+
       // Validate search parameters
       if (!q && !filters) {
         throw new AppError('Search query or filters are required', 400);

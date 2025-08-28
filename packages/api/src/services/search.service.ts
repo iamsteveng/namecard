@@ -44,16 +44,16 @@ export class SearchService implements ISearchService {
       schema: {
         title: { type: 'TEXT', weight: 3 },
         content: { type: 'TEXT', weight: 2 },
-        'metadata.companyName': { type: 'TEXT', weight: 2 },
-        'metadata.personName': { type: 'TEXT', weight: 2 },
-        'metadata.email': { type: 'TEXT', sortable: true },
-        'metadata.phone': { type: 'TEXT' },
-        'metadata.website': { type: 'TEXT' },
-        'metadata.jobTitle': { type: 'TEXT' },
-        'metadata.address': { type: 'TEXT' },
-        'metadata.tags': { type: 'TAG' },
-        'metadata.userId': { type: 'TAG', sortable: true },
-        'metadata.enriched': { type: 'TAG' },
+        metadata_companyName: { type: 'TEXT', weight: 2 },
+        metadata_personName: { type: 'TEXT', weight: 2 },
+        metadata_email: { type: 'TEXT', sortable: true },
+        metadata_phone: { type: 'TEXT' },
+        metadata_website: { type: 'TEXT' },
+        metadata_jobTitle: { type: 'TEXT' },
+        metadata_address: { type: 'TEXT' },
+        metadata_tags: { type: 'TAG' },
+        metadata_userId: { type: 'TAG', sortable: true },
+        metadata_enriched: { type: 'TAG' },
         createdAt: { type: 'NUMERIC', sortable: true },
         updatedAt: { type: 'NUMERIC', sortable: true },
       },
@@ -64,13 +64,13 @@ export class SearchService implements ISearchService {
       schema: {
         title: { type: 'TEXT', weight: 3 },
         content: { type: 'TEXT', weight: 2 },
-        'metadata.domain': { type: 'TEXT', sortable: true },
-        'metadata.industry': { type: 'TEXT' },
-        'metadata.size': { type: 'TAG' },
-        'metadata.description': { type: 'TEXT' },
-        'metadata.location': { type: 'TEXT' },
-        'metadata.founded': { type: 'NUMERIC', sortable: true },
-        'metadata.tags': { type: 'TAG' },
+        metadata_domain: { type: 'TEXT', sortable: true },
+        metadata_industry: { type: 'TEXT' },
+        metadata_size: { type: 'TAG' },
+        metadata_description: { type: 'TEXT' },
+        metadata_location: { type: 'TEXT' },
+        metadata_founded: { type: 'NUMERIC', sortable: true },
+        metadata_tags: { type: 'TAG' },
         createdAt: { type: 'NUMERIC', sortable: true },
         updatedAt: { type: 'NUMERIC', sortable: true },
       },
@@ -101,21 +101,22 @@ export class SearchService implements ISearchService {
     }
 
     try {
-      const schema = Object.entries(config.schema).flatMap(([field, options]) => {
-        const fieldDef: any[] = [field, options.type];
+      // Build schema in Redis Search format: flat array
+      const schema: string[] = [];
+
+      for (const [field, options] of Object.entries(config.schema)) {
+        schema.push(field, options.type);
 
         if (options.weight) {
-          fieldDef.push('WEIGHT', options.weight.toString());
+          schema.push('WEIGHT', options.weight.toString());
         }
         if (options.sortable) {
-          fieldDef.push('SORTABLE');
+          schema.push('SORTABLE');
         }
         if (options.noindex) {
-          fieldDef.push('NOINDEX');
+          schema.push('NOINDEX');
         }
-
-        return fieldDef;
-      });
+      }
 
       await this.client.ft.create(config.indexName, schema, {
         ON: 'HASH',
@@ -164,9 +165,9 @@ export class SearchService implements ISearchService {
       // Flatten metadata for Redis
       Object.entries(document.metadata).forEach(([key, value]) => {
         if (Array.isArray(value)) {
-          redisDoc[`metadata.${key}`] = value.join(',');
+          redisDoc[`metadata_${key}`] = value.join(',');
         } else if (value !== null && value !== undefined) {
-          redisDoc[`metadata.${key}`] = String(value);
+          redisDoc[`metadata_${key}`] = String(value);
         }
       });
 
@@ -199,6 +200,26 @@ export class SearchService implements ISearchService {
     }
   }
 
+  private enhanceSearchQuery(rawQuery: string): string {
+    if (!rawQuery || rawQuery === '*' || rawQuery.trim() === '') {
+      return rawQuery;
+    }
+
+    // Split into words and enhance each term for partial matching
+    const terms = rawQuery.trim().split(/\s+/).filter(Boolean);
+    const enhancedTerms = terms.map(term => {
+      // Skip if already has wildcards, field restrictions, or special Redis Search syntax
+      if (term.includes('*') || term.includes('@') || term.includes(':') || term.includes('(') || term.includes(')')) {
+        return term;
+      }
+      
+      // Add prefix wildcard for partial matching
+      return `${term}*`;
+    });
+
+    return enhancedTerms.join(' ');
+  }
+
   async search<T = any>(query: SearchQuery, indexName: string): Promise<SearchResponse<T>> {
     if (!this.client) {
       throw new Error('Redis client not initialized');
@@ -207,31 +228,35 @@ export class SearchService implements ISearchService {
     const startTime = Date.now();
 
     try {
-      // Build search query
-      let searchQuery = query.q || '*';
+      // Build search query with automatic partial matching enhancement
+      let searchQuery = this.enhanceSearchQuery(query.q || '*');
 
       // Apply filters
       if (query.filters && query.filters.length > 0) {
         const filterQueries = query.filters.map((filter: any) => {
+          // Escape field names with dots by replacing dots with underscores in the query
+          // but keep the original field name for the schema
+          const fieldName = filter.field.replace(/\./g, '_');
+
           switch (filter.operator || 'EQ') {
             case 'EQ':
-              return `@${filter.field}:{${filter.value}}`;
+              return `@${fieldName}:{${filter.value}}`;
             case 'NE':
-              return `-@${filter.field}:{${filter.value}}`;
+              return `-@${fieldName}:{${filter.value}}`;
             case 'GT':
-              return `@${filter.field}:[(${filter.value} +inf]`;
+              return `@${fieldName}:[(${filter.value} +inf]`;
             case 'GTE':
-              return `@${filter.field}:[${filter.value} +inf]`;
+              return `@${fieldName}:[${filter.value} +inf]`;
             case 'LT':
-              return `@${filter.field}:[-inf (${filter.value}]`;
+              return `@${fieldName}:[-inf (${filter.value}]`;
             case 'LTE':
-              return `@${filter.field}:[-inf ${filter.value}]`;
+              return `@${fieldName}:[-inf ${filter.value}]`;
             case 'IN': {
               const values = Array.isArray(filter.value) ? filter.value : [filter.value];
-              return `@${filter.field}:{${values.join('|')}}`;
+              return `@${fieldName}:{${values.join('|')}}`;
             }
             default:
-              return `@${filter.field}:{${filter.value}}`;
+              return `@${fieldName}:{${filter.value}}`;
           }
         });
 
@@ -241,7 +266,10 @@ export class SearchService implements ISearchService {
       // Search fields restriction
       if (query.fields && query.fields.length > 0) {
         const fieldRestrictions = query.fields
-          .map((field: string) => `@${field}:(${query.q})`)
+          .map((field: string) => {
+            const fieldName = field.replace(/\./g, '_');
+            return `@${fieldName}:(${query.q})`;
+          })
           .join(' | ');
         searchQuery = `(${fieldRestrictions})`;
       }
@@ -257,7 +285,14 @@ export class SearchService implements ISearchService {
       // Sorting
       if (query.sort && query.sort.length > 0) {
         const sort = query.sort[0]; // Redis Search supports one sort field
-        options.SORTBY = sort.direction === 'DESC' ? `${sort.field} DESC` : sort.field;
+        if (sort.direction === 'DESC') {
+          options.SORTBY = { BY: sort.field, DIRECTION: 'DESC' };
+        } else {
+          options.SORTBY = { BY: sort.field };
+        }
+      } else {
+        // Default sort by creation date (newest first)
+        options.SORTBY = { BY: 'createdAt', DIRECTION: 'DESC' };
       }
 
       // Highlighting
@@ -272,14 +307,28 @@ export class SearchService implements ISearchService {
       }
 
       // Execute search
+      logger.debug('Executing Redis search', {
+        indexName,
+        searchQuery,
+        options,
+        originalQuery: query,
+      });
+
       const result: RedisSearchResult = await this.client.ft.search(
         indexName,
         searchQuery,
         options
       );
 
+      logger.debug('Redis search raw results', {
+        indexName,
+        totalResults: result.total,
+        documentCount: result.documents?.length || 0,
+        rawDocuments: result.documents,
+      });
+
       // Transform results
-      const results: SearchResult<T>[] = result.documents.map((doc) => {
+      const results: SearchResult<T>[] = result.documents.map(doc => {
         const document: any = {};
         const highlights: Record<string, string[]> = {};
 
@@ -288,8 +337,8 @@ export class SearchService implements ISearchService {
             // Highlighting results
             const fieldName = key.replace(/^__/, '').replace(/__$/, '');
             highlights[fieldName] = [value];
-          } else if (key.startsWith('metadata.')) {
-            const metaKey = key.replace('metadata.', '');
+          } else if (key.startsWith('metadata_')) {
+            const metaKey = key.replace('metadata_', '');
             if (!document.metadata) {
               document.metadata = {};
             }
@@ -317,12 +366,23 @@ export class SearchService implements ISearchService {
 
       const took = Date.now() - startTime;
 
-      return {
+      const response = {
         results,
         total: result.total,
         query: query.q || '',
         took,
       };
+
+      logger.debug('Search completed', {
+        indexName,
+        query: query.q || '',
+        totalResults: result.total,
+        returnedResults: results.length,
+        took,
+        userId: query.filters?.find(f => f.field === 'metadata.userId')?.value,
+      });
+
+      return response;
     } catch (error) {
       logger.error(`Search failed for query "${query.q}" in ${indexName}:`, error);
       throw error;

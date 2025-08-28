@@ -1,5 +1,6 @@
 import app from './app.js';
 import { env } from './config/env.js';
+import { indexingService } from './services/indexing.service.js';
 import { searchService } from './services/search.service.js';
 import logger from './utils/logger.js';
 
@@ -12,6 +13,11 @@ async function initializeServices() {
       logger.info('Initializing search service...');
       await searchService.initialize();
       logger.info('Search service initialized successfully');
+
+      // Populate indexes with existing data
+      logger.info('Populating search indexes with existing data...');
+      await indexingService.reindexAll();
+      logger.info('Search indexes populated successfully');
     }
   } catch (error) {
     logger.warn('Search service initialization failed:', error);

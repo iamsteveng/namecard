@@ -19,7 +19,8 @@
     "db:migrate": "prisma migrate dev",
     "db:migrate:prod": "prisma migrate deploy",
     "db:studio": "prisma studio",
-    "db:seed": "tsx src/scripts/seed.ts"
+    "db:seed": "tsx src/scripts/seed.ts",
+    "test:search": "tsx src/scripts/test-search.ts"
   },
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.490.0",

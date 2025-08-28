@@ -8,8 +8,6 @@ import type {
   // RefreshTokenRequest, // Currently unused
   RefreshTokenResponse,
   GetUserProfileResponse,
-  UpdateUserProfileRequest,
-  UpdateUserProfileResponse,
 } from '@namecard/shared';
 import { Router, Request, Response } from 'express';
 

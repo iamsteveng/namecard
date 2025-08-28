@@ -12,7 +12,7 @@ import {
   AlertCircle,
   Plus,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { EnrichmentStatusBadge } from '../components/enrichment/EnrichmentStatusIndicator';
@@ -21,6 +21,7 @@ import { useAuthStore } from '../store/auth.store';
 
 export default function Cards() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [selectedCards, setSelectedCards] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [currentPage, setCurrentPage] = useState(1);
@@ -29,6 +30,20 @@ export default function Cards() {
   const { session } = useAuthStore();
   const accessToken = session?.accessToken;
 
+  // Debounce search input to reduce API calls
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 500); // 500ms debounce delay
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Reset to first page when search term changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearchTerm]);
+
   // Fetch cards with React Query
   const {
     data: cardsResponse,
@@ -36,7 +51,7 @@ export default function Cards() {
     error,
     refetch,
   } = useQuery({
-    queryKey: ['cards', currentPage, searchTerm],
+    queryKey: ['cards', currentPage, debouncedSearchTerm],
     queryFn: () => {
       if (!accessToken) {
         throw new Error('Not authenticated');
@@ -49,8 +64,8 @@ export default function Cards() {
         sortBy: 'createdAt',
       };
 
-      if (searchTerm.trim()) {
-        return cardsService.searchCards(searchTerm.trim(), accessToken, {
+      if (debouncedSearchTerm.trim()) {
+        return cardsService.searchCards(debouncedSearchTerm.trim(), accessToken, {
           ...params,
           page: currentPage,
           limit: 20,
@@ -80,10 +95,9 @@ export default function Cards() {
     setSelectedCards([]);
   };
 
-  // Handle search with debouncing effect
+  // Handle search input change (debouncing handled by useEffect)
   const handleSearchChange = (value: string) => {
     setSearchTerm(value);
-    setCurrentPage(1); // Reset to first page when searching
   };
 
   // Handle card click navigation
@@ -420,11 +434,11 @@ export default function Cards() {
           <Search className="mx-auto h-12 w-12 text-gray-400" />
           <h3 className="mt-2 text-sm font-medium text-gray-900">No cards found</h3>
           <p className="mt-1 text-sm text-gray-500">
-            {searchTerm
-              ? `No cards match "${searchTerm}"`
+            {debouncedSearchTerm
+              ? `No cards match "${debouncedSearchTerm}"`
               : 'Start by scanning your first business card'}
           </p>
-          {!searchTerm && (
+          {!debouncedSearchTerm && (
             <Link
               to="/scan"
               className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"

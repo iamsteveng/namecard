@@ -17,6 +17,7 @@ import {
   validateCardUpdate,
 } from '../middleware/validation.middleware.js';
 import { CardProcessingService } from '../services/card-processing.service.js';
+import { indexingService } from '../services/indexing.service.js';
 import logger from '../utils/logger.js';
 
 const router = Router();
@@ -376,6 +377,20 @@ router.post(
         });
       }
 
+      // Index the newly created card for search
+      if (result.data?.cardId) {
+        try {
+          await indexingService.indexCard(result.data.cardId);
+          logger.debug('Card indexed successfully after creation', { cardId: result.data.cardId });
+        } catch (error) {
+          logger.warn('Failed to index card after creation', {
+            cardId: result.data.cardId,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+          // Don't fail the response if indexing fails
+        }
+      }
+
       res.status(201).json({
         success: true,
         data: result.data,
@@ -707,6 +722,18 @@ router.put(
       },
     });
 
+    // Update the card index
+    try {
+      await indexingService.indexCard(id);
+      logger.debug('Card re-indexed successfully after update', { cardId: id });
+    } catch (error) {
+      logger.warn('Failed to re-index card after update', {
+        cardId: id,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      // Don't fail the response if indexing fails
+    }
+
     res.json({
       success: true,
       data: { card: updatedCard },
@@ -743,6 +770,18 @@ router.delete(
     await prisma.card.delete({
       where: { id },
     });
+
+    // Remove the card from search index
+    try {
+      await indexingService.removeCard(id);
+      logger.debug('Card removed from index successfully after deletion', { cardId: id });
+    } catch (error) {
+      logger.warn('Failed to remove card from index after deletion', {
+        cardId: id,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      // Don't fail the response if index removal fails
+    }
 
     res.json({
       success: true,
