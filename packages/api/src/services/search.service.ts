@@ -209,10 +209,16 @@ export class SearchService implements ISearchService {
     const terms = rawQuery.trim().split(/\s+/).filter(Boolean);
     const enhancedTerms = terms.map(term => {
       // Skip if already has wildcards, field restrictions, or special Redis Search syntax
-      if (term.includes('*') || term.includes('@') || term.includes(':') || term.includes('(') || term.includes(')')) {
+      if (
+        term.includes('*') ||
+        term.includes('@') ||
+        term.includes(':') ||
+        term.includes('(') ||
+        term.includes(')')
+      ) {
         return term;
       }
-      
+
       // Add prefix wildcard for partial matching
       return `${term}*`;
     });

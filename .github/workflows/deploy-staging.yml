@@ -2,7 +2,7 @@ name: Deploy to AWS Staging
 
 on:
   push:
-    branches: [cicd-pipeline-setup, main, fix-cloudfront-spa-routing, fix-cloudfront-spa-routing-v2]
+    branches: [cicd-pipeline-setup, main, fix-cloudfront-spa-routing, fix-cloudfront-spa-routing-v2, feature/redis-search-phase-1]
   workflow_dispatch:
     inputs:
       run_migrations:
@@ -51,7 +51,7 @@ jobs:
     name: Build and Deploy
     runs-on: ubuntu-latest
     needs: test
-    if: github.ref == 'refs/heads/cicd-pipeline-setup' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/fix-github-actions-load-balancer-url' || github.ref == 'refs/heads/fix-cloudfront-spa-routing' || github.ref == 'refs/heads/fix-cloudfront-spa-routing-v2' || github.ref == 'refs/heads/fix/github-actions-stuck-deployment-detection'
+    if: github.ref == 'refs/heads/cicd-pipeline-setup' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/fix-github-actions-load-balancer-url' || github.ref == 'refs/heads/fix-cloudfront-spa-routing' || github.ref == 'refs/heads/fix-cloudfront-spa-routing-v2' || github.ref == 'refs/heads/fix/github-actions-stuck-deployment-detection' || github.ref == 'refs/heads/feature/redis-search-phase-1'
     
     steps:
       - name: Checkout code
