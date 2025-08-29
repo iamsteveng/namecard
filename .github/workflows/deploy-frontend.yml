@@ -2,7 +2,7 @@ name: Deploy Frontend
 
 on:
   push:
-    branches: [cicd-pipeline-setup, main]
+    branches: [cicd-pipeline-setup, main, feature/redis-search-phase-1]
     paths:
       - 'packages/web/**'
       - '.github/workflows/deploy-frontend.yml'
@@ -25,7 +25,7 @@ on:
 
 env:
   AWS_REGION: ap-southeast-1
-  NODE_VERSION: 18
+  NODE_VERSION: 24
 
 jobs:
   detect-changes:
