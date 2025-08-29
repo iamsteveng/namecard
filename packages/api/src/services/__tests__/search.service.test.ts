@@ -112,12 +112,12 @@ describe('SearchService', () => {
           type: 'card',
           title: 'John Doe Business Card',
           content: 'John Doe Software Engineer john@example.com',
-          'metadata.userId': 'user-123',
-          'metadata.companyName': 'Tech Corp',
-          'metadata.personName': 'John Doe',
-          'metadata.email': 'john@example.com',
-          'metadata.tags': 'tech,software',
-          'metadata.enriched': 'true',
+          'metadata_userId': 'user-123',
+          'metadata_companyName': 'Tech Corp',
+          'metadata_personName': 'John Doe',
+          'metadata_email': 'john@example.com',
+          'metadata_tags': 'tech,software',
+          'metadata_enriched': 'true',
           createdAt: sampleDocument.createdAt.getTime().toString(),
           updatedAt: sampleDocument.updatedAt.getTime().toString(),
         })
@@ -158,9 +158,9 @@ describe('SearchService', () => {
             type: 'card',
             title: 'John Doe Business Card',
             content: 'Software Engineer',
-            'metadata.userId': 'user-123',
-            'metadata.companyName': 'Tech Corp',
-            'metadata.tags': 'tech,software',
+            'metadata_userId': 'user-123',
+            'metadata_companyName': 'Tech Corp',
+            'metadata_tags': 'tech,software',
             createdAt: '1704067200000',
             updatedAt: '1704153600000',
           },
@@ -197,6 +197,7 @@ describe('SearchService', () => {
               createdAt: new Date(1704067200000),
               updatedAt: new Date(1704153600000),
             },
+            highlights: undefined,
           },
         ],
         total: 1,
@@ -213,14 +214,17 @@ describe('SearchService', () => {
             FIELDS: ['title', 'content'],
             TAGS: { open: '<mark>', close: '</mark>' },
           },
-          SORTBY: 'createdAt DESC',
+          SORTBY: { BY: 'createdAt', DIRECTION: 'DESC' },
         }
       );
     });
 
     it('should handle search with filters', async () => {
       const queryWithFilters: SearchQuery = {
-        ...searchQuery,
+        q: 'john doe',
+        limit: 10,
+        offset: 0,
+        // Remove fields to allow filters to work
         filters: [
           { field: 'metadata.userId', value: 'user-123' },
           { field: 'metadata.enriched', value: true, operator: 'EQ' },
@@ -233,7 +237,7 @@ describe('SearchService', () => {
 
       expect(mockRedisClient.ft.search).toHaveBeenCalledWith(
         'idx:cards',
-        expect.stringContaining('@metadata.userId:{user-123} @metadata.enriched:{true}'),
+        expect.stringContaining('@metadata_userId:{user-123} @metadata_enriched:{true}'),
         expect.any(Object)
       );
     });

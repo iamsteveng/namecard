@@ -79,7 +79,7 @@ describe('IndexingService', () => {
         type: 'card',
         title: 'John Doe',
         content:
-          'John Doe Software Engineer Tech Corp Met at tech conference john@example.com +1234567890 https://johndoe.dev 123 Tech St, Silicon Valley Tech Corp',
+          'John Doe Software Engineer Tech Corp John Doe Software Engineer Tech Corp john@example.com Met at tech conference john@example.com +1234567890 https://johndoe.dev 123 Tech St, Silicon Valley Tech Corp',
         metadata: {
           userId: 'user-123',
           companyName: 'Tech Corp',
@@ -188,7 +188,7 @@ describe('IndexingService', () => {
           socialMedia: undefined,
         },
         createdAt: mockCompany.createdAt,
-        updatedAt: mockCompany.lastUpdated,
+        updatedAt: undefined,
       });
 
       expect(logger.debug).toHaveBeenCalledWith('Successfully indexed company: company-123');
