@@ -508,7 +508,7 @@ router.get(
 
       if (company) {
         // Get the most recent enrichment data from multiple sources
-        const latestEnrichments = company.enrichments.filter(e => e.rawData);
+        const latestEnrichments = company.enrichments.filter((e: any) => e.rawData);
 
         // Build company enrichment data
         const companyData: CompanyEnrichmentData = {
@@ -596,7 +596,7 @@ router.get(
 
         // Add news articles from database
         if (company.newsArticles && company.newsArticles.length > 0) {
-          const dbNews = company.newsArticles.map(article => ({
+          const dbNews = company.newsArticles.map((article: any) => ({
             title: article.title,
             summary: article.summary || '',
             url: article.url || '',

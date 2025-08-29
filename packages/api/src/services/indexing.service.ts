@@ -51,7 +51,7 @@ export class IndexingService implements IIndexingService {
         },
       });
 
-      const searchDocuments = cards.map(card => this.transformCardToSearchDocument(card));
+      const searchDocuments = cards.map((card: any) => this.transformCardToSearchDocument(card));
 
       await searchService.indexDocuments(searchDocuments);
 
@@ -95,7 +95,7 @@ export class IndexingService implements IIndexingService {
         },
       });
 
-      const searchDocuments = companies.map(company =>
+      const searchDocuments = companies.map((company: any) =>
         this.transformCompanyToSearchDocument(company)
       );
 
@@ -151,8 +151,8 @@ export class IndexingService implements IIndexingService {
       ]);
 
       // Transform to search documents
-      const cardDocuments = cards.map(card => this.transformCardToSearchDocument(card));
-      const companyDocuments = companies.map(company =>
+      const cardDocuments = cards.map((card: any) => this.transformCardToSearchDocument(card));
+      const companyDocuments = companies.map((company: any) =>
         this.transformCompanyToSearchDocument(company)
       );
 
