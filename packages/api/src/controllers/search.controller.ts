@@ -18,7 +18,7 @@ export class SearchController {
         fields,
         highlight = 'true',
         sort,
-        sortBy, // Frontend sort field parameter  
+        sortBy, // Frontend sort field parameter
         filters,
         index = 'cards',
       } = req.query;
@@ -44,7 +44,7 @@ export class SearchController {
 
       // Parse query parameters with frontend compatibility
       const parsedLimit = Math.min(parseInt(limit as string), 100); // Max 100 results
-      
+
       // Calculate offset: support both direct offset and page-based pagination
       let parsedOffset = parseInt(offset as string);
       if (page && typeof page === 'string') {
@@ -88,7 +88,7 @@ export class SearchController {
             ];
           }
         } else if (sortBy && typeof sortBy === 'string') {
-          // Frontend format: sort="desc", sortBy="createdAt"  
+          // Frontend format: sort="desc", sortBy="createdAt"
           searchQuery.sort = [
             {
               field: sortBy,
