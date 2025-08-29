@@ -14,9 +14,11 @@ export class SearchController {
         q = '',
         limit = '10',
         offset = '0',
+        page, // Frontend pagination parameter
         fields,
         highlight = 'true',
         sort,
+        sortBy, // Frontend sort field parameter  
         filters,
         index = 'cards',
       } = req.query;
@@ -27,9 +29,12 @@ export class SearchController {
         index,
         limit,
         offset,
+        page,
         fields,
         sort,
+        sortBy,
         filters,
+        rawQuery: req.query,
       });
 
       // Validate search parameters
@@ -37,11 +42,20 @@ export class SearchController {
         throw new AppError('Search query or filters are required', 400);
       }
 
-      // Parse query parameters
+      // Parse query parameters with frontend compatibility
+      const parsedLimit = Math.min(parseInt(limit as string), 100); // Max 100 results
+      
+      // Calculate offset: support both direct offset and page-based pagination
+      let parsedOffset = parseInt(offset as string);
+      if (page && typeof page === 'string') {
+        const pageNum = parseInt(page);
+        parsedOffset = Math.max(0, (pageNum - 1) * parsedLimit);
+      }
+
       const searchQuery: SearchQuery = {
         q: q as string,
-        limit: Math.min(parseInt(limit as string), 100), // Max 100 results
-        offset: parseInt(offset as string),
+        limit: parsedLimit,
+        offset: parsedOffset,
       };
 
       // Parse fields if provided
@@ -60,14 +74,25 @@ export class SearchController {
         };
       }
 
-      // Parse sort options
+      // Parse sort options - support both formats
       if (sort && typeof sort === 'string') {
-        const sortParts = sort.split(':');
-        if (sortParts.length === 2) {
+        if (sort.includes(':')) {
+          // Backend format: "createdAt:desc"
+          const sortParts = sort.split(':');
+          if (sortParts.length === 2) {
+            searchQuery.sort = [
+              {
+                field: sortParts[0],
+                direction: sortParts[1].toUpperCase() as 'ASC' | 'DESC',
+              },
+            ];
+          }
+        } else if (sortBy && typeof sortBy === 'string') {
+          // Frontend format: sort="desc", sortBy="createdAt"  
           searchQuery.sort = [
             {
-              field: sortParts[0],
-              direction: sortParts[1].toUpperCase() as 'ASC' | 'DESC',
+              field: sortBy,
+              direction: sort.toUpperCase() as 'ASC' | 'DESC',
             },
           ];
         }
@@ -107,8 +132,17 @@ export class SearchController {
     } catch (error) {
       logger.error('Search error:', {
         error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
         query: req.query,
         user: req.user?.id,
+        indexName: req.query.index,
+        searchQuery: JSON.stringify({
+          q: req.query.q,
+          limit: req.query.limit,
+          page: req.query.page,
+          sort: req.query.sort,
+          sortBy: req.query.sortBy,
+        }),
       });
 
       if (error instanceof AppError) {
