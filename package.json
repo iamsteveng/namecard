@@ -51,10 +51,19 @@
     "husky": "^8.0.3",
     "jest": "^30.0.4",
     "jest-environment-jsdom": "^30.0.4",
+    "lint-staged": "^16.1.5",
     "prettier": "^3.2.4",
     "start-server-and-test": "^2.0.12",
     "turbo": "^1.12.4",
     "typescript": "^5.3.3"
+  },
+  "lint-staged": {
+    "packages/*/src/**/*.{ts,tsx}": [
+      "eslint --fix"
+    ],
+    "*.{ts,tsx,js,jsx,json,md}": [
+      "prettier --write"
+    ]
   },
   "engines": {
     "node": ">=18.0.0",
