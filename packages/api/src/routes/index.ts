@@ -7,6 +7,7 @@ import cardsRoutes from './cards.routes.js';
 import enrichmentRoutes from './enrichment.routes.js';
 import s3Routes from './s3.routes.js';
 import scanRoutes from './scan.routes.js';
+import searchRoutes from './search.routes.js';
 import uploadRoutes from './upload.routes.js';
 
 const router = Router();
@@ -28,6 +29,7 @@ router.get('/', (_req, res) => {
         upload: `/api/${env.apiVersion}/upload`,
         s3: `/api/${env.apiVersion}/s3`,
         enrichment: `/api/${env.apiVersion}/enrichment`,
+        search: `/api/${env.apiVersion}/search`,
         health: '/health',
       },
     },
@@ -38,6 +40,7 @@ router.get('/', (_req, res) => {
 router.use('/auth', authRoutes);
 router.use('/cards', cardsRoutes);
 router.use('/scan', scanRoutes);
+router.use('/search', searchRoutes);
 router.use('/upload', uploadRoutes);
 router.use('/s3', s3Routes);
 router.use('/enrichment', enrichmentRoutes);

@@ -9,6 +9,7 @@ import prisma from './lib/prisma.js';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware.js';
 import { apiRateLimit } from './middleware/rate-limit.middleware.js';
 import apiRoutes from './routes/index.js';
+import { searchService } from './services/search.service.js';
 import logger, { requestLogger } from './utils/logger.js';
 
 const app = express();
@@ -51,6 +52,8 @@ app.use(apiRateLimit);
 app.get('/health', async (_req, res) => {
   let databaseStatus = 'unknown';
   let databaseError = null;
+  let searchStatus = 'unknown';
+  let searchError = null;
 
   try {
     // Check database connection with timeout
@@ -67,8 +70,21 @@ app.get('/health', async (_req, res) => {
     logger.warn('Health check database query failed', { error: databaseError });
   }
 
+  try {
+    // Check search service health
+    const searchHealth = await searchService.healthCheck();
+    searchStatus = searchHealth.status === 'healthy' ? 'connected' : 'degraded';
+    if (searchHealth.status !== 'healthy') {
+      searchError = 'Search service is unhealthy';
+    }
+  } catch (error) {
+    searchStatus = 'disconnected';
+    searchError = error instanceof Error ? error.message : 'Unknown search error';
+    logger.warn('Health check search service failed', { error: searchError });
+  }
+
   const response = {
-    status: databaseStatus === 'connected' ? 'ok' : 'degraded',
+    status: databaseStatus === 'connected' && searchStatus === 'connected' ? 'ok' : 'degraded',
     timestamp: new Date().toISOString(),
     environment: env.node,
     uptime: process.uptime(),
@@ -78,6 +94,10 @@ app.get('/health', async (_req, res) => {
         status: databaseStatus,
         error: databaseError,
       },
+      search: {
+        status: searchStatus,
+        error: searchError,
+      },
       api: {
         status: 'ok',
         message: 'API server is running',
@@ -85,7 +105,7 @@ app.get('/health', async (_req, res) => {
     },
   };
 
-  // Return 200 for degraded mode (API works without database)
+  // Return 200 for degraded mode (API works without database/search)
   // Return 503 only if API itself cannot function
   const statusCode = response.status === 'ok' ? 200 : 200; // Keep 200 for degraded mode
   res.status(statusCode).json(response);

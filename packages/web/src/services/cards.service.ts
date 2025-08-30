@@ -388,9 +388,102 @@ class CardsService {
   }
 
   /**
-   * Search cards
+   * Search cards using Redis Search (fast, full-text search)
    */
   async searchCards(
+    query: string,
+    accessToken: string,
+    filters: {
+      company?: string;
+      tags?: string[];
+      dateFrom?: string;
+      dateTo?: string;
+      page?: number;
+      limit?: number;
+    } = {}
+  ): Promise<GetCardsResponse> {
+    const searchParams = new URLSearchParams({ q: query });
+
+    // Add filters if provided
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        if (Array.isArray(value)) {
+          value.forEach(v => searchParams.append(key, v));
+        } else {
+          searchParams.append(key, value.toString());
+        }
+      }
+    });
+
+    // Use Redis Search API endpoint
+    const response = await fetch(`${API_BASE_URL}/api/v1/search?${searchParams}`, {
+      method: 'GET',
+      headers: this.getAuthHeaders(accessToken),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error?.message || data.message || 'Failed to search cards');
+    }
+
+    // Transform Redis Search response to match expected Card interface format
+    const transformRedisResult = (document: any): Card => ({
+      // Map basic document fields
+      id: document.id || '',
+      userId: document.metadata?.userId || '',
+      originalImageUrl: document.metadata?.originalImageUrl,
+      processedImageUrl: document.metadata?.processedImageUrl,
+      extractedText: document.extractedText || document.content || '',
+      confidence: parseFloat(document.confidence) || 0,
+
+      // Map extracted information from metadata
+      name: document.metadata?.personName || document.name || '',
+      title: document.metadata?.jobTitle || document.title || '',
+      company: document.metadata?.companyName || document.company || '',
+      email: document.metadata?.email || '',
+      phone: document.metadata?.phone || '',
+      website: document.metadata?.website || '',
+      address: document.metadata?.address || '',
+      notes: document.notes || '',
+
+      // Handle tags - ensure it's always an array
+      tags: document.metadata?.tags || document.tags || [],
+
+      // Handle dates - convert from timestamps if needed
+      scanDate: document.scanDate || document.createdAt || '',
+      createdAt: document.createdAt || '',
+      updatedAt: document.updatedAt || '',
+      lastEnrichmentDate: document.lastEnrichmentDate || document.metadata?.lastEnrichmentDate,
+
+      // Optional enrichment data
+      companies: document.companies,
+      enrichments: document.enrichments,
+      calendarEvents: document.calendarEvents,
+      enrichmentData: document.enrichmentData,
+    });
+
+    return {
+      success: data.success,
+      data: {
+        cards: data.data.results?.map((result: any) => transformRedisResult(result.document)) || [],
+        pagination: {
+          page: filters.page || 1,
+          limit: filters.limit || 20,
+          total: data.data.total || 0,
+          totalPages: Math.ceil((data.data.total || 0) / (filters.limit || 20)),
+          hasNext: (filters.page || 1) * (filters.limit || 20) < (data.data.total || 0),
+          hasPrev: (filters.page || 1) > 1,
+        },
+        filters: {},
+      },
+    };
+  }
+
+  /**
+   * Search cards using database search (legacy, slower)
+   */
+  async searchCardsLegacy(
     query: string,
     accessToken: string,
     filters: {

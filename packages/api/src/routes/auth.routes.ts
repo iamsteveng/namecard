@@ -8,8 +8,6 @@ import type {
   // RefreshTokenRequest, // Currently unused
   RefreshTokenResponse,
   GetUserProfileResponse,
-  UpdateUserProfileRequest,
-  UpdateUserProfileResponse
 } from '@namecard/shared';
 import { Router, Request, Response } from 'express';
 
@@ -389,9 +387,15 @@ router.put(
 
       // Update user in database
       const updateData: any = {};
-      if (name !== undefined) updateData.name = name.trim();
-      if (avatarUrl !== undefined) updateData.avatarUrl = avatarUrl;
-      if (preferences !== undefined) updateData.preferences = preferences;
+      if (name !== undefined) {
+        updateData.name = name.trim();
+      }
+      if (avatarUrl !== undefined) {
+        updateData.avatarUrl = avatarUrl;
+      }
+      if (preferences !== undefined) {
+        updateData.preferences = preferences;
+      }
 
       const updatedUser = await prisma.user.update({
         where: { id: req.user.id },

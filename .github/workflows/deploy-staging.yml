@@ -27,7 +27,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '24'
           cache: 'npm'
 
       - name: Install dependencies
@@ -51,7 +51,7 @@ jobs:
     name: Build and Deploy
     runs-on: ubuntu-latest
     needs: test
-    if: github.ref == 'refs/heads/cicd-pipeline-setup' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/fix-github-actions-load-balancer-url' || github.ref == 'refs/heads/fix-cloudfront-spa-routing' || github.ref == 'refs/heads/fix-cloudfront-spa-routing-v2' || github.ref == 'refs/heads/fix/github-actions-stuck-deployment-detection'
+    if: contains(fromJSON('["refs/heads/cicd-pipeline-setup", "refs/heads/main", "refs/heads/fix-github-actions-load-balancer-url", "refs/heads/fix-cloudfront-spa-routing", "refs/heads/fix-cloudfront-spa-routing-v2", "refs/heads/fix/github-actions-stuck-deployment-detection", "refs/heads/feature/redis-search-phase-1"]'), github.ref)
     
     steps:
       - name: Checkout code
@@ -67,7 +67,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '24'
           cache: 'npm'
 
       - name: Install dependencies
@@ -217,43 +217,7 @@ jobs:
             exit 1
           fi
           
-          # Deploy frontend stack with timeout and progress monitoring  
-          echo "🌐 Starting NameCardFrontend-staging deployment with 30-minute timeout..."
-          
-          # Start CDK deploy in background with timeout
-          timeout 1800 npx cdk deploy NameCardFrontend-staging --context environment=staging --require-approval never &
-          CDK_FRONTEND_PID=$!
-          
-          # Start progress monitoring in background
-          monitor_stack_progress "NameCardFrontend-staging" 10 &
-          FRONTEND_MONITOR_PID=$!
-          
-          # Wait for either CDK deploy to complete or monitoring to detect stuck deployment
-          if wait $CDK_FRONTEND_PID; then
-            kill $FRONTEND_MONITOR_PID 2>/dev/null || true
-            echo "✅ NameCardFrontend-staging deployed successfully"
-          else
-            CDK_FRONTEND_EXIT_CODE=$?
-            kill $FRONTEND_MONITOR_PID 2>/dev/null || true
-            
-            if [ $CDK_FRONTEND_EXIT_CODE -eq 124 ]; then
-              echo "❌ NameCardFrontend-staging deployment timed out after 30 minutes!"
-              echo "🚨 Cancelling stuck deployment..."
-              aws cloudformation cancel-update-stack --stack-name NameCardFrontend-staging --region ${{ env.AWS_REGION }} || true
-              echo "⏳ Waiting for cancellation to complete..."
-              aws cloudformation wait stack-update-complete --stack-name NameCardFrontend-staging --region ${{ env.AWS_REGION }} || true
-            fi
-            
-            echo "🔍 Final frontend stack status and recent events:"
-            aws cloudformation describe-stacks --stack-name NameCardFrontend-staging --region ${{ env.AWS_REGION }} \
-              --query 'Stacks[0].{Status:StackStatus,Reason:StackStatusReason}' --output table
-            aws cloudformation describe-stack-events --stack-name NameCardFrontend-staging --region ${{ env.AWS_REGION }} \
-              --query 'StackEvents[:10].[Timestamp,LogicalResourceId,ResourceStatus,ResourceStatusReason]' --output table
-            
-            exit 1
-          fi
-          
-          echo "✅ Infrastructure deployment completed successfully"
+          echo "✅ Backend infrastructure deployment completed successfully"
           
           # Wait a moment for infrastructure changes to propagate
           sleep 30
