@@ -14,6 +14,8 @@ import type {
 } from '../types/search.types.js';
 import logger from '../utils/logger.js';
 
+import { databaseSearchService } from './database-search.service.js';
+
 export class SearchService implements ISearchService {
   private client: RedisSearchClient | null = null;
   private initialized = false;
@@ -27,10 +29,15 @@ export class SearchService implements ISearchService {
       this.client = await redisConfig.getClient();
       await this.setupIndexes();
       this.initialized = true;
-      logger.info('Search service initialized successfully');
+      logger.info('Redis search service initialized successfully');
     } catch (error) {
-      logger.error('Failed to initialize search service:', error);
-      throw error;
+      logger.warn(
+        'Failed to initialize Redis search service, database search will be used as fallback:',
+        error
+      );
+      // Don't throw - allow server to start with database search fallback
+      this.initialized = false;
+      this.client = null;
     }
   }
 
@@ -158,8 +165,12 @@ export class SearchService implements ISearchService {
         type: document.type,
         title: document.title,
         content: document.content,
-        createdAt: document.createdAt.getTime().toString(),
-        updatedAt: document.updatedAt.getTime().toString(),
+        createdAt: document.createdAt
+          ? document.createdAt.getTime().toString()
+          : Date.now().toString(),
+        updatedAt: document.updatedAt
+          ? document.updatedAt.getTime().toString()
+          : Date.now().toString(),
       };
 
       // Flatten metadata for Redis
@@ -227,11 +238,30 @@ export class SearchService implements ISearchService {
   }
 
   async search<T = any>(query: SearchQuery, indexName: string): Promise<SearchResponse<T>> {
+    const startTime = Date.now();
+
+    // Try Redis search first, fall back to database search if Redis is unavailable
+    try {
+      if (!this.client || !this.initialized) {
+        logger.warn('Redis search not available, using database search fallback');
+        return await databaseSearchService.search<T>(query, indexName);
+      }
+
+      return await this.performRedisSearch<T>(query, indexName, startTime);
+    } catch (error) {
+      logger.warn('Redis search failed, falling back to database search:', error);
+      return await databaseSearchService.search<T>(query, indexName);
+    }
+  }
+
+  private async performRedisSearch<T = any>(
+    query: SearchQuery,
+    indexName: string,
+    startTime: number
+  ): Promise<SearchResponse<T>> {
     if (!this.client) {
       throw new Error('Redis client not initialized');
     }
-
-    const startTime = Date.now();
 
     try {
       // Build search query with automatic partial matching enhancement
@@ -390,7 +420,7 @@ export class SearchService implements ISearchService {
 
       return response;
     } catch (error) {
-      logger.error(`Search failed for query "${query.q}" in ${indexName}:`, error);
+      logger.error(`Redis search failed for query "${query.q}" in ${indexName}:`, error);
       throw error;
     }
   }
@@ -419,32 +449,29 @@ export class SearchService implements ISearchService {
   async healthCheck(): Promise<{ status: 'healthy' | 'unhealthy'; details: Record<string, any> }> {
     try {
       const redisHealth = await redisConfig.healthCheck();
+      const databaseHealth = await databaseSearchService.healthCheck();
 
-      if (redisHealth.status === 'unhealthy') {
-        return {
-          status: 'unhealthy',
-          details: {
-            redis: redisHealth,
-            initialized: this.initialized,
-          },
-        };
-      }
-
-      // Test search functionality
+      // Test search functionality (will use fallback if Redis fails)
       let searchTest = false;
       try {
-        await this.search({ q: '*' }, 'idx:cards');
+        await this.search({ q: 'test', limit: 1 }, 'idx:cards');
         searchTest = true;
       } catch (error) {
         logger.debug('Search health check failed:', error);
       }
 
+      // Service is healthy if either Redis or database search works
+      const isHealthy =
+        searchTest && (redisHealth.status === 'healthy' || databaseHealth.status === 'healthy');
+
       return {
-        status: searchTest ? 'healthy' : 'unhealthy',
+        status: isHealthy ? 'healthy' : 'unhealthy',
         details: {
           redis: redisHealth,
+          database: databaseHealth,
           initialized: this.initialized,
           searchTest,
+          fallbackAvailable: databaseHealth.status === 'healthy',
         },
       };
     } catch (error) {
