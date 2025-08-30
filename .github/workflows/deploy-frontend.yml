@@ -2,7 +2,7 @@ name: Deploy Frontend
 
 on:
   push:
-    branches: [cicd-pipeline-setup, main, feature/redis-search-phase-1]
+    branches: [cicd-pipeline-setup, main]
     paths:
       - 'packages/web/**'
       - '.github/workflows/deploy-frontend.yml'
