@@ -112,6 +112,13 @@ export function buildBooleanQuery(query: string): string {
     .replace(/[+]/g, ' & ')
     .replace(/[-]/g, ' & !');
 
+  // Convert spaces between words to implicit AND operations
+  // Split on existing operators and spaces, then rejoin with &
+  processed = processed
+    .split(/\s+/)
+    .filter(term => term.length > 0)
+    .join(' & ');
+
   // Validate the resulting query
   if (!isValidTsQuery(processed)) {
     // Fallback to simple query if boolean parsing fails

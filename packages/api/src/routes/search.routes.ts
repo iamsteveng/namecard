@@ -182,7 +182,7 @@ router.get(
         prisma.$queryRaw<Array<{ tag: string; count: bigint }>>`
           SELECT unnest(tags) as tag, COUNT(*) as count
           FROM cards 
-          WHERE user_id = ${req.user!.id} AND array_length(tags, 1) > 0
+          WHERE user_id = ${req.user!.id}::uuid AND array_length(tags, 1) > 0
           GROUP BY tag
           ORDER BY count DESC
           LIMIT 50

@@ -168,7 +168,7 @@ export class SearchService {
       const offset = (pageNum - 1) * limitNum;
 
       // Build the base query
-      let whereClause = `WHERE c.user_id = $1`;
+      let whereClause = `WHERE c.user_id = $1::uuid`;
       const queryParams: any[] = [userId];
       let paramIndex = 2;
 
@@ -696,7 +696,7 @@ export class SearchService {
     const queryParams = [`${prefixQuery.replace(':*', '')}%`];
 
     if (userId) {
-      whereClause += ` AND user_id = $2`;
+      whereClause += ` AND user_id = $2::uuid`;
       queryParams.push(userId);
     }
 
@@ -742,7 +742,7 @@ export class SearchService {
     const queryParams = [`${prefixQuery.replace(':*', '')}%`];
 
     if (userId) {
-      whereClause += ` AND user_id = $2`;
+      whereClause += ` AND user_id = $2::uuid`;
       queryParams.push(userId);
     }
 
@@ -782,7 +782,7 @@ export class SearchService {
     const queryParams = [`${prefixQuery.replace(':*', '')}%`];
 
     if (userId) {
-      whereClause += ` AND user_id = $2`;
+      whereClause += ` AND user_id = $2::uuid`;
       queryParams.push(userId);
     }
 
