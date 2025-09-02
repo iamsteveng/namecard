@@ -18,6 +18,8 @@ import {
   validateCardUpdate,
 } from '../middleware/validation.middleware.js';
 import { CardProcessingService } from '../services/card-processing.service.js';
+import { SearchService } from '../services/search.service.js';
+import { SearchQueryError } from '../utils/search.utils.js';
 import logger from '../utils/logger.js';
 
 const router = Router();
@@ -40,8 +42,9 @@ const upload = multer({
   },
 });
 
-// Initialize card processing service
+// Initialize services
 const cardProcessingService = new CardProcessingService(prisma);
+const searchService = new SearchService(prisma);
 
 // GET /api/v1/cards - List cards with pagination and search
 router.get(
@@ -49,90 +52,130 @@ router.get(
   authenticateToken,
   validatePaginationAndSearch,
   asyncHandler(async (req: Request, res: Response) => {
-    const { page = '1', limit = '20', sort = 'desc', sortBy = 'createdAt' } = req.query;
-    const { q, tags, company, dateFrom, dateTo } = req.query;
+    try {
+      const { page = '1', limit = '20', sort = 'desc', sortBy = 'createdAt' } = req.query;
+      const { q, tags, company, dateFrom, dateTo } = req.query;
 
-    const pageNum = parseInt(page as string);
-    const limitNum = parseInt(limit as string);
-    const skip = (pageNum - 1) * limitNum;
-
-    // Build where clause for filtering
-    const where: any = { userId: req.user!.id };
-
-    if (q) {
-      where.OR = [
-        { name: { contains: q as string, mode: 'insensitive' } },
-        { company: { contains: q as string, mode: 'insensitive' } },
-        { title: { contains: q as string, mode: 'insensitive' } },
-        { email: { contains: q as string, mode: 'insensitive' } },
-        { notes: { contains: q as string, mode: 'insensitive' } },
-      ];
-    }
-
-    if (company) {
-      where.company = { contains: company as string, mode: 'insensitive' };
-    }
-
-    if (tags && Array.isArray(tags)) {
-      where.tags = { hasSome: tags as string[] };
-    } else if (tags) {
-      where.tags = { has: tags as string };
-    }
-
-    if (dateFrom || dateTo) {
-      where.scanDate = {};
-      if (dateFrom) {
-        where.scanDate.gte = new Date(dateFrom as string);
-      }
-      if (dateTo) {
-        where.scanDate.lte = new Date(dateTo as string);
-      }
-    }
-
-    // Execute queries in parallel
-    const [cards, total] = await Promise.all([
-      prisma.card.findMany({
-        where,
-        skip,
-        take: limitNum,
-        orderBy: {
-          [sortBy as string]: sort as 'asc' | 'desc',
-        },
-        include: {
-          user: {
-            select: { id: true, name: true, email: true },
+      // If there's a search query, use full-text search
+      if (q && typeof q === 'string' && q.trim().length > 0) {
+        const searchResults = await searchService.searchCards(
+          {
+            q: q.trim(),
+            page: parseInt(page as string),
+            limit: parseInt(limit as string),
+            tags: tags as string | string[],
+            company: company as string,
+            dateFrom: dateFrom as string,
+            dateTo: dateTo as string,
+            searchMode: 'simple',
+            highlight: false,
+            includeRank: false, // Keep simple for backwards compatibility
           },
-          companies: {
-            include: {
-              company: {
-                select: { id: true, name: true, industry: true },
+          req.user!.id
+        );
+
+        // Convert search results to match existing API format
+        const cards = searchResults.data.results.map((result: any) => result.item);
+        
+        res.json({
+          success: true,
+          data: {
+            cards,
+            pagination: searchResults.data.pagination,
+            filters: { q, tags, company, dateFrom, dateTo },
+          },
+        });
+        return;
+      }
+
+      // Fallback to traditional Prisma query when no search query
+      const pageNum = parseInt(page as string);
+      const limitNum = parseInt(limit as string);
+      const skip = (pageNum - 1) * limitNum;
+
+      // Build where clause for filtering
+      const where: any = { userId: req.user!.id };
+
+      if (company) {
+        where.company = { contains: company as string, mode: 'insensitive' };
+      }
+
+      if (tags && Array.isArray(tags)) {
+        where.tags = { hasSome: tags as string[] };
+      } else if (tags) {
+        where.tags = { has: tags as string };
+      }
+
+      if (dateFrom || dateTo) {
+        where.scanDate = {};
+        if (dateFrom) {
+          where.scanDate.gte = new Date(dateFrom as string);
+        }
+        if (dateTo) {
+          where.scanDate.lte = new Date(dateTo as string);
+        }
+      }
+
+      // Execute queries in parallel
+      const [cards, total] = await Promise.all([
+        prisma.card.findMany({
+          where,
+          skip,
+          take: limitNum,
+          orderBy: {
+            [sortBy as string]: sort as 'asc' | 'desc',
+          },
+          include: {
+            user: {
+              select: { id: true, name: true, email: true },
+            },
+            companies: {
+              include: {
+                company: {
+                  select: { id: true, name: true, industry: true },
+                },
               },
             },
           },
-        },
-      }),
-      prisma.card.count({ where }),
-    ]);
+        }),
+        prisma.card.count({ where }),
+      ]);
 
-    const totalPages = Math.ceil(total / limitNum);
+      const totalPages = Math.ceil(total / limitNum);
 
-    res.json({
-      success: true,
-      data: {
-        cards,
-        pagination: {
-          page: pageNum,
-          limit: limitNum,
-          sort,
-          sortBy,
-          total,
-          totalPages,
-          hasNext: pageNum < totalPages,
-          hasPrev: pageNum > 1,
+      res.json({
+        success: true,
+        data: {
+          cards,
+          pagination: {
+            page: pageNum,
+            limit: limitNum,
+            sort,
+            sortBy,
+            total,
+            totalPages,
+            hasNext: pageNum < totalPages,
+            hasPrev: pageNum > 1,
+          },
+          filters: { q, tags, company, dateFrom, dateTo },
         },
-        filters: { q, tags, company, dateFrom, dateTo },
-      },
-    });
+      });
+    } catch (error) {
+      logger.error('Cards listing error:', { error, query: req.query, userId: req.user?.id });
+
+      if (error instanceof SearchQueryError) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            message: error.message,
+            code: error.code,
+            details: error.details,
+          },
+        });
+      }
+
+      throw error;
+    }
   })
 );
 
@@ -142,82 +185,58 @@ router.get(
   authenticateToken,
   validateSearch,
   asyncHandler(async (req: Request, res: Response) => {
-    const { q, tags, company, dateFrom, dateTo, page = '1', limit = '20' } = req.query;
+    try {
+      const { q, tags, company, dateFrom, dateTo, page = '1', limit = '20' } = req.query;
+      const {
+        searchMode = 'simple',
+        highlight = 'true',
+        includeRank = 'true',
+        minRank,
+      } = req.query;
 
-    const pageNum = parseInt(page as string);
-    const limitNum = parseInt(limit as string);
-    const skip = (pageNum - 1) * limitNum;
-
-    // Build where clause for advanced search
-    const where: any = { userId: req.user!.id };
-
-    if (q) {
-      where.OR = [
-        { name: { contains: q as string, mode: 'insensitive' } },
-        { company: { contains: q as string, mode: 'insensitive' } },
-        { title: { contains: q as string, mode: 'insensitive' } },
-        { email: { contains: q as string, mode: 'insensitive' } },
-        { phone: { contains: q as string, mode: 'insensitive' } },
-        { notes: { contains: q as string, mode: 'insensitive' } },
-        { extractedText: { contains: q as string, mode: 'insensitive' } },
-      ];
-    }
-
-    if (company) {
-      where.company = { contains: company as string, mode: 'insensitive' };
-    }
-
-    if (tags && Array.isArray(tags)) {
-      where.tags = { hasSome: tags as string[] };
-    } else if (tags) {
-      where.tags = { has: tags as string };
-    }
-
-    if (dateFrom || dateTo) {
-      where.scanDate = {};
-      if (dateFrom) {
-        where.scanDate.gte = new Date(dateFrom as string);
-      }
-      if (dateTo) {
-        where.scanDate.lte = new Date(dateTo as string);
-      }
-    }
-
-    const [results, total] = await Promise.all([
-      prisma.card.findMany({
-        where,
-        skip,
-        take: limitNum,
-        orderBy: { createdAt: 'desc' },
-        include: {
-          user: {
-            select: { id: true, name: true, email: true },
-          },
-          companies: {
-            include: {
-              company: {
-                select: { id: true, name: true, industry: true },
-              },
-            },
-          },
+      // Use full-text search for advanced search capabilities
+      const searchResults = await searchService.searchCards(
+        {
+          q: q as string,
+          page: parseInt(page as string),
+          limit: parseInt(limit as string),
+          tags: tags as string | string[],
+          company: company as string,
+          dateFrom: dateFrom as string,
+          dateTo: dateTo as string,
+          searchMode: (searchMode as any) || 'simple',
+          highlight: highlight === 'true',
+          includeRank: includeRank === 'true',
+          minRank: minRank ? parseFloat(minRank as string) : undefined,
         },
-      }),
-      prisma.card.count({ where }),
-    ]);
+        req.user!.id
+      );
 
-    res.json({
-      success: true,
-      data: {
-        results,
-        pagination: {
-          page: pageNum,
-          limit: limitNum,
-          total,
-          totalPages: Math.ceil(total / limitNum),
+      res.json({
+        success: true,
+        data: {
+          results: searchResults.data.results.map((result: any) => result.item),
+          searchMeta: searchResults.data.searchMeta,
+          pagination: searchResults.data.pagination,
+          query: { q, tags, company, dateFrom, dateTo, searchMode, highlight, includeRank, minRank },
         },
-        query: { q, tags, company, dateFrom, dateTo },
-      },
-    });
+      });
+    } catch (error) {
+      logger.error('Advanced search error:', { error, query: req.query, userId: req.user?.id });
+
+      if (error instanceof SearchQueryError) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            message: error.message,
+            code: error.code,
+            details: error.details,
+          },
+        });
+      }
+
+      throw error;
+    }
   })
 );
 
