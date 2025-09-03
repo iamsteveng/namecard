@@ -312,9 +312,7 @@ describe('API Integration Tests', () => {
 
     describe('GET /api/v1/search/filters', () => {
       it('should require authentication for search filters', async () => {
-        const response = await request(app)
-          .get('/api/v1/search/filters')
-          .expect(401);
+        const response = await request(app).get('/api/v1/search/filters').expect(401);
 
         expect(response.body.success).toBe(false);
         expect(response.body.error).toBeDefined();
@@ -323,9 +321,7 @@ describe('API Integration Tests', () => {
 
     describe('GET /api/v1/search/health', () => {
       it('should require authentication for search health check', async () => {
-        const response = await request(app)
-          .get('/api/v1/search/health')
-          .expect(401);
+        const response = await request(app).get('/api/v1/search/health').expect(401);
 
         expect(response.body.success).toBe(false);
         expect(response.body.error).toBeDefined();
@@ -346,9 +342,7 @@ describe('API Integration Tests', () => {
 
     describe('GET /api/v1/search/analytics', () => {
       it('should require authentication for search analytics', async () => {
-        const response = await request(app)
-          .get('/api/v1/search/analytics')
-          .expect(401);
+        const response = await request(app).get('/api/v1/search/analytics').expect(401);
 
         expect(response.body.success).toBe(false);
         expect(response.body.error).toBeDefined();

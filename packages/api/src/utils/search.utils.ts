@@ -3,11 +3,7 @@
  * Handles query sanitization, processing, and tsquery building
  */
 
-import type {
-  SearchMode,
-  AdvancedSearchParams,
-  SearchSuggestionParams,
-} from '@namecard/shared/types/search.types';
+import type { SearchMode, AdvancedSearchParams } from '@namecard/shared/types/search.types';
 
 // =============================================================================
 // QUERY SANITIZATION & VALIDATION
@@ -23,10 +19,10 @@ export function sanitizeSearchQuery(query: string): string {
   }
 
   // Remove potentially dangerous characters
-  let sanitized = query
+  const sanitized = query
     .trim()
     .replace(/[<>]/g, '') // Remove angle brackets
-    .replace(/[\0\x08\x09\x1a\n\r"'\\\%]/g, '') // Remove control chars and quotes
+    .replace(/[\0\b\t\n\r"'\\%]/g, '') // Remove control chars and quotes
     .replace(/\s+/g, ' ') // Normalize whitespace
     .substring(0, 500); // Limit length
 
@@ -37,17 +33,29 @@ export function sanitizeSearchQuery(query: string): string {
  * Validates if a string can be safely used in a tsquery
  */
 export function isValidTsQuery(query: string): boolean {
-  if (!query || query.length === 0) return false;
-  if (query.length > 500) return false;
+  if (!query || query.length === 0) {
+    return false;
+  }
+  if (query.length > 500) {
+    return false;
+  }
 
   // Check for balanced parentheses
   let depth = 0;
   for (const char of query) {
-    if (char === '(') depth++;
-    if (char === ')') depth--;
-    if (depth < 0) return false;
+    if (char === '(') {
+      depth++;
+    }
+    if (char === ')') {
+      depth--;
+    }
+    if (depth < 0) {
+      return false;
+    }
   }
-  if (depth !== 0) return false;
+  if (depth !== 0) {
+    return false;
+  }
 
   // Check for valid operators
   const invalidPatterns = [
@@ -81,7 +89,9 @@ export function escapeSearchTerm(term: string): string {
  */
 export function buildSimpleQuery(query: string): string {
   const sanitized = sanitizeSearchQuery(query);
-  if (!sanitized) return '';
+  if (!sanitized) {
+    return '';
+  }
 
   // Split into terms and escape each
   const terms = sanitized
@@ -90,8 +100,12 @@ export function buildSimpleQuery(query: string): string {
     .map(term => escapeSearchTerm(term))
     .slice(0, 10); // Limit number of terms
 
-  if (terms.length === 0) return '';
-  if (terms.length === 1) return terms[0];
+  if (terms.length === 0) {
+    return '';
+  }
+  if (terms.length === 1) {
+    return terms[0];
+  }
 
   // Join with AND operator for simple search
   return terms.join(' & ');
@@ -102,7 +116,9 @@ export function buildSimpleQuery(query: string): string {
  */
 export function buildBooleanQuery(query: string): string {
   const sanitized = sanitizeSearchQuery(query);
-  if (!sanitized) return '';
+  if (!sanitized) {
+    return '';
+  }
 
   // Replace common boolean operators
   let processed = sanitized
@@ -133,7 +149,9 @@ export function buildBooleanQuery(query: string): string {
  */
 export function buildProximityQuery(phrase: string, distance: number = 0): string {
   const sanitized = sanitizeSearchQuery(phrase);
-  if (!sanitized) return '';
+  if (!sanitized) {
+    return '';
+  }
 
   const terms = sanitized
     .split(/\s+/)
@@ -141,8 +159,12 @@ export function buildProximityQuery(phrase: string, distance: number = 0): strin
     .map(term => escapeSearchTerm(term))
     .slice(0, 5); // Limit terms in proximity search
 
-  if (terms.length === 0) return '';
-  if (terms.length === 1) return terms[0];
+  if (terms.length === 0) {
+    return '';
+  }
+  if (terms.length === 1) {
+    return terms[0];
+  }
 
   if (distance === 0) {
     // Adjacent words
@@ -170,7 +192,7 @@ export function buildAdvancedQuery(params: AdvancedSearchParams): string {
     }
   }
 
-  // Should have terms (OR)  
+  // Should have terms (OR)
   if (params.shouldHave && params.shouldHave.length > 0) {
     const shouldTerms = params.shouldHave
       .map((term: string) => escapeSearchTerm(sanitizeSearchQuery(term)))
@@ -200,7 +222,9 @@ export function buildAdvancedQuery(params: AdvancedSearchParams): string {
     }
   }
 
-  if (conditions.length === 0) return '';
+  if (conditions.length === 0) {
+    return '';
+  }
   return conditions.join(' & ');
 }
 
@@ -213,7 +237,9 @@ export function buildAdvancedQuery(params: AdvancedSearchParams): string {
  */
 export function buildPrefixQuery(prefix: string): string {
   const sanitized = sanitizeSearchQuery(prefix);
-  if (!sanitized || sanitized.length < 2) return '';
+  if (!sanitized || sanitized.length < 2) {
+    return '';
+  }
 
   const escaped = escapeSearchTerm(sanitized);
   return `${escaped}:*`;
@@ -222,18 +248,11 @@ export function buildPrefixQuery(prefix: string): string {
 /**
  * Builds field-specific search conditions
  */
-export function buildFieldSpecificQuery(
-  query: string,
-  fields: {
-    searchInNames?: boolean;
-    searchInTitles?: boolean;
-    searchInCompanies?: boolean;
-    searchInNotes?: boolean;
-    searchInEmails?: boolean;
-  }
-): string {
+export function buildFieldSpecificQuery(query: string): string {
   const baseQuery = buildSimpleQuery(query);
-  if (!baseQuery) return '';
+  if (!baseQuery) {
+    return '';
+  }
 
   // For now, we use the same query for all fields since our search_vector
   // combines all searchable fields. Field-specific weighting is handled
@@ -252,17 +271,17 @@ export function processQueryByMode(query: string, mode: SearchMode): string {
   switch (mode) {
     case 'simple':
       return buildSimpleQuery(query);
-    
+
     case 'boolean':
       return buildBooleanQuery(query);
-    
+
     case 'proximity':
       return buildProximityQuery(query);
-    
+
     case 'advanced':
       // Advanced mode requires AdvancedSearchParams
       return buildSimpleQuery(query);
-    
+
     default:
       return buildSimpleQuery(query);
   }
@@ -283,21 +302,29 @@ export function buildHighlightText(
   notes?: string
 ): string {
   const parts: string[] = [];
-  
+
   if (firstName || lastName) {
     parts.push([firstName, lastName].filter(Boolean).join(' '));
   }
-  if (title) parts.push(title);
-  if (company) parts.push(company);
-  if (notes) parts.push(notes.substring(0, 200)); // Limit notes length
-  
+  if (title) {
+    parts.push(title);
+  }
+  if (company) {
+    parts.push(company);
+  }
+  if (notes) {
+    parts.push(notes.substring(0, 200));
+  } // Limit notes length
+
   return parts.join(' ');
 }
 
 /**
  * Extracts highlighted terms from ts_headline result
  */
-export function parseHighlights(highlightText: string): Array<{ text: string; highlighted: boolean }> {
+export function parseHighlights(
+  highlightText: string
+): Array<{ text: string; highlighted: boolean }> {
   const parts: Array<{ text: string; highlighted: boolean }> = [];
   const regex = /<b>(.*?)<\/b>/g;
   let lastIndex = 0;
@@ -311,16 +338,16 @@ export function parseHighlights(highlightText: string): Array<{ text: string; hi
         highlighted: false,
       });
     }
-    
+
     // Add highlighted text
     parts.push({
       text: match[1],
       highlighted: true,
     });
-    
+
     lastIndex = regex.lastIndex;
   }
-  
+
   // Add remaining text
   if (lastIndex < highlightText.length) {
     parts.push({
@@ -328,7 +355,7 @@ export function parseHighlights(highlightText: string): Array<{ text: string; hi
       highlighted: false,
     });
   }
-  
+
   return parts;
 }
 
@@ -341,7 +368,9 @@ export function parseHighlights(highlightText: string): Array<{ text: string; hi
  */
 export function extractSearchTerms(query: string): string[] {
   const sanitized = sanitizeSearchQuery(query);
-  if (!sanitized) return [];
+  if (!sanitized) {
+    return [];
+  }
 
   return sanitized
     .toLowerCase()
@@ -356,22 +385,30 @@ export function extractSearchTerms(query: string): string[] {
  */
 export function calculateQueryComplexity(query: string): number {
   const sanitized = sanitizeSearchQuery(query);
-  if (!sanitized) return 0;
+  if (!sanitized) {
+    return 0;
+  }
 
   let score = 0;
-  
+
   // Base complexity from length
   score += Math.min(sanitized.length / 100, 0.3);
-  
+
   // Boolean operators
-  if (/[&|!]/.test(sanitized)) score += 0.2;
-  
+  if (/[&|!]/.test(sanitized)) {
+    score += 0.2;
+  }
+
   // Proximity operators
-  if (/<->|<\d+>/.test(sanitized)) score += 0.2;
-  
+  if (/<->|<\d+>/.test(sanitized)) {
+    score += 0.2;
+  }
+
   // Parentheses (grouping)
-  if (/[()]/.test(sanitized)) score += 0.15;
-  
+  if (/[()]/.test(sanitized)) {
+    score += 0.15;
+  }
+
   // Multiple terms
   const termCount = sanitized.split(/\s+/).length;
   score += Math.min(termCount / 10, 0.15);
@@ -399,34 +436,26 @@ export class SearchQueryError extends Error {
  */
 export function validateSearchParams(params: any): void {
   if (params.q && typeof params.q !== 'string') {
-    throw new SearchQueryError(
-      'Search query must be a string',
-      'INVALID_QUERY_TYPE',
-      { provided: typeof params.q }
-    );
+    throw new SearchQueryError('Search query must be a string', 'INVALID_QUERY_TYPE', {
+      provided: typeof params.q,
+    });
   }
 
   if (params.q && params.q.length > 500) {
-    throw new SearchQueryError(
-      'Search query too long (max 500 characters)',
-      'QUERY_TOO_LONG',
-      { length: params.q.length }
-    );
+    throw new SearchQueryError('Search query too long (max 500 characters)', 'QUERY_TOO_LONG', {
+      length: params.q.length,
+    });
   }
 
   if (params.page && (isNaN(params.page) || params.page < 1)) {
-    throw new SearchQueryError(
-      'Page number must be a positive integer',
-      'INVALID_PAGE',
-      { provided: params.page }
-    );
+    throw new SearchQueryError('Page number must be a positive integer', 'INVALID_PAGE', {
+      provided: params.page,
+    });
   }
 
   if (params.limit && (isNaN(params.limit) || params.limit < 1 || params.limit > 100)) {
-    throw new SearchQueryError(
-      'Limit must be between 1 and 100',
-      'INVALID_LIMIT',
-      { provided: params.limit }
-    );
+    throw new SearchQueryError('Limit must be between 1 and 100', 'INVALID_LIMIT', {
+      provided: params.limit,
+    });
   }
 }

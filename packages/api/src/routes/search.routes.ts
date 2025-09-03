@@ -1,19 +1,18 @@
-import { Router, Request, Response } from 'express';
-
 import type {
   FullTextSearchParams,
   AdvancedSearchParams,
   SearchSuggestionParams,
 } from '@namecard/shared/types/search.types';
+import { Router, Request, Response } from 'express';
 
 import prisma from '../lib/prisma.js';
 import { authenticateToken } from '../middleware/auth.middleware.js';
-import { asyncHandler, AppError } from '../middleware/error.middleware.js';
+import { asyncHandler } from '../middleware/error.middleware.js';
 import { validatePaginationAndSearch } from '../middleware/validation.middleware.js';
-import { SearchService } from '../services/search.service.js';
 import { IndexingService } from '../services/indexing.service.js';
-import { SearchQueryError, validateSearchParams } from '../utils/search.utils.js';
+import { SearchService } from '../services/search.service.js';
 import logger from '../utils/logger.js';
+import { SearchQueryError, validateSearchParams } from '../utils/search.utils.js';
 
 const router = Router();
 
@@ -163,7 +162,7 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     try {
       const { q } = req.query;
-      
+
       // Get dynamic filters based on user's data
       const [companies, tags, industries] = await Promise.all([
         // Get companies from user's cards
@@ -177,7 +176,7 @@ router.get(
           orderBy: { _count: { id: 'desc' } },
           take: 50,
         }),
-        
+
         // Get tags from user's cards
         prisma.$queryRaw<Array<{ tag: string; count: bigint }>>`
           SELECT unnest(tags) as tag, COUNT(*) as count
@@ -187,7 +186,7 @@ router.get(
           ORDER BY count DESC
           LIMIT 50
         `,
-        
+
         // Get industries from companies
         prisma.company.groupBy({
           by: ['industry'],
@@ -265,10 +264,12 @@ router.get(
         indexingService.getIndexHealth(),
       ]);
 
-      const overallStatus = searchHealth.status === 'unhealthy' || 
-        !indexHealth.every(h => h.completeness > 0.8) ? 'unhealthy' :
-        searchHealth.status === 'degraded' || 
-        !indexHealth.every(h => h.completeness > 0.95) ? 'degraded' : 'healthy';
+      const overallStatus =
+        searchHealth.status === 'unhealthy' || !indexHealth.every(h => h.completeness > 0.8)
+          ? 'unhealthy'
+          : searchHealth.status === 'degraded' || !indexHealth.every(h => h.completeness > 0.95)
+            ? 'degraded'
+            : 'healthy';
 
       res.json({
         success: true,
@@ -314,7 +315,7 @@ router.post(
 
       // For now, return a mock job ID - implement actual reindexing later
       const jobId = `reindex-${table}-${Date.now()}`;
-      
+
       // TODO: Implement actual reindexing in IndexingService
       logger.info(`Reindex request for ${table}`, { jobId, userId: req.user?.id });
 
@@ -351,13 +352,16 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     try {
       const searchMetrics = searchService.getSearchMetrics();
-      
+
       const analytics = {
         totalQueries: searchMetrics.totalQueries,
         averageExecutionTime: searchMetrics.averageExecutionTime,
-        successRate: searchMetrics.totalQueries > 0 ? 
-          ((searchMetrics.totalQueries - searchMetrics.errorCount) / searchMetrics.totalQueries) * 100 : 
-          100,
+        successRate:
+          searchMetrics.totalQueries > 0
+            ? ((searchMetrics.totalQueries - searchMetrics.errorCount) /
+                searchMetrics.totalQueries) *
+              100
+            : 100,
         errorCount: searchMetrics.errorCount,
         slowQueries: searchMetrics.slowQueries,
         recentErrors: searchMetrics.lastErrors,

@@ -1,17 +1,19 @@
 /**
  * Unit Tests for Search Utilities (Phase 2)
- * 
+ *
  * These tests focus on PostgreSQL-independent pure functions that can run
  * safely in CI environments without database dependencies.
- * 
+ *
  * Tested Functions:
  * - Query sanitization and validation
- * - Boolean query building  
+ * - Boolean query building
  * - Search term extraction
  * - Query complexity calculation
  * - Highlight text processing
  * - Parameter validation
  */
+
+import type { AdvancedSearchParams } from '@namecard/shared/types/search.types';
 
 import {
   sanitizeSearchQuery,
@@ -32,14 +34,11 @@ import {
   validateSearchParams,
 } from '../utils/search.utils';
 
-import type { AdvancedSearchParams } from '@namecard/shared/types/search.types';
-
 describe('Search Utils - Phase 2 Unit Tests', () => {
-  
   // =============================================================================
   // QUERY SANITIZATION & VALIDATION
   // =============================================================================
-  
+
   describe('sanitizeSearchQuery', () => {
     it('should handle empty and invalid inputs', () => {
       expect(sanitizeSearchQuery('')).toBe('');
@@ -55,7 +54,9 @@ describe('Search Utils - Phase 2 Unit Tests', () => {
     });
 
     it('should remove dangerous characters', () => {
-      expect(sanitizeSearchQuery('hello<script>alert()</script>')).toBe('helloscriptalert()/script');
+      expect(sanitizeSearchQuery('hello<script>alert()</script>')).toBe(
+        'helloscriptalert()/script'
+      );
       expect(sanitizeSearchQuery('hello"world\'test')).toBe('helloworldtest');
       expect(sanitizeSearchQuery('hello\x00\x08world')).toBe('helloworld');
     });
@@ -88,17 +89,17 @@ describe('Search Utils - Phase 2 Unit Tests', () => {
     it('should validate balanced parentheses', () => {
       expect(isValidTsQuery('(hello & world)')).toBe(true);
       expect(isValidTsQuery('((hello | world) & test)')).toBe(true);
-      expect(isValidTsQuery('(hello & world')).toBe(false);  // Missing closing
-      expect(isValidTsQuery('hello & world)')).toBe(false);  // Missing opening
+      expect(isValidTsQuery('(hello & world')).toBe(false); // Missing closing
+      expect(isValidTsQuery('hello & world)')).toBe(false); // Missing opening
       expect(isValidTsQuery('(hello) & (world)')).toBe(true);
     });
 
     it('should reject invalid operator patterns', () => {
-      expect(isValidTsQuery('hello && world')).toBe(false);  // Use & not &&
-      expect(isValidTsQuery('hello || world')).toBe(false);  // Use | not ||
-      expect(isValidTsQuery('!!hello')).toBe(false);         // Double negation
-      expect(isValidTsQuery('& hello')).toBe(false);         // Starting with operator
-      expect(isValidTsQuery('hello &')).toBe(false);         // Ending with operator
+      expect(isValidTsQuery('hello && world')).toBe(false); // Use & not &&
+      expect(isValidTsQuery('hello || world')).toBe(false); // Use | not ||
+      expect(isValidTsQuery('!!hello')).toBe(false); // Double negation
+      expect(isValidTsQuery('& hello')).toBe(false); // Starting with operator
+      expect(isValidTsQuery('hello &')).toBe(false); // Ending with operator
       expect(isValidTsQuery('hello & | world')).toBe(false); // Adjacent operators
     });
 
@@ -162,11 +163,11 @@ describe('Search Utils - Phase 2 Unit Tests', () => {
     });
 
     it('should escape special characters in terms', () => {
-      expect(buildSimpleQuery("O'Connor Associates")).toBe("OConnor & Associates"); // Sanitization removes quotes
+      expect(buildSimpleQuery("O'Connor Associates")).toBe('OConnor & Associates'); // Sanitization removes quotes
     });
 
     it('should limit number of terms to 10', () => {
-      const manyTerms = Array.from({length: 15}, (_, i) => `term${i}`).join(' ');
+      const manyTerms = Array.from({ length: 15 }, (_, i) => `term${i}`).join(' ');
       const result = buildSimpleQuery(manyTerms);
       const termCount = result.split(' & ').length;
       expect(termCount).toBe(10);
@@ -236,14 +237,14 @@ describe('Search Utils - Phase 2 Unit Tests', () => {
     });
 
     it('should limit terms to 5', () => {
-      const manyTerms = Array.from({length: 8}, (_, i) => `term${i}`).join(' ');
+      const manyTerms = Array.from({ length: 8 }, (_, i) => `term${i}`).join(' ');
       const result = buildProximityQuery(manyTerms);
       const termCount = result.split(' <-> ').length;
       expect(termCount).toBe(5);
     });
 
     it('should escape special characters', () => {
-      expect(buildProximityQuery("O'Connor Associates")).toBe("OConnor <-> Associates"); // Sanitization removes quotes
+      expect(buildProximityQuery("O'Connor Associates")).toBe('OConnor <-> Associates'); // Sanitization removes quotes
     });
   });
 
@@ -254,21 +255,21 @@ describe('Search Utils - Phase 2 Unit Tests', () => {
 
     it('should build mustHave conditions (AND)', () => {
       const params: AdvancedSearchParams = {
-        mustHave: ['software', 'engineer']
+        mustHave: ['software', 'engineer'],
       };
       expect(buildAdvancedQuery(params)).toBe('(software & engineer)');
     });
 
     it('should build shouldHave conditions (OR)', () => {
       const params: AdvancedSearchParams = {
-        shouldHave: ['manager', 'director']
+        shouldHave: ['manager', 'director'],
       };
       expect(buildAdvancedQuery(params)).toBe('(manager | director)');
     });
 
     it('should build mustNotHave conditions (NOT)', () => {
       const params: AdvancedSearchParams = {
-        mustNotHave: ['intern', 'student']
+        mustNotHave: ['intern', 'student'],
       };
       expect(buildAdvancedQuery(params)).toBe('!(intern | student)');
     });
@@ -278,7 +279,7 @@ describe('Search Utils - Phase 2 Unit Tests', () => {
         q: 'developer',
         mustHave: ['senior'],
         shouldHave: ['frontend', 'backend'],
-        mustNotHave: ['intern']
+        mustNotHave: ['intern'],
       };
       const result = buildAdvancedQuery(params);
       expect(result).toBe('developer & (senior) & (frontend | backend) & !(intern)');
@@ -286,20 +287,22 @@ describe('Search Utils - Phase 2 Unit Tests', () => {
 
     it('should limit terms per condition type', () => {
       const params: AdvancedSearchParams = {
-        mustHave: Array.from({length: 8}, (_, i) => `must${i}`),
-        shouldHave: Array.from({length: 8}, (_, i) => `should${i}`),
-        mustNotHave: Array.from({length: 8}, (_, i) => `not${i}`)
+        mustHave: Array.from({ length: 8 }, (_, i) => `must${i}`),
+        shouldHave: Array.from({ length: 8 }, (_, i) => `should${i}`),
+        mustNotHave: Array.from({ length: 8 }, (_, i) => `not${i}`),
       };
       const result = buildAdvancedQuery(params);
-      
+
       // Check mustHave terms (max 5)
       const mustMatch = result.match(/\(must\d+ & must\d+ & must\d+ & must\d+ & must\d+\)/);
       expect(mustMatch).toBeTruthy();
-      
+
       // Check shouldHave terms (max 5)
-      const shouldMatch = result.match(/\(should\d+ \| should\d+ \| should\d+ \| should\d+ \| should\d+\)/);
+      const shouldMatch = result.match(
+        /\(should\d+ \| should\d+ \| should\d+ \| should\d+ \| should\d+\)/
+      );
       expect(shouldMatch).toBeTruthy();
-      
+
       // Check mustNotHave terms (max 3)
       const notMatch = result.match(/!\(not\d+ \| not\d+ \| not\d+\)/);
       expect(notMatch).toBeTruthy();
@@ -308,7 +311,7 @@ describe('Search Utils - Phase 2 Unit Tests', () => {
     it('should filter out empty terms', () => {
       const params: AdvancedSearchParams = {
         mustHave: ['valid', '', '  ', 'term'],
-        shouldHave: ['', 'another', '  ']
+        shouldHave: ['', 'another', '  '],
       };
       expect(buildAdvancedQuery(params)).toBe('(valid & term) & (another)');
     });
@@ -317,7 +320,7 @@ describe('Search Utils - Phase 2 Unit Tests', () => {
   describe('buildPrefixQuery', () => {
     it('should handle empty inputs', () => {
       expect(buildPrefixQuery('')).toBe('');
-      expect(buildPrefixQuery('a')).toBe('');  // Too short
+      expect(buildPrefixQuery('a')).toBe(''); // Too short
     });
 
     it('should build prefix queries with :*', () => {
@@ -326,7 +329,7 @@ describe('Search Utils - Phase 2 Unit Tests', () => {
     });
 
     it('should escape special characters', () => {
-      expect(buildPrefixQuery("O'Co")).toBe("OCo:*"); // Sanitization removes quotes
+      expect(buildPrefixQuery("O'Co")).toBe('OCo:*'); // Sanitization removes quotes
     });
 
     it('should sanitize input', () => {
@@ -336,22 +339,15 @@ describe('Search Utils - Phase 2 Unit Tests', () => {
 
   describe('buildFieldSpecificQuery', () => {
     it('should handle empty query', () => {
-      expect(buildFieldSpecificQuery('', { searchInNames: true })).toBe('');
+      expect(buildFieldSpecificQuery('')).toBe('');
     });
 
     it('should return same query regardless of field options', () => {
       // Since field-specific weighting is handled at the database level
       const query = 'software engineer';
       const expected = 'software & engineer';
-      
-      expect(buildFieldSpecificQuery(query, { searchInNames: true })).toBe(expected);
-      expect(buildFieldSpecificQuery(query, { searchInTitles: true })).toBe(expected);
-      expect(buildFieldSpecificQuery(query, { searchInCompanies: true })).toBe(expected);
-      expect(buildFieldSpecificQuery(query, { 
-        searchInNames: true,
-        searchInTitles: true,
-        searchInCompanies: true 
-      })).toBe(expected);
+
+      expect(buildFieldSpecificQuery(query)).toBe(expected);
     });
   });
 
@@ -393,13 +389,21 @@ describe('Search Utils - Phase 2 Unit Tests', () => {
     });
 
     it('should include all provided fields', () => {
-      const result = buildHighlightText('John', 'Smith', 'Engineer', 'Tech Corp', 'Great developer');
+      const result = buildHighlightText(
+        'John',
+        'Smith',
+        'Engineer',
+        'Tech Corp',
+        'Great developer'
+      );
       expect(result).toBe('John Smith Engineer Tech Corp Great developer');
     });
 
     it('should handle partial field data', () => {
       expect(buildHighlightText('John', undefined, 'Engineer')).toBe('John Engineer');
-      expect(buildHighlightText(undefined, 'Smith', undefined, 'Tech Corp')).toBe('Smith Tech Corp');
+      expect(buildHighlightText(undefined, 'Smith', undefined, 'Tech Corp')).toBe(
+        'Smith Tech Corp'
+      );
     });
 
     it('should limit notes length to 200 characters', () => {
@@ -420,7 +424,7 @@ describe('Search Utils - Phase 2 Unit Tests', () => {
       expect(result).toEqual([
         { text: 'Hello ', highlighted: false },
         { text: 'world', highlighted: true },
-        { text: '!', highlighted: false }
+        { text: '!', highlighted: false },
       ]);
     });
 
@@ -430,7 +434,7 @@ describe('Search Utils - Phase 2 Unit Tests', () => {
         { text: 'John', highlighted: true },
         { text: ' is a ', highlighted: false },
         { text: 'software', highlighted: true },
-        { text: ' engineer', highlighted: false }
+        { text: ' engineer', highlighted: false },
       ]);
     });
 
@@ -438,7 +442,7 @@ describe('Search Utils - Phase 2 Unit Tests', () => {
       const result = parseHighlights('<b>Hello</b><b>World</b>');
       expect(result).toEqual([
         { text: 'Hello', highlighted: true },
-        { text: 'World', highlighted: true }
+        { text: 'World', highlighted: true },
       ]);
     });
 
@@ -447,7 +451,7 @@ describe('Search Utils - Phase 2 Unit Tests', () => {
       expect(result).toEqual([
         { text: 'Hello ', highlighted: false },
         { text: '', highlighted: true },
-        { text: 'world', highlighted: false }
+        { text: 'world', highlighted: false },
       ]);
     });
 
@@ -456,7 +460,7 @@ describe('Search Utils - Phase 2 Unit Tests', () => {
       expect(result).toEqual([
         { text: 'Start', highlighted: true },
         { text: ' middle ', highlighted: false },
-        { text: 'end', highlighted: true }
+        { text: 'end', highlighted: true },
       ]);
     });
   });
@@ -477,16 +481,28 @@ describe('Search Utils - Phase 2 Unit Tests', () => {
     });
 
     it('should convert to lowercase', () => {
-      expect(extractSearchTerms('Software ENGINEER Manager')).toEqual(['software', 'engineer', 'manager']);
+      expect(extractSearchTerms('Software ENGINEER Manager')).toEqual([
+        'software',
+        'engineer',
+        'manager',
+      ]);
     });
 
     it('should remove tsquery operators', () => {
-      expect(extractSearchTerms('software & engineer | manager')).toEqual(['software', 'engineer', 'manager']);
-      expect(extractSearchTerms('!important & (urgent | critical)')).toEqual(['important', 'urgent', 'critical']);
+      expect(extractSearchTerms('software & engineer | manager')).toEqual([
+        'software',
+        'engineer',
+        'manager',
+      ]);
+      expect(extractSearchTerms('!important & (urgent | critical)')).toEqual([
+        'important',
+        'urgent',
+        'critical',
+      ]);
     });
 
     it('should limit to 10 terms', () => {
-      const manyTerms = Array.from({length: 15}, (_, i) => `term${i}`).join(' ');
+      const manyTerms = Array.from({ length: 15 }, (_, i) => `term${i}`).join(' ');
       const result = extractSearchTerms(manyTerms);
       expect(result.length).toBe(10);
       expect(result[0]).toBe('term0');
@@ -544,7 +560,7 @@ describe('Search Utils - Phase 2 Unit Tests', () => {
     it('should handle mixed complexity factors', () => {
       const complex = '(software & engineer) | (manager <-> director) & !intern';
       const score = calculateQueryComplexity(complex);
-      
+
       // Should have multiple complexity factors
       expect(score).toBeGreaterThan(0.5);
       expect(score).toBeLessThanOrEqual(1.0);
@@ -578,17 +594,23 @@ describe('Search Utils - Phase 2 Unit Tests', () => {
     });
 
     it('should validate query type', () => {
-      expect(() => validateSearchParams({ q: 123 }))
-        .toThrow(new SearchQueryError('Search query must be a string', 'INVALID_QUERY_TYPE', { provided: 'number' }));
-      
+      expect(() => validateSearchParams({ q: 123 })).toThrow(
+        new SearchQueryError('Search query must be a string', 'INVALID_QUERY_TYPE', {
+          provided: 'number',
+        })
+      );
+
       // null doesn't throw in current implementation
       expect(() => validateSearchParams({ q: null })).not.toThrow();
     });
 
     it('should validate query length', () => {
       const longQuery = 'a'.repeat(501);
-      expect(() => validateSearchParams({ q: longQuery }))
-        .toThrow(new SearchQueryError('Search query too long (max 500 characters)', 'QUERY_TOO_LONG', { length: 501 }));
+      expect(() => validateSearchParams({ q: longQuery })).toThrow(
+        new SearchQueryError('Search query too long (max 500 characters)', 'QUERY_TOO_LONG', {
+          length: 501,
+        })
+      );
     });
 
     it('should validate page and limit parameters (truthy values only)', () => {
@@ -596,22 +618,31 @@ describe('Search Utils - Phase 2 Unit Tests', () => {
       // 0 is falsy so it doesn't trigger validation
       expect(() => validateSearchParams({ page: 0 })).not.toThrow();
       expect(() => validateSearchParams({ limit: 0 })).not.toThrow();
-      
+
       // Negative values and invalid strings do trigger validation
-      expect(() => validateSearchParams({ page: -1 }))
-        .toThrow(new SearchQueryError('Page number must be a positive integer', 'INVALID_PAGE', { provided: -1 }));
-      expect(() => validateSearchParams({ page: 'invalid' }))
-        .toThrow(new SearchQueryError('Page number must be a positive integer', 'INVALID_PAGE', { provided: 'invalid' }));
-      expect(() => validateSearchParams({ limit: 101 }))
-        .toThrow(new SearchQueryError('Limit must be between 1 and 100', 'INVALID_LIMIT', { provided: 101 }));
-      expect(() => validateSearchParams({ limit: 'invalid' }))
-        .toThrow(new SearchQueryError('Limit must be between 1 and 100', 'INVALID_LIMIT', { provided: 'invalid' }));
+      expect(() => validateSearchParams({ page: -1 })).toThrow(
+        new SearchQueryError('Page number must be a positive integer', 'INVALID_PAGE', {
+          provided: -1,
+        })
+      );
+      expect(() => validateSearchParams({ page: 'invalid' })).toThrow(
+        new SearchQueryError('Page number must be a positive integer', 'INVALID_PAGE', {
+          provided: 'invalid',
+        })
+      );
+      expect(() => validateSearchParams({ limit: 101 })).toThrow(
+        new SearchQueryError('Limit must be between 1 and 100', 'INVALID_LIMIT', { provided: 101 })
+      );
+      expect(() => validateSearchParams({ limit: 'invalid' })).toThrow(
+        new SearchQueryError('Limit must be between 1 and 100', 'INVALID_LIMIT', {
+          provided: 'invalid',
+        })
+      );
     });
 
     it('should handle multiple validation errors (first one wins)', () => {
       // Should throw the first validation error it encounters
-      expect(() => validateSearchParams({ q: 123, page: 0, limit: 200 }))
-        .toThrow(SearchQueryError);
+      expect(() => validateSearchParams({ q: 123, page: 0, limit: 200 })).toThrow(SearchQueryError);
     });
   });
 
@@ -622,19 +653,19 @@ describe('Search Utils - Phase 2 Unit Tests', () => {
   describe('Function Integration', () => {
     it('should work together for complete query processing', () => {
       const rawQuery = '  Software ENGINEER & "Tech Corp"  ';
-      
+
       // Step 1: Sanitize
       const sanitized = sanitizeSearchQuery(rawQuery);
       expect(sanitized).toBe('Software ENGINEER & Tech Corp');
-      
+
       // Step 2: Extract terms for analytics
       const terms = extractSearchTerms(rawQuery);
       expect(terms).toEqual(['software', 'engineer', 'tech', 'corp']);
-      
+
       // Step 3: Calculate complexity
       const complexity = calculateQueryComplexity(rawQuery);
       expect(complexity).toBeGreaterThan(0);
-      
+
       // Step 4: Build query
       const query = buildBooleanQuery(rawQuery);
       expect(query).toBeTruthy();
@@ -642,7 +673,7 @@ describe('Search Utils - Phase 2 Unit Tests', () => {
 
     it('should handle edge cases consistently', () => {
       const emptyInputs = ['', '   ', null, undefined];
-      
+
       emptyInputs.forEach(input => {
         expect(sanitizeSearchQuery(input as any)).toBe('');
         expect(buildSimpleQuery(input as any)).toBe('');
@@ -657,9 +688,9 @@ describe('Search Utils - Phase 2 Unit Tests', () => {
         'software engineer',
         'john & (manager | director)',
         'hello world <-> proximity',
-        "O'Connor Associates"
+        "O'Connor Associates",
       ];
-      
+
       testCases.forEach(query => {
         // All functions should handle the same input without crashing
         expect(() => {

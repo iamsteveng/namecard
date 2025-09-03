@@ -1,11 +1,10 @@
-import { Router, Request, Response } from 'express';
-import multer from 'multer';
-
 import type {
   BusinessCardEnrichmentData,
   CompanyEnrichmentData,
   PersonEnrichmentData,
 } from '@namecard/shared/types/enrichment.types';
+import { Router, Request, Response } from 'express';
+import multer from 'multer';
 
 import prisma from '../lib/prisma.js';
 import { authenticateToken } from '../middleware/auth.middleware.js';
@@ -19,8 +18,8 @@ import {
 } from '../middleware/validation.middleware.js';
 import { CardProcessingService } from '../services/card-processing.service.js';
 import { SearchService } from '../services/search.service.js';
-import { SearchQueryError } from '../utils/search.utils.js';
 import logger from '../utils/logger.js';
+import { SearchQueryError } from '../utils/search.utils.js';
 
 const router = Router();
 
@@ -76,7 +75,7 @@ router.get(
 
         // Convert search results to match existing API format
         const cards = searchResults.data.results.map((result: any) => result.item);
-        
+
         res.json({
           success: true,
           data: {
@@ -218,7 +217,17 @@ router.get(
           results: searchResults.data.results.map((result: any) => result.item),
           searchMeta: searchResults.data.searchMeta,
           pagination: searchResults.data.pagination,
-          query: { q, tags, company, dateFrom, dateTo, searchMode, highlight, includeRank, minRank },
+          query: {
+            q,
+            tags,
+            company,
+            dateFrom,
+            dateTo,
+            searchMode,
+            highlight,
+            includeRank,
+            minRank,
+          },
         },
       });
     } catch (error) {

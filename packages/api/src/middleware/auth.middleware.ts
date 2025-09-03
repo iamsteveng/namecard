@@ -1,9 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 
+import { env } from '../config/env.js';
 import prisma from '../lib/prisma.js';
 import cognitoService, { CognitoUser } from '../services/cognito.service.js';
 import logger from '../utils/logger.js';
-import { env } from '../config/env.js';
 
 import { AppError } from './error.middleware.js';
 
@@ -39,14 +39,16 @@ export const authenticateToken = async (req: Request, _res: Response, next: Next
     // Development auth bypass
     if (env.isDevelopment && token === 'dev-bypass-token') {
       const testUserId = process.env.TEST_USER_ID || 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
-      
+
       // Get test user from database using raw query to handle field mismatch
-      const testUserResult = await prisma.$queryRaw<Array<{
-        id: string;
-        email: string;
-        first_name: string;
-        last_name: string;
-      }>>`
+      const testUserResult = await prisma.$queryRaw<
+        Array<{
+          id: string;
+          email: string;
+          first_name: string;
+          last_name: string;
+        }>
+      >`
         SELECT id, email, first_name, last_name
         FROM users 
         WHERE id = ${testUserId}::uuid
@@ -55,7 +57,7 @@ export const authenticateToken = async (req: Request, _res: Response, next: Next
       if (testUserResult && testUserResult.length > 0) {
         const testUser = testUserResult[0];
         const fullName = `${testUser.first_name} ${testUser.last_name}`;
-        
+
         req.user = {
           id: testUser.id,
           cognitoId: 'dev-bypass-cognito-id',

@@ -1,10 +1,10 @@
 /**
  * Mock-Based Route Tests for Search Endpoints (Phase 2)
- * 
+ *
  * These tests focus on CI-compatible route testing by mocking all database
  * dependencies while thoroughly testing request/response handling, validation,
  * error handling, and response formats.
- * 
+ *
  * Tested Endpoints:
  * - POST /api/v1/search/cards - Advanced card search
  * - POST /api/v1/search/companies - Company search
@@ -60,9 +60,9 @@ jest.mock('../lib/prisma.js', () => ({
 // Mock authentication middleware
 jest.mock('../middleware/auth.middleware.js', () => ({
   authenticateToken: (req: any, res: any, next: any) => {
-    req.user = { 
-      id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479', 
-      email: 'test@example.com' 
+    req.user = {
+      id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+      email: 'test@example.com',
     };
     next();
   },
@@ -84,8 +84,8 @@ jest.mock('../utils/logger.js', () => ({
 // =============================================================================
 
 import request from 'supertest';
+
 import app from '../app.js';
-import { SearchQueryError } from '../utils/search.utils.js';
 
 // =============================================================================
 // TEST DATA
@@ -113,11 +113,11 @@ const mockCardSearchResults = {
           {
             field: 'name',
             value: '<b>John</b> Doe',
-          }
+          },
         ],
         score: 0.8,
         matchedFields: ['name', 'title'],
-      }
+      },
     ],
     searchMeta: {
       query: 'software engineer',
@@ -155,7 +155,7 @@ const mockCompanySearchResults = {
         },
         rank: 0.9,
         score: 0.9,
-      }
+      },
     ],
     searchMeta: {
       query: 'technology company',
@@ -206,7 +206,7 @@ const mockIndexHealth = [
     lastUpdated: new Date('2023-01-01T00:00:00Z'),
     rowCount: 500,
     indexSize: '1.2MB',
-  }
+  },
 ];
 
 const mockSearchMetrics = {
@@ -218,14 +218,14 @@ const mockSearchMetrics = {
       query: 'complex search query',
       executionTime: 250,
       timestamp: new Date('2023-01-01T00:00:00Z'),
-    }
+    },
   ],
   lastErrors: [
     {
       error: 'Query timeout',
       query: 'timeout query',
       timestamp: new Date('2023-01-01T00:00:00Z'),
-    }
+    },
   ],
 };
 
@@ -234,7 +234,6 @@ const mockSearchMetrics = {
 // =============================================================================
 
 describe('Search Routes - Mock-Based Tests (Phase 2)', () => {
-  
   beforeEach(() => {
     // Reset all mocks
     jest.clearAllMocks();
@@ -243,7 +242,7 @@ describe('Search Routes - Mock-Based Tests (Phase 2)', () => {
   // =============================================================================
   // POST /api/v1/search/cards - Advanced Card Search
   // =============================================================================
-  
+
   describe('POST /api/v1/search/cards', () => {
     const endpoint = '/api/v1/search/cards';
 
@@ -260,11 +259,14 @@ describe('Search Routes - Mock-Based Tests (Phase 2)', () => {
         .expect(200);
 
       expect(response.body).toEqual(mockCardSearchResults);
-      expect(mockSearchService.searchCards).toHaveBeenCalledWith({
-        q: 'software engineer',
-        page: 1,
-        limit: 20,
-      }, 'f47ac10b-58cc-4372-a567-0e02b2c3d479');
+      expect(mockSearchService.searchCards).toHaveBeenCalledWith(
+        {
+          q: 'software engineer',
+          page: 1,
+          limit: 20,
+        },
+        'f47ac10b-58cc-4372-a567-0e02b2c3d479'
+      );
     });
 
     it('should handle advanced search parameters', async () => {
@@ -285,17 +287,20 @@ describe('Search Routes - Mock-Based Tests (Phase 2)', () => {
         })
         .expect(200);
 
-      expect(mockSearchService.searchCards).toHaveBeenCalledWith({
-        q: 'developer',
-        mustHave: ['javascript'],
-        shouldHave: ['react', 'vue'],
-        mustNotHave: ['intern'],
-        searchInNames: true,
-        searchInTitles: true,
-        proximityDistance: 2,
-        page: 2,
-        limit: 10,
-      }, 'f47ac10b-58cc-4372-a567-0e02b2c3d479');
+      expect(mockSearchService.searchCards).toHaveBeenCalledWith(
+        {
+          q: 'developer',
+          mustHave: ['javascript'],
+          shouldHave: ['react', 'vue'],
+          mustNotHave: ['intern'],
+          searchInNames: true,
+          searchInTitles: true,
+          proximityDistance: 2,
+          page: 2,
+          limit: 10,
+        },
+        'f47ac10b-58cc-4372-a567-0e02b2c3d479'
+      );
 
       expect(response.body).toEqual(mockCardSearchResults);
     });
@@ -384,7 +389,7 @@ describe('Search Routes - Mock-Based Tests (Phase 2)', () => {
   // =============================================================================
   // POST /api/v1/search/companies - Company Search
   // =============================================================================
-  
+
   describe('POST /api/v1/search/companies', () => {
     const endpoint = '/api/v1/search/companies';
 
@@ -441,7 +446,7 @@ describe('Search Routes - Mock-Based Tests (Phase 2)', () => {
   // =============================================================================
   // GET /api/v1/search/suggestions - Search Suggestions
   // =============================================================================
-  
+
   describe('GET /api/v1/search/suggestions', () => {
     const endpoint = '/api/v1/search/suggestions';
 
@@ -484,7 +489,9 @@ describe('Search Routes - Mock-Based Tests (Phase 2)', () => {
     });
 
     it('should handle service errors', async () => {
-      mockSearchService.getSearchSuggestions.mockRejectedValue(new Error('Suggestion service failed'));
+      mockSearchService.getSearchSuggestions.mockRejectedValue(
+        new Error('Suggestion service failed')
+      );
 
       await request(app)
         .get(endpoint)
@@ -498,7 +505,7 @@ describe('Search Routes - Mock-Based Tests (Phase 2)', () => {
   // =============================================================================
   // GET /api/v1/search/filters - Search Filters
   // =============================================================================
-  
+
   describe('GET /api/v1/search/filters', () => {
     const endpoint = '/api/v1/search/filters';
 
@@ -521,9 +528,7 @@ describe('Search Routes - Mock-Based Tests (Phase 2)', () => {
     });
 
     it('should return search filters', async () => {
-      const response = await request(app)
-        .get(endpoint)
-        .expect(200);
+      const response = await request(app).get(endpoint).expect(200);
 
       expect(response.body).toMatchObject({
         success: true,
@@ -569,16 +574,14 @@ describe('Search Routes - Mock-Based Tests (Phase 2)', () => {
     it('should handle database errors', async () => {
       mockPrisma.card.groupBy.mockRejectedValue(new Error('Database error'));
 
-      await request(app)
-        .get(endpoint)
-        .expect(500);
+      await request(app).get(endpoint).expect(500);
     });
   });
 
   // =============================================================================
   // GET /api/v1/search/health - Search Health Check
   // =============================================================================
-  
+
   describe('GET /api/v1/search/health', () => {
     const endpoint = '/api/v1/search/health';
 
@@ -586,9 +589,7 @@ describe('Search Routes - Mock-Based Tests (Phase 2)', () => {
       mockSearchService.getSearchHealth.mockResolvedValue(mockSearchHealth);
       mockIndexingService.getIndexHealth.mockResolvedValue(mockIndexHealth);
 
-      const response = await request(app)
-        .get(endpoint)
-        .expect(200);
+      const response = await request(app).get(endpoint).expect(200);
 
       expect(response.body).toMatchObject({
         success: true,
@@ -610,9 +611,7 @@ describe('Search Routes - Mock-Based Tests (Phase 2)', () => {
     it('should handle service errors', async () => {
       mockSearchService.getSearchHealth.mockRejectedValue(new Error('Health check failed'));
 
-      const response = await request(app)
-        .get(endpoint)
-        .expect(503);
+      const response = await request(app).get(endpoint).expect(503);
 
       expect(response.body).toEqual({
         success: false,
@@ -628,15 +627,12 @@ describe('Search Routes - Mock-Based Tests (Phase 2)', () => {
   // =============================================================================
   // POST /api/v1/search/reindex - Trigger Reindexing
   // =============================================================================
-  
+
   describe('POST /api/v1/search/reindex', () => {
     const endpoint = '/api/v1/search/reindex';
 
     it('should trigger cards reindexing', async () => {
-      const response = await request(app)
-        .post(endpoint)
-        .send({ table: 'cards' })
-        .expect(200);
+      const response = await request(app).post(endpoint).send({ table: 'cards' }).expect(200);
 
       expect(response.body).toMatchObject({
         success: true,
@@ -649,10 +645,7 @@ describe('Search Routes - Mock-Based Tests (Phase 2)', () => {
     });
 
     it('should validate table parameter', async () => {
-      const response = await request(app)
-        .post(endpoint)
-        .send({ table: 'invalid' })
-        .expect(400);
+      const response = await request(app).post(endpoint).send({ table: 'invalid' }).expect(400);
 
       expect(response.body).toEqual({
         success: false,
@@ -667,16 +660,14 @@ describe('Search Routes - Mock-Based Tests (Phase 2)', () => {
   // =============================================================================
   // GET /api/v1/search/analytics - Search Analytics
   // =============================================================================
-  
+
   describe('GET /api/v1/search/analytics', () => {
     const endpoint = '/api/v1/search/analytics';
 
     it('should return search analytics', async () => {
       mockSearchService.getSearchMetrics.mockReturnValue(mockSearchMetrics);
 
-      const response = await request(app)
-        .get(endpoint)
-        .expect(200);
+      const response = await request(app).get(endpoint).expect(200);
 
       expect(response.body).toMatchObject({
         success: true,
@@ -713,9 +704,7 @@ describe('Search Routes - Mock-Based Tests (Phase 2)', () => {
         errorCount: 10,
       });
 
-      const response = await request(app)
-        .get(endpoint)
-        .expect(200);
+      const response = await request(app).get(endpoint).expect(200);
 
       expect(response.body.data.analytics.successRate).toBe(90); // (100-10)/100 * 100
     });

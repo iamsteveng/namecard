@@ -3,11 +3,8 @@
  * Handles search vector updates, validation, and health monitoring
  */
 
+import type { IndexHealth, IndexingJob } from '@namecard/shared/types/search.types';
 import type { PrismaClient } from '@prisma/client';
-import type {
-  IndexHealth,
-  IndexingJob,
-} from '@namecard/shared/types/search.types';
 
 import logger from '../utils/logger.js';
 
@@ -46,28 +43,28 @@ export class IndexingService {
    */
   private async getTableIndexHealth(tableName: 'cards' | 'companies'): Promise<IndexHealth> {
     // Get total records count
-    const totalRecordsResult = await this.prisma.$queryRawUnsafe(
+    const totalRecordsResult = (await this.prisma.$queryRawUnsafe(
       `SELECT COUNT(*) as total FROM ${tableName}`
-    ) as [{ total: bigint }];
+    )) as [{ total: bigint }];
     const totalRecords = Number(totalRecordsResult[0].total);
 
     // Get indexed records count (non-null search_vector)
-    const indexedRecordsResult = await this.prisma.$queryRawUnsafe(
+    const indexedRecordsResult = (await this.prisma.$queryRawUnsafe(
       `SELECT COUNT(*) as indexed FROM ${tableName} WHERE search_vector IS NOT NULL`
-    ) as [{ total: bigint }];
+    )) as [{ total: bigint }];
     const indexedRecords = Number(indexedRecordsResult[0].total || 0);
 
     // Get index size
-    const indexSizeResult = await this.prisma.$queryRawUnsafe(
+    const indexSizeResult = (await this.prisma.$queryRawUnsafe(
       `SELECT pg_size_pretty(pg_relation_size($1)) as size`,
       `${tableName}_search_vector_idx`
-    ) as [{ size: string }];
+    )) as [{ size: string }];
     const indexSize = indexSizeResult[0]?.size || '0 bytes';
 
     // Get last updated timestamp (approximate using the most recent record)
-    const lastUpdatedResult = await this.prisma.$queryRawUnsafe(
+    const lastUpdatedResult = (await this.prisma.$queryRawUnsafe(
       `SELECT MAX(updated_at) as last_updated FROM ${tableName} WHERE search_vector IS NOT NULL`
-    ) as [{ last_updated: Date | null }];
+    )) as [{ last_updated: Date | null }];
     const lastUpdated = lastUpdatedResult[0]?.last_updated || new Date(0);
 
     const completeness = totalRecords > 0 ? (indexedRecords / totalRecords) * 100 : 100;
@@ -118,7 +115,9 @@ export class IndexingService {
   /**
    * Force update search vectors for specific company IDs
    */
-  async updateCompanySearchVectors(companyIds: string[]): Promise<{ updated: number; failed: string[] }> {
+  async updateCompanySearchVectors(
+    companyIds: string[]
+  ): Promise<{ updated: number; failed: string[] }> {
     const failed: string[] = [];
     let updated = 0;
 
@@ -166,9 +165,9 @@ export class IndexingService {
       logger.info('Starting full cards reindex', { jobId });
 
       // Get total count
-      const totalResult = await this.prisma.$queryRawUnsafe(
+      const totalResult = (await this.prisma.$queryRawUnsafe(
         'SELECT COUNT(*) as total FROM cards'
-      ) as [{ total: bigint }];
+      )) as [{ total: bigint }];
       const total = Number(totalResult[0].total);
 
       // Update all cards in batches
@@ -176,7 +175,7 @@ export class IndexingService {
       let processed = 0;
 
       for (let offset = 0; offset < total; offset += batchSize) {
-        const batchResult = await this.prisma.$queryRawUnsafe(
+        await this.prisma.$queryRawUnsafe(
           `UPDATE cards 
            SET updated_at = updated_at 
            WHERE id IN (
@@ -192,11 +191,11 @@ export class IndexingService {
         job.progress = Math.min((processed / total) * 100, 100);
         job.recordsProcessed = Math.min(processed, total);
 
-        logger.debug('Reindex progress', { 
-          jobId, 
-          processed: job.recordsProcessed, 
-          total, 
-          progress: job.progress 
+        logger.debug('Reindex progress', {
+          jobId,
+          processed: job.recordsProcessed,
+          total,
+          progress: job.progress,
         });
       }
 
@@ -207,7 +206,6 @@ export class IndexingService {
 
       logger.info('Cards reindex completed successfully', { jobId, recordsProcessed: total });
       return job;
-
     } catch (error) {
       job.status = 'failed';
       job.endTime = new Date();
@@ -236,9 +234,9 @@ export class IndexingService {
     try {
       logger.info('Starting full companies reindex', { jobId });
 
-      const totalResult = await this.prisma.$queryRawUnsafe(
+      const totalResult = (await this.prisma.$queryRawUnsafe(
         'SELECT COUNT(*) as total FROM companies'
-      ) as [{ total: bigint }];
+      )) as [{ total: bigint }];
       const total = Number(totalResult[0].total);
 
       const batchSize = 1000;
@@ -261,11 +259,11 @@ export class IndexingService {
         job.progress = Math.min((processed / total) * 100, 100);
         job.recordsProcessed = Math.min(processed, total);
 
-        logger.debug('Company reindex progress', { 
-          jobId, 
-          processed: job.recordsProcessed, 
-          total, 
-          progress: job.progress 
+        logger.debug('Company reindex progress', {
+          jobId,
+          processed: job.recordsProcessed,
+          total,
+          progress: job.progress,
         });
       }
 
@@ -276,7 +274,6 @@ export class IndexingService {
 
       logger.info('Companies reindex completed successfully', { jobId, recordsProcessed: total });
       return job;
-
     } catch (error) {
       job.status = 'failed';
       job.endTime = new Date();
@@ -309,9 +306,9 @@ export class IndexingService {
       logger.info('Starting search vector validation', { tableName });
 
       // Check for missing search vectors
-      const missingVectorsResult = await this.prisma.$queryRawUnsafe(
+      const missingVectorsResult = (await this.prisma.$queryRawUnsafe(
         `SELECT id FROM ${tableName} WHERE search_vector IS NULL`
-      ) as Array<{ id: string }>;
+      )) as Array<{ id: string }>;
 
       missing = missingVectorsResult.length;
       missingVectorsResult.forEach(row => {
@@ -319,9 +316,9 @@ export class IndexingService {
       });
 
       // Check for empty search vectors
-      const emptyVectorsResult = await this.prisma.$queryRawUnsafe(
+      const emptyVectorsResult = (await this.prisma.$queryRawUnsafe(
         `SELECT id FROM ${tableName} WHERE search_vector IS NOT NULL AND search_vector = ''::tsvector`
-      ) as Array<{ id: string }>;
+      )) as Array<{ id: string }>;
 
       invalid += emptyVectorsResult.length;
       emptyVectorsResult.forEach(row => {
@@ -329,23 +326,22 @@ export class IndexingService {
       });
 
       // Get total records with valid search vectors
-      const validVectorsResult = await this.prisma.$queryRawUnsafe(
+      const validVectorsResult = (await this.prisma.$queryRawUnsafe(
         `SELECT COUNT(*) as count FROM ${tableName} 
          WHERE search_vector IS NOT NULL AND search_vector != ''::tsvector`
-      ) as [{ count: bigint }];
+      )) as [{ count: bigint }];
 
       valid = Number(validVectorsResult[0].count);
 
-      logger.info('Search vector validation completed', { 
-        tableName, 
-        valid, 
-        invalid, 
-        missing, 
-        totalIssues: issues.length 
+      logger.info('Search vector validation completed', {
+        tableName,
+        valid,
+        invalid,
+        missing,
+        totalIssues: issues.length,
       });
 
       return { valid, invalid, missing, details: issues };
-
     } catch (error) {
       logger.error('Search vector validation failed', { tableName, error });
       throw new Error(`Failed to validate search vectors for ${tableName}`);
@@ -371,7 +367,7 @@ export class IndexingService {
     try {
       // Test cards trigger
       const testCardId = `test_${Date.now()}`;
-      
+
       // Create a test card and check if search vector is populated
       await this.prisma.$queryRawUnsafe(
         `INSERT INTO cards (id, user_id, first_name, last_name, title, company, updated_at)
@@ -381,10 +377,10 @@ export class IndexingService {
       );
 
       // Check if search vector was created
-      const cardVectorResult = await this.prisma.$queryRawUnsafe(
+      const cardVectorResult = (await this.prisma.$queryRawUnsafe(
         `SELECT search_vector FROM cards WHERE id = $1`,
         testCardId
-      ) as [{ search_vector: string | null }];
+      )) as [{ search_vector: string | null }];
 
       if (cardVectorResult[0]?.search_vector) {
         cardsTriggersWorking = true;
@@ -398,17 +394,17 @@ export class IndexingService {
 
       // Test companies trigger
       const testCompanyId = `test_company_${Date.now()}`;
-      
+
       await this.prisma.$queryRawUnsafe(
         `INSERT INTO companies (id, name, industry, description, updated_at)
          VALUES ($1, 'Test Company', 'Technology', 'Test company for trigger validation', NOW())`,
         testCompanyId
       );
 
-      const companyVectorResult = await this.prisma.$queryRawUnsafe(
+      const companyVectorResult = (await this.prisma.$queryRawUnsafe(
         `SELECT search_vector FROM companies WHERE id = $1`,
         testCompanyId
-      ) as [{ search_vector: string | null }];
+      )) as [{ search_vector: string | null }];
 
       if (companyVectorResult[0]?.search_vector) {
         companiesTriggersWorking = true;
@@ -427,11 +423,12 @@ export class IndexingService {
       });
 
       return { cardsTriggersWorking, companiesTriggersWorking, details };
-
     } catch (error) {
       logger.error('Trigger function validation failed', { error });
-      details.push(`Validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      
+      details.push(
+        `Validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+
       return { cardsTriggersWorking: false, companiesTriggersWorking: false, details };
     }
   }
@@ -462,7 +459,10 @@ export class IndexingService {
     try {
       // Get cards index stats
       const cardsStats = await this.getTableIndexStats('cards', 'cards_search_vector_idx');
-      const companiesStats = await this.getTableIndexStats('companies', 'companies_search_vector_idx');
+      const companiesStats = await this.getTableIndexStats(
+        'companies',
+        'companies_search_vector_idx'
+      );
 
       return {
         cards: cardsStats,
@@ -476,26 +476,26 @@ export class IndexingService {
 
   private async getTableIndexStats(tableName: string, indexName: string) {
     // Get index size
-    const sizeResult = await this.prisma.$queryRawUnsafe(
+    const sizeResult = (await this.prisma.$queryRawUnsafe(
       `SELECT pg_size_pretty(pg_relation_size($1)) as size`,
       indexName
-    ) as [{ size: string }];
+    )) as [{ size: string }];
 
     // Get row counts
-    const rowCountResult = await this.prisma.$queryRawUnsafe(
+    const rowCountResult = (await this.prisma.$queryRawUnsafe(
       `SELECT 
          COUNT(*) as total_rows,
          COUNT(search_vector) as indexed_rows
        FROM ${tableName}`
-    ) as [{ total_rows: bigint; indexed_rows: bigint }];
+    )) as [{ total_rows: bigint; indexed_rows: bigint }];
 
     // Get index usage (from pg_stat_user_indexes if available)
-    const usageResult = await this.prisma.$queryRawUnsafe(
+    const usageResult = (await this.prisma.$queryRawUnsafe(
       `SELECT COALESCE(idx_scan, 0) as usage_count
        FROM pg_stat_user_indexes 
        WHERE indexrelname = $1`,
       indexName
-    ) as [{ usage_count: bigint }];
+    )) as [{ usage_count: bigint }];
 
     return {
       indexName,
@@ -550,24 +550,28 @@ export class IndexingService {
       }
 
       if (indexStats.companies.indexUsage === 0 && indexStats.companies.totalRows > 0) {
-        recommendations.push('Companies search index has not been used - verify search functionality');
+        recommendations.push(
+          'Companies search index has not been used - verify search functionality'
+        );
       }
 
       // Check for large indexes with low usage
       const parseSize = (sizeStr: string): number => {
         const match = sizeStr.match(/(\d+(?:\.\d+)?)\s*(\w+)/);
-        if (!match) return 0;
-        
+        if (!match) {
+          return 0;
+        }
+
         const value = parseFloat(match[1]);
         const unit = match[2].toLowerCase();
-        
+
         const multipliers: Record<string, number> = {
-          'bytes': 1,
-          'kb': 1024,
-          'mb': 1024 * 1024,
-          'gb': 1024 * 1024 * 1024,
+          bytes: 1,
+          kb: 1024,
+          mb: 1024 * 1024,
+          gb: 1024 * 1024 * 1024,
         };
-        
+
         return value * (multipliers[unit] || 1);
       };
 
@@ -586,13 +590,12 @@ export class IndexingService {
         recommendations.push('All search indexes are performing well');
       }
 
-      logger.info('Index performance analysis completed', { 
+      logger.info('Index performance analysis completed', {
         recommendationsCount: recommendations.length,
-        metrics 
+        metrics,
       });
 
       return { recommendations, metrics };
-
     } catch (error) {
       logger.error('Index performance analysis failed', { error });
       throw new Error('Failed to analyze index performance');

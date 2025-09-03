@@ -3,34 +3,29 @@
  * Provides high-performance search capabilities using PostgreSQL's tsvector/tsquery
  */
 
-import type { PrismaClient } from '@prisma/client';
+import type { Card } from '@namecard/shared/types/card.types';
+import type { Company } from '@namecard/shared/types/company.types';
 import type {
   FullTextSearchParams,
   AdvancedSearchParams,
   SearchResultItem,
   SearchResults,
-  SearchMeta,
-  SearchHighlight,
   SearchSuggestion,
   SearchSuggestionParams,
-  FilterOptions,
   SearchAnalytics,
 } from '@namecard/shared/types/search.types';
-import type { Card } from '@namecard/shared/types/card.types';
-import type { Company } from '@namecard/shared/types/company.types';
+import type { PrismaClient } from '@prisma/client';
 
+import logger from '../utils/logger.js';
 import {
   processQueryByMode,
   buildAdvancedQuery,
   buildPrefixQuery,
-  buildHighlightText,
-  parseHighlights,
   validateSearchParams,
   extractSearchTerms,
   calculateQueryComplexity,
   SearchQueryError,
 } from '../utils/search.utils.js';
-import logger from '../utils/logger.js';
 
 // Enhanced error tracking and monitoring
 interface SearchMetrics {
@@ -52,9 +47,10 @@ class SearchMonitor {
 
   recordQuery(executionTime: number, query: string) {
     this.metrics.totalQueries++;
-    
+
     // Update average execution time
-    const totalTime = this.metrics.averageExecutionTime * (this.metrics.totalQueries - 1) + executionTime;
+    const totalTime =
+      this.metrics.averageExecutionTime * (this.metrics.totalQueries - 1) + executionTime;
     this.metrics.averageExecutionTime = totalTime / this.metrics.totalQueries;
 
     // Record slow queries (>1000ms)
@@ -64,7 +60,7 @@ class SearchMonitor {
         executionTime,
         timestamp: new Date(),
       });
-      
+
       // Keep only last 10 slow queries
       if (this.metrics.slowQueries.length > 10) {
         this.metrics.slowQueries.shift();
@@ -126,10 +122,7 @@ export class SearchService {
   /**
    * Searches cards using PostgreSQL full-text search
    */
-  async searchCards(
-    params: FullTextSearchParams,
-    userId: string
-  ): Promise<SearchResults<Card>> {
+  async searchCards(params: FullTextSearchParams, userId: string): Promise<SearchResults<Card>> {
     const startTime = Date.now();
 
     try {
@@ -152,7 +145,7 @@ export class SearchService {
 
       // Build the full-text search query
       const searchQuery = processQueryByMode(q, searchMode);
-      
+
       if (!searchQuery && !tags && !company && !dateFrom && !dateTo) {
         // No search criteria provided, return empty results
         return this.buildEmptySearchResults<Card>(
@@ -260,10 +253,10 @@ export class SearchService {
         ${whereClause}
       `;
 
-      const countResult = await this.prisma.$queryRawUnsafe(
+      const countResult = (await this.prisma.$queryRawUnsafe(
         countSql,
         ...queryParams.slice(0, -2) // Remove limit and offset
-      ) as [{ total: bigint }];
+      )) as [{ total: bigint }];
 
       const total = Number(countResult[0].total);
 
@@ -314,7 +307,7 @@ export class SearchService {
       };
     } catch (error) {
       const executionTime = Date.now() - startTime;
-      
+
       // Record error metrics
       searchMonitor.recordError(error as Error, params.q || 'empty-query');
 
@@ -324,11 +317,10 @@ export class SearchService {
         throw error;
       }
 
-      throw new SearchQueryError(
-        'Internal search error occurred',
-        'SEARCH_ERROR',
-        { executionTime, originalError: error instanceof Error ? error.message : 'Unknown' }
-      );
+      throw new SearchQueryError('Internal search error occurred', 'SEARCH_ERROR', {
+        executionTime,
+        originalError: error instanceof Error ? error.message : 'Unknown',
+      });
     }
   }
 
@@ -340,7 +332,7 @@ export class SearchService {
     userId: string
   ): Promise<SearchResults<Card>> {
     const searchQuery = buildAdvancedQuery(params);
-    
+
     return this.searchCards(
       {
         ...params,
@@ -358,9 +350,7 @@ export class SearchService {
   /**
    * Searches companies using PostgreSQL full-text search
    */
-  async searchCompanies(
-    params: FullTextSearchParams
-  ): Promise<SearchResults<Company>> {
+  async searchCompanies(params: FullTextSearchParams): Promise<SearchResults<Company>> {
     const startTime = Date.now();
 
     try {
@@ -415,7 +405,7 @@ export class SearchService {
       }
 
       // Build ORDER BY clause
-      const orderByClause = includeRank 
+      const orderByClause = includeRank
         ? 'ORDER BY search_rank DESC, created_at DESC'
         : 'ORDER BY created_at DESC';
 
@@ -429,7 +419,9 @@ export class SearchService {
       `;
 
       const queryParams: (string | number)[] = [searchQuery];
-      if (minRank > 0) queryParams.push(minRank);
+      if (minRank > 0) {
+        queryParams.push(minRank);
+      }
       queryParams.push(limitNum, offset);
 
       const results = await this.prisma.$queryRawUnsafe(searchSql, ...queryParams);
@@ -442,9 +434,13 @@ export class SearchService {
       `;
 
       const countParams: (string | number)[] = [searchQuery];
-      if (minRank > 0) countParams.push(minRank);
+      if (minRank > 0) {
+        countParams.push(minRank);
+      }
 
-      const countResult = await this.prisma.$queryRawUnsafe(countSql, ...countParams) as [{ total: bigint }];
+      const countResult = (await this.prisma.$queryRawUnsafe(countSql, ...countParams)) as [
+        { total: bigint },
+      ];
       const total = Number(countResult[0].total);
 
       // Process results
@@ -486,11 +482,10 @@ export class SearchService {
         throw error;
       }
 
-      throw new SearchQueryError(
-        'Internal search error occurred',
-        'SEARCH_ERROR',
-        { executionTime, originalError: error instanceof Error ? error.message : 'Unknown' }
-      );
+      throw new SearchQueryError('Internal search error occurred', 'SEARCH_ERROR', {
+        executionTime,
+        originalError: error instanceof Error ? error.message : 'Unknown',
+      });
     }
   }
 
@@ -515,7 +510,9 @@ export class SearchService {
       }
 
       const prefixQuery = buildPrefixQuery(prefix);
-      if (!prefixQuery) return [];
+      if (!prefixQuery) {
+        return [];
+      }
 
       const suggestions: SearchSuggestion[] = [];
 
@@ -533,9 +530,24 @@ export class SearchService {
         default:
           // Get mixed suggestions
           await Promise.all([
-            this.addNameSuggestions(prefixQuery, suggestions, userId, Math.ceil(maxSuggestions / 3)),
-            this.addCompanySuggestions(prefixQuery, suggestions, userId, Math.ceil(maxSuggestions / 3)),
-            this.addTitleSuggestions(prefixQuery, suggestions, userId, Math.ceil(maxSuggestions / 3)),
+            this.addNameSuggestions(
+              prefixQuery,
+              suggestions,
+              userId,
+              Math.ceil(maxSuggestions / 3)
+            ),
+            this.addCompanySuggestions(
+              prefixQuery,
+              suggestions,
+              userId,
+              Math.ceil(maxSuggestions / 3)
+            ),
+            this.addTitleSuggestions(
+              prefixQuery,
+              suggestions,
+              userId,
+              Math.ceil(maxSuggestions / 3)
+            ),
           ]);
       }
 
@@ -576,9 +588,10 @@ export class SearchService {
         processedImageUrl: row.processed_image_url,
         extractedText: null,
         confidence: row.ocr_confidence,
-        name: row.first_name && row.last_name 
-          ? `${row.first_name} ${row.last_name}`
-          : row.first_name || row.last_name || undefined,
+        name:
+          row.first_name && row.last_name
+            ? `${row.first_name} ${row.last_name}`
+            : row.first_name || row.last_name || undefined,
         title: row.title,
         company: row.company,
         email: row.email,
@@ -598,10 +611,12 @@ export class SearchService {
 
       // Add highlights if requested
       if (options.highlight && row.highlight) {
-        result.highlights = [{
-          field: 'combined',
-          value: row.highlight,
-        }];
+        result.highlights = [
+          {
+            field: 'combined',
+            value: row.highlight,
+          },
+        ];
       }
 
       // Add matched fields (simplified - would need more complex logic for real field matching)
@@ -638,10 +653,12 @@ export class SearchService {
       };
 
       if (options.highlight && row.highlight) {
-        result.highlights = [{
-          field: 'combined',
-          value: row.highlight,
-        }];
+        result.highlights = [
+          {
+            field: 'combined',
+            value: row.highlight,
+          },
+        ];
       }
 
       if (options.searchQuery) {
@@ -655,14 +672,24 @@ export class SearchService {
   private getMatchedFields(card: Card, searchQuery: string): string[] {
     const fields: string[] = [];
     const terms = extractSearchTerms(searchQuery);
-    
+
     terms.forEach(term => {
       const lowerTerm = term.toLowerCase();
-      if (card.name?.toLowerCase().includes(lowerTerm)) fields.push('name');
-      if (card.title?.toLowerCase().includes(lowerTerm)) fields.push('title');
-      if (card.company?.toLowerCase().includes(lowerTerm)) fields.push('company');
-      if (card.email?.toLowerCase().includes(lowerTerm)) fields.push('email');
-      if (card.notes?.toLowerCase().includes(lowerTerm)) fields.push('notes');
+      if (card.name?.toLowerCase().includes(lowerTerm)) {
+        fields.push('name');
+      }
+      if (card.title?.toLowerCase().includes(lowerTerm)) {
+        fields.push('title');
+      }
+      if (card.company?.toLowerCase().includes(lowerTerm)) {
+        fields.push('company');
+      }
+      if (card.email?.toLowerCase().includes(lowerTerm)) {
+        fields.push('email');
+      }
+      if (card.notes?.toLowerCase().includes(lowerTerm)) {
+        fields.push('notes');
+      }
     });
 
     return Array.from(new Set(fields));
@@ -671,13 +698,21 @@ export class SearchService {
   private getMatchedCompanyFields(company: Company, searchQuery: string): string[] {
     const fields: string[] = [];
     const terms = extractSearchTerms(searchQuery);
-    
+
     terms.forEach(term => {
       const lowerTerm = term.toLowerCase();
-      if (company.name?.toLowerCase().includes(lowerTerm)) fields.push('name');
-      if (company.industry?.toLowerCase().includes(lowerTerm)) fields.push('industry');
-      if (company.description?.toLowerCase().includes(lowerTerm)) fields.push('description');
-      if (company.website?.toLowerCase().includes(lowerTerm)) fields.push('website');
+      if (company.name?.toLowerCase().includes(lowerTerm)) {
+        fields.push('name');
+      }
+      if (company.industry?.toLowerCase().includes(lowerTerm)) {
+        fields.push('industry');
+      }
+      if (company.description?.toLowerCase().includes(lowerTerm)) {
+        fields.push('description');
+      }
+      if (company.website?.toLowerCase().includes(lowerTerm)) {
+        fields.push('website');
+      }
     });
 
     return Array.from(new Set(fields));
@@ -715,7 +750,7 @@ export class SearchService {
       LIMIT ${limit}
     `;
 
-    const results = await this.prisma.$queryRawUnsafe(sql, ...queryParams) as Array<{
+    const results = (await this.prisma.$queryRawUnsafe(sql, ...queryParams)) as Array<{
       suggestion: string;
       count: bigint;
     }>;
@@ -755,7 +790,7 @@ export class SearchService {
       LIMIT ${limit}
     `;
 
-    const results = await this.prisma.$queryRawUnsafe(sql, ...queryParams) as Array<{
+    const results = (await this.prisma.$queryRawUnsafe(sql, ...queryParams)) as Array<{
       suggestion: string;
       count: bigint;
     }>;
@@ -795,7 +830,7 @@ export class SearchService {
       LIMIT ${limit}
     `;
 
-    const results = await this.prisma.$queryRawUnsafe(sql, ...queryParams) as Array<{
+    const results = (await this.prisma.$queryRawUnsafe(sql, ...queryParams)) as Array<{
       suggestion: string;
       count: bigint;
     }>;
@@ -842,7 +877,9 @@ export class SearchService {
     };
   }
 
-  private async logSearchAnalytics(analytics: Omit<SearchAnalytics, 'queryId' | 'timestamp'>): Promise<void> {
+  private async logSearchAnalytics(
+    analytics: Omit<SearchAnalytics, 'queryId' | 'timestamp'>
+  ): Promise<void> {
     try {
       // In a real implementation, you might store this in a dedicated analytics table
       // For now, we'll just log it
@@ -900,28 +937,31 @@ export class SearchService {
     try {
       // Test database connectivity and get index health
       const healthCheck = await Promise.all([
-        this.prisma.$queryRaw<Array<{ count: bigint }>>`SELECT COUNT(*) as count FROM cards WHERE search_vector IS NOT NULL`,
-        this.prisma.$queryRaw<Array<{ count: bigint }>>`SELECT COUNT(*) as count FROM companies WHERE search_vector IS NOT NULL`,
+        this.prisma.$queryRaw<
+          Array<{ count: bigint }>
+        >`SELECT COUNT(*) as count FROM cards WHERE search_vector IS NOT NULL`,
+        this.prisma.$queryRaw<
+          Array<{ count: bigint }>
+        >`SELECT COUNT(*) as count FROM companies WHERE search_vector IS NOT NULL`,
       ]);
 
       cardsIndexed = Number(healthCheck[0][0].count);
       companiesIndexed = Number(healthCheck[1][0].count);
       dbConnected = true;
       dbResponseTime = Date.now() - startTime;
-
     } catch (error) {
       logger.error('Search health check failed:', error);
     }
 
     const metrics = this.getSearchMetrics();
-    
+
     // Determine health status
     let status: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
-    
+
     if (!dbConnected) {
       status = 'unhealthy';
     } else if (
-      metrics.averageExecutionTime > 1000 || 
+      metrics.averageExecutionTime > 1000 ||
       metrics.errorCount > 10 ||
       (dbResponseTime && dbResponseTime > 2000)
     ) {
