@@ -15,15 +15,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     clearError();
-    
-    // TEMPORARY DEV BYPASS: Auto-login in development mode
-    if (import.meta.env.DEV && !isAuthenticated && !isLoading) {
-      console.warn('🔓 AUTO-LOGIN ACTIVE - DEVELOPMENT ONLY');
-      login('test@namecard.app', 'password').catch(err => {
-        console.error('Auto-login failed:', err);
-      });
-    }
-  }, [clearError, isAuthenticated, isLoading, login]);
+  }, [clearError]);
 
   // If already authenticated, redirect to dashboard or intended page
   if (isAuthenticated) {
@@ -54,18 +46,6 @@ export default function LoginPage() {
         <div className="text-center">
           <h2 className="text-3xl font-bold text-gray-900">NameCard</h2>
           <p className="mt-2 text-sm text-gray-600">Business Card Scanner & Manager</p>
-          
-          {/* TEMPORARY DEV MESSAGE */}
-          {import.meta.env.DEV && (
-            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-              <p className="text-sm text-yellow-800">
-                🔓 <strong>Development Mode:</strong> Auto-login active for testing
-              </p>
-              <p className="text-xs text-yellow-600 mt-1">
-                This page will automatically log you in to test search functionality
-              </p>
-            </div>
-          )}
         </div>
       </div>
 
