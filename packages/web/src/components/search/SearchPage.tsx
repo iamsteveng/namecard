@@ -1,15 +1,16 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { useSearch, useSearchFilters } from '../../hooks/useSearch';
+
 import SearchBar from './SearchBar';
 import SearchFilters from './SearchFilters';
 import SearchResults from './SearchResults';
-import { useSearch, useSearchFilters } from '../../hooks/useSearch';
 
 export default function SearchPage() {
   const navigate = useNavigate();
   const [filtersOpen, setFiltersOpen] = useState(false);
-  
+
   // Initialize search functionality
   const {
     query,
@@ -29,10 +30,7 @@ export default function SearchPage() {
   } = useSearch();
 
   // Get available filter options
-  const { 
-    options: filterOptions, 
-    isLoading: isLoadingFilters 
-  } = useSearchFilters(query);
+  const { options: filterOptions, isLoading: isLoadingFilters } = useSearchFilters(query);
 
   const handleCardClick = (card: any) => {
     navigate(`/cards/${card.id}`);

@@ -1,6 +1,7 @@
+import type { Card } from '@namecard/shared/types/card.types';
+import type { SearchResultItem, SearchHighlight } from '@namecard/shared/types/search.types';
 import { clsx } from 'clsx';
 import {
-  User,
   Briefcase,
   Mail,
   Phone,
@@ -15,11 +16,8 @@ import {
   MoreVertical,
   Loader2,
 } from 'lucide-react';
-import { useState, Fragment } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-
-import type { SearchResultItem, SearchHighlight } from '@namecard/shared/types/search.types';
-import type { Card } from '@namecard/shared/types/card.types';
 
 interface SearchResultsProps {
   results: SearchResultItem<Card>[];
@@ -56,29 +54,32 @@ function stripHtmlTags(html: string): string {
 // Helper function to extract highlighted portion that matches the field text
 // This function is now much stricter to prevent returning combined highlights for individual fields
 function findMatchingHighlight(fieldText: string, highlights: SearchHighlight[]): string | null {
-  if (!fieldText || !highlights?.length) return null;
-  
+  if (!fieldText || !highlights?.length) {
+    return null;
+  }
+
   const fieldTextLower = fieldText.toLowerCase().trim();
-  
+
   for (const highlight of highlights) {
     const plainHighlight = stripHtmlTags(highlight.value).toLowerCase().trim();
     const htmlHighlight = highlight.value;
-    
+
     // Only return exact matches or very close matches (>95% similarity)
     // This prevents returning combined highlights for individual field text
     if (plainHighlight === fieldTextLower) {
       return htmlHighlight;
     }
-    
+
     // Check for very high similarity (exact substring with minimal extra content)
     if (fieldTextLower.length > 10 && plainHighlight.includes(fieldTextLower)) {
       const similarity = fieldTextLower.length / plainHighlight.length;
-      if (similarity > 0.8) { // Field text is >80% of the highlight
+      if (similarity > 0.8) {
+        // Field text is >80% of the highlight
         return htmlHighlight;
       }
     }
   }
-  
+
   // Return null to let the term-extraction fallback handle highlighting
   return null;
 }
@@ -91,10 +92,10 @@ function HighlightedText({ text, highlights, className }: HighlightedTextProps) 
 
   // Try to find a matching highlight for this text
   const matchingHighlight = findMatchingHighlight(text, highlights);
-  
+
   if (matchingHighlight) {
     return (
-      <span 
+      <span
         className={`${className} search-highlighted`}
         dangerouslySetInnerHTML={{ __html: matchingHighlight }}
       />
@@ -105,9 +106,8 @@ function HighlightedText({ text, highlights, className }: HighlightedTextProps) 
   // and try to highlight individual words
   const textLower = text.toLowerCase();
   let hasHighlightableTerms = false;
-  
+
   for (const highlight of highlights) {
-    const plainText = stripHtmlTags(highlight.value);
     // Extract bold terms from the highlight
     const boldMatches = highlight.value.match(/<b[^>]*>(.*?)<\/b>/gi);
     if (boldMatches) {
@@ -119,9 +119,11 @@ function HighlightedText({ text, highlights, className }: HighlightedTextProps) 
         }
       }
     }
-    if (hasHighlightableTerms) break;
+    if (hasHighlightableTerms) {
+      break;
+    }
   }
-  
+
   if (hasHighlightableTerms) {
     // Create inline highlighting for matching terms
     let highlightedText = text;
@@ -135,21 +137,26 @@ function HighlightedText({ text, highlights, className }: HighlightedTextProps) 
         }
       }
     }
-    
+
     return (
-      <span 
+      <span
         className={`${className} search-highlighted`}
         dangerouslySetInnerHTML={{ __html: highlightedText }}
       />
     );
   }
-  
+
   // Fallback to original text if no highlighting is applicable
   return <span className={className}>{text}</span>;
 }
 
 // Individual search result card component
-function SearchResultCard({ result, onClick, showRank = false, showHighlights = true }: SearchResultCardProps) {
+function SearchResultCard({
+  result,
+  onClick,
+  showRank = false,
+  showHighlights = true,
+}: SearchResultCardProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
 
@@ -172,8 +179,12 @@ function SearchResultCard({ result, onClick, showRank = false, showHighlights = 
   };
 
   const getRankColor = (rank: number) => {
-    if (rank >= 0.8) return 'text-green-600 bg-green-50';
-    if (rank >= 0.5) return 'text-yellow-600 bg-yellow-50';
+    if (rank >= 0.8) {
+      return 'text-green-600 bg-green-50';
+    }
+    if (rank >= 0.5) {
+      return 'text-yellow-600 bg-yellow-50';
+    }
     return 'text-red-600 bg-red-50';
   };
 
@@ -192,20 +203,19 @@ function SearchResultCard({ result, onClick, showRank = false, showHighlights = 
         <div className="flex items-center gap-3">
           {/* Relevance rank */}
           {showRank && (
-            <span className={clsx(
-              'px-2 py-1 rounded-full text-xs font-medium',
-              getRankColor(rank)
-            )}>
+            <span
+              className={clsx('px-2 py-1 rounded-full text-xs font-medium', getRankColor(rank))}
+            >
               {Math.round(rank * 100)}%
             </span>
           )}
-          
+
           {/* Card info */}
           <div onClick={handleCardClick} className="flex-1">
             <h3 className="font-semibold text-gray-900 hover:text-blue-600 transition-colors">
               {showHighlights ? (
-                <HighlightedText 
-                  text={card.name || 'Unknown Name'} 
+                <HighlightedText
+                  text={card.name || 'Unknown Name'}
                   highlights={highlights}
                   className="text-lg"
                 />
@@ -219,7 +229,7 @@ function SearchResultCard({ result, onClick, showRank = false, showHighlights = 
         {/* Actions menu */}
         <div className="relative">
           <button
-            onClick={(e) => {
+            onClick={e => {
               e.stopPropagation();
               setIsMenuOpen(!isMenuOpen);
             }}
@@ -294,7 +304,7 @@ function SearchResultCard({ result, onClick, showRank = false, showHighlights = 
                 )}
               </span>
               <button
-                onClick={(e) => {
+                onClick={e => {
                   e.stopPropagation();
                   handleCopy(card.email!, 'Email');
                 }}
@@ -316,7 +326,7 @@ function SearchResultCard({ result, onClick, showRank = false, showHighlights = 
                 )}
               </span>
               <button
-                onClick={(e) => {
+                onClick={e => {
                   e.stopPropagation();
                   handleCopy(card.phone!, 'Phone');
                 }}
@@ -335,7 +345,7 @@ function SearchResultCard({ result, onClick, showRank = false, showHighlights = 
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-600 hover:underline truncate"
-                onClick={(e) => e.stopPropagation()}
+                onClick={e => e.stopPropagation()}
               >
                 {showHighlights ? (
                   <HighlightedText text={card.website} highlights={highlights} />
@@ -401,7 +411,7 @@ function SearchResultCard({ result, onClick, showRank = false, showHighlights = 
           </div>
           <div className="flex items-center gap-1">
             <Star className="h-3 w-3" />
-            {Math.round(card.confidence * 100)}% confidence
+            {Math.round((card.confidence || 0) * 100)}% confidence
           </div>
         </div>
 
@@ -435,7 +445,12 @@ export default function SearchResults({
       <div className={clsx('text-center py-12', className)}>
         <div className="text-red-500 mb-2">
           <svg className="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 18.5c-.77.833.192 2.5 1.732 2.5z" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1}
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 18.5c-.77.833.192 2.5 1.732 2.5z"
+            />
           </svg>
         </div>
         <p className="text-gray-900 font-medium">Search Error</p>
@@ -449,7 +464,12 @@ export default function SearchResults({
       <div className={clsx('text-center py-12', className)}>
         <div className="text-gray-400 mb-4">
           <svg className="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1}
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+            />
           </svg>
         </div>
         <p className="text-gray-900 font-medium">No results found</p>
@@ -473,7 +493,7 @@ export default function SearchResults({
 
       {/* Results list */}
       <div className="space-y-4">
-        {results.map((result) => (
+        {results.map(result => (
           <SearchResultCard
             key={result.item.id}
             result={result}

@@ -1,15 +1,8 @@
+import type { SearchSuggestion } from '@namecard/shared/types/search.types';
 import { clsx } from 'clsx';
-import {
-  Search,
-  X,
-  Loader2,
-  Filter,
-  ChevronDown,
-  ArrowRight,
-} from 'lucide-react';
+import { Search, X, Loader2, Filter, ChevronDown, ArrowRight } from 'lucide-react';
 import { useState, useRef, useEffect, KeyboardEvent } from 'react';
 
-import type { SearchSuggestion } from '@namecard/shared/types/search.types';
 import { useSearchSuggestions } from '../../hooks/useSearch';
 
 interface SearchBarProps {
@@ -73,18 +66,14 @@ function SuggestionItem({ suggestion, isHighlighted, onClick }: SuggestionItemPr
       onClick={onClick}
       className={clsx(
         'w-full flex items-center gap-3 px-3 py-2 text-left text-sm transition-colors',
-        isHighlighted
-          ? 'bg-blue-50 text-blue-900'
-          : 'text-gray-700 hover:bg-gray-50'
+        isHighlighted ? 'bg-blue-50 text-blue-900' : 'text-gray-700 hover:bg-gray-50'
       )}
     >
       <span className="text-base">{getTypeIcon(suggestion.type)}</span>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="font-medium truncate">{suggestion.text}</span>
-          {suggestion.count && (
-            <span className="text-xs text-gray-500">({suggestion.count})</span>
-          )}
+          {suggestion.count && <span className="text-xs text-gray-500">({suggestion.count})</span>}
         </div>
         <span className="text-xs text-gray-500">{getTypeLabel(suggestion.type)}</span>
       </div>
@@ -110,7 +99,7 @@ export default function SearchBar({
   const [isFocused, setIsFocused] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
-  const suggestionRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const suggestionRefs = useRef<(HTMLElement | null)[]>([]);
 
   // Get search suggestions
   const { suggestions, isLoading: suggestionsLoading } = useSearchSuggestions(
@@ -118,7 +107,7 @@ export default function SearchBar({
     showSuggestions && isFocused && query.length >= 2
   );
 
-  const showSuggestionsDropdown = 
+  const showSuggestionsDropdown =
     isFocused && showSuggestions && suggestions.length > 0 && query.length >= 2;
 
   // Handle input changes
@@ -154,28 +143,26 @@ export default function SearchBar({
     switch (event.key) {
       case 'ArrowDown':
         event.preventDefault();
-        setHighlightedIndex(prev =>
-          prev < suggestions.length - 1 ? prev + 1 : 0
-        );
+        setHighlightedIndex(prev => (prev < suggestions.length - 1 ? prev + 1 : 0));
         break;
-      
+
       case 'ArrowUp':
         event.preventDefault();
-        setHighlightedIndex(prev =>
-          prev > 0 ? prev - 1 : suggestions.length - 1
-        );
+        setHighlightedIndex(prev => (prev > 0 ? prev - 1 : suggestions.length - 1));
         break;
-      
+
       case 'Enter':
         event.preventDefault();
         if (highlightedIndex >= 0 && highlightedIndex < suggestions.length) {
           const suggestion = suggestions[highlightedIndex];
-          handleSuggestionSelect(suggestion);
+          if (suggestion) {
+            handleSuggestionSelect(suggestion);
+          }
         } else {
           onSearch?.(query);
         }
         break;
-      
+
       case 'Escape':
         setIsFocused(false);
         setHighlightedIndex(-1);
@@ -223,11 +210,13 @@ export default function SearchBar({
 
   return (
     <div className={clsx('relative w-full', className)}>
-      <div className={clsx(
-        'flex items-center bg-white border border-gray-300 rounded-lg transition-all',
-        isFocused && 'ring-2 ring-blue-500 border-blue-500',
-        sizeStyles[size]
-      )}>
+      <div
+        className={clsx(
+          'flex items-center bg-white border border-gray-300 rounded-lg transition-all',
+          isFocused && 'ring-2 ring-blue-500 border-blue-500',
+          sizeStyles[size]
+        )}
+      >
         {/* Search icon */}
         <div className="flex-shrink-0 pl-3 pr-2">
           {isLoading ? (
@@ -242,7 +231,7 @@ export default function SearchBar({
           ref={inputRef}
           type="text"
           value={query}
-          onChange={(e) => handleInputChange(e.target.value)}
+          onChange={e => handleInputChange(e.target.value)}
           onFocus={handleFocus}
           onBlur={handleBlur}
           onKeyDown={handleKeyDown}
@@ -286,10 +275,9 @@ export default function SearchBar({
                 •
               </span>
             )}
-            <ChevronDown className={clsx(
-              'h-4 w-4 transition-transform',
-              filtersOpen && 'rotate-180'
-            )} />
+            <ChevronDown
+              className={clsx('h-4 w-4 transition-transform', filtersOpen && 'rotate-180')}
+            />
           </button>
         )}
       </div>
@@ -307,7 +295,7 @@ export default function SearchBar({
               suggestions.map((suggestion, index) => (
                 <div
                   key={`${suggestion.type}-${suggestion.text}`}
-                  ref={(el) => (suggestionRefs.current[index] = el)}
+                  ref={el => (suggestionRefs.current[index] = el)}
                 >
                   <SuggestionItem
                     suggestion={suggestion}
@@ -318,7 +306,7 @@ export default function SearchBar({
               ))
             )}
           </div>
-          
+
           {/* Suggestions footer */}
           {suggestions.length > 0 && !suggestionsLoading && (
             <div className="border-t border-gray-100 px-3 py-2">

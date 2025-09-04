@@ -1,12 +1,12 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import type { Card } from '@namecard/shared/types/card.types';
 import type {
-  SearchCardsResponse,
   SearchSuggestion,
   FilterOptions,
   AdvancedSearchParams,
   SearchResultItem,
 } from '@namecard/shared/types/search.types';
-import type { Card } from '@namecard/shared/types/card.types';
+import { useState, useEffect, useCallback, useRef } from 'react';
+
 import searchService from '../services/search.service';
 
 // Debounce utility
@@ -93,88 +93,91 @@ export function useSearch(initialQuery: string = '') {
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Search function
-  const performSearch = useCallback(async (
-    query: string,
-    page: number = 1,
-    searchFilters: SearchFilters = filters,
-    resetResults: boolean = true
-  ) => {
-    if (!query.trim()) {
-      setSearchState(prev => ({
-        ...prev,
-        results: resetResults ? [] : prev.results,
-        isLoading: false,
-        error: null,
-        totalResults: 0,
-        totalPages: 0,
-        hasMore: false,
-        executionTime: '0ms',
-      }));
-      return;
-    }
-
-    // Cancel previous request if it exists
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    
-    abortControllerRef.current = new AbortController();
-
-    setSearchState(prev => ({
-      ...prev,
-      isLoading: true,
-      error: null,
-      ...(resetResults && { results: [] }),
-      currentPage: page,
-    }));
-
-    try {
-      const searchParams: AdvancedSearchParams = {
-        q: query,
-        page,
-        limit: 20,
-        highlight: true,
-        searchMode: searchState.searchMode,
-        
-        // Apply filters
-        ...(searchFilters.tags.length > 0 && { tags: searchFilters.tags }),
-        ...(searchFilters.companies.length > 0 && { mustHave: searchFilters.companies }),
-        
-        // Enable comprehensive search
-        searchInNames: true,
-        searchInTitles: true,
-        searchInCompanies: true,
-        searchInEmails: true,
-        searchInNotes: true,
-      };
-
-      const response = await searchService.searchCards(searchParams);
-
-      if (response.success) {
+  const performSearch = useCallback(
+    async (
+      query: string,
+      page: number = 1,
+      searchFilters: SearchFilters = filters,
+      resetResults: boolean = true
+    ) => {
+      if (!query.trim()) {
         setSearchState(prev => ({
           ...prev,
-          results: resetResults 
-            ? response.data.results 
-            : [...prev.results, ...response.data.results],
+          results: resetResults ? [] : prev.results,
           isLoading: false,
           error: null,
-          totalResults: response.data.pagination.total,
-          totalPages: response.data.pagination.totalPages,
-          hasMore: response.data.pagination.hasNext,
-          executionTime: response.data.searchMeta.executionTime,
-          searchMode: response.data.searchMeta.searchMode,
+          totalResults: 0,
+          totalPages: 0,
+          hasMore: false,
+          executionTime: '0ms',
         }));
+        return;
       }
-    } catch (error) {
-      if (error instanceof Error && error.name !== 'AbortError') {
-        setSearchState(prev => ({
-          ...prev,
-          isLoading: false,
-          error: error.message,
-        }));
+
+      // Cancel previous request if it exists
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
       }
-    }
-  }, [filters, searchState.searchMode]);
+
+      abortControllerRef.current = new AbortController();
+
+      setSearchState(prev => ({
+        ...prev,
+        isLoading: true,
+        error: null,
+        ...(resetResults && { results: [] }),
+        currentPage: page,
+      }));
+
+      try {
+        const searchParams: AdvancedSearchParams = {
+          q: query,
+          page,
+          limit: 20,
+          highlight: true,
+          searchMode: searchState.searchMode,
+
+          // Apply filters
+          ...(searchFilters.tags.length > 0 && { tags: searchFilters.tags }),
+          ...(searchFilters.companies.length > 0 && { mustHave: searchFilters.companies }),
+
+          // Enable comprehensive search
+          searchInNames: true,
+          searchInTitles: true,
+          searchInCompanies: true,
+          searchInEmails: true,
+          searchInNotes: true,
+        };
+
+        const response = await searchService.searchCards(searchParams);
+
+        if (response.success) {
+          setSearchState(prev => ({
+            ...prev,
+            results: resetResults
+              ? response.data.results
+              : [...prev.results, ...response.data.results],
+            isLoading: false,
+            error: null,
+            totalResults: response.data.pagination.total,
+            totalPages: response.data.pagination.totalPages,
+            hasMore: response.data.pagination.hasNext,
+            executionTime: response.data.searchMeta.executionTime,
+            searchMode: response.data.searchMeta.searchMode,
+          }));
+        }
+      } catch (error) {
+        if (error instanceof Error && error.name !== 'AbortError') {
+          setSearchState(prev => ({
+            ...prev,
+            isLoading: false,
+            error: error.message,
+          }));
+        }
+      }
+    },
+    [filters, searchState.searchMode]
+  );
 
   // Auto-search when debounced query changes
   useEffect(() => {
@@ -233,7 +236,14 @@ export function useSearch(initialQuery: string = '') {
     if (searchState.hasMore && !searchState.isLoading) {
       performSearch(searchState.query, searchState.currentPage + 1, filters, false);
     }
-  }, [searchState.hasMore, searchState.isLoading, searchState.query, searchState.currentPage, filters, performSearch]);
+  }, [
+    searchState.hasMore,
+    searchState.isLoading,
+    searchState.query,
+    searchState.currentPage,
+    filters,
+    performSearch,
+  ]);
 
   const refresh = useCallback(() => {
     performSearch(searchState.query, 1, filters, true);
@@ -257,19 +267,23 @@ export function useSearch(initialQuery: string = '') {
 
   // Computed values
   const hasResults = searchState.results.length > 0;
-  const hasFilters = filters.tags.length > 0 || filters.companies.length > 0 || filters.industries.length > 0 || filters.dateRange;
+  const hasFilters =
+    filters.tags.length > 0 ||
+    filters.companies.length > 0 ||
+    filters.industries.length > 0 ||
+    Boolean(filters.dateRange);
   const isSearching = searchState.isLoading;
 
   return {
     // State
     ...searchState,
     filters,
-    
+
     // Computed
     hasResults,
     hasFilters,
     isSearching,
-    
+
     // Actions
     setQuery,
     setSearchMode,
@@ -305,26 +319,27 @@ export function useSearchSuggestions(query: string, enabled: boolean = true) {
 
     setState(prev => ({ ...prev, isLoading: true, error: null }));
 
-    searchService.getSearchSuggestions({
-      prefix: debouncedQuery,
-      maxSuggestions: 8,
-    })
-    .then(response => {
-      if (response.success) {
+    searchService
+      .getSearchSuggestions({
+        prefix: debouncedQuery,
+        maxSuggestions: 8,
+      })
+      .then(response => {
+        if (response.success) {
+          setState({
+            suggestions: response.data.suggestions,
+            isLoading: false,
+            error: null,
+          });
+        }
+      })
+      .catch(error => {
         setState({
-          suggestions: response.data.suggestions,
+          suggestions: [],
           isLoading: false,
-          error: null,
+          error: error.message,
         });
-      }
-    })
-    .catch(error => {
-      setState({
-        suggestions: [],
-        isLoading: false,
-        error: error.message,
       });
-    });
   }, [debouncedQuery, enabled]);
 
   return state;
@@ -343,10 +358,10 @@ export function useSearchFilters(baseQuery?: string) {
 
     try {
       const response = await searchService.getSearchFilters(baseQuery);
-      
+
       if (response.success) {
         setState({
-          options: response.data.filters as FilterOptions,
+          options: response.data.filters as unknown as FilterOptions,
           isLoading: false,
           error: null,
         });
@@ -371,9 +386,4 @@ export function useSearchFilters(baseQuery?: string) {
 }
 
 // Export types
-export type {
-  SearchState,
-  SearchFilters,
-  SearchSuggestionsState,
-  FilterOptionsState,
-};
+export type { SearchState, SearchFilters, SearchSuggestionsState, FilterOptionsState };

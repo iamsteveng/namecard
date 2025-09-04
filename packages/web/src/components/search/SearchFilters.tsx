@@ -1,3 +1,4 @@
+import type { FilterOptions } from '@namecard/shared/types/search.types';
 import { clsx } from 'clsx';
 import {
   X,
@@ -14,12 +15,11 @@ import {
 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 
-import type { FilterOptions } from '@namecard/shared/types/search.types';
 import type { SearchFilters } from '../../hooks/useSearch';
 
 interface SearchFiltersProps {
   filters: SearchFilters;
-  availableFilters?: FilterOptions;
+  availableFilters?: FilterOptions | null;
   isLoadingFilters?: boolean;
   onAddFilter: (type: keyof SearchFilters, value: string) => void;
   onRemoveFilter: (type: keyof SearchFilters, value?: string) => void;
@@ -49,7 +49,7 @@ interface FilterOptionProps {
 interface FilterGroupProps {
   title: string;
   icon: React.ReactNode;
-  type: keyof SearchFilters;
+  type?: keyof SearchFilters;
   options: Array<{ value: string; label: string; count: number }>;
   selectedValues: string[];
   onAddFilter: (value: string) => void;
@@ -61,28 +61,23 @@ interface FilterGroupProps {
 }
 
 // Individual filter option component
-function FilterOption({ label, value, count, isSelected, onToggle }: FilterOptionProps) {
+function FilterOption({ label, count, isSelected, onToggle }: Omit<FilterOptionProps, 'value'>) {
   return (
     <label className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-md cursor-pointer transition-colors">
-      <input
-        type="checkbox"
-        checked={isSelected}
-        onChange={onToggle}
-        className="sr-only"
-      />
-      <div className={clsx(
-        'flex items-center justify-center w-4 h-4 border-2 rounded transition-all',
-        isSelected
-          ? 'bg-blue-600 border-blue-600 text-white'
-          : 'border-gray-300 hover:border-gray-400'
-      )}>
+      <input type="checkbox" checked={isSelected} onChange={onToggle} className="sr-only" />
+      <div
+        className={clsx(
+          'flex items-center justify-center w-4 h-4 border-2 rounded transition-all',
+          isSelected
+            ? 'bg-blue-600 border-blue-600 text-white'
+            : 'border-gray-300 hover:border-gray-400'
+        )}
+      >
         {isSelected && <Check className="h-3 w-3" />}
       </div>
       <span className="flex-1 text-sm text-gray-700 truncate">{label}</span>
       {count !== undefined && (
-        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-          {count}
-        </span>
+        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{count}</span>
       )}
     </label>
   );
@@ -111,11 +106,7 @@ function FilterSection({ title, icon, children, isExpanded, onToggle, count }: F
           <ChevronDown className="h-4 w-4 text-gray-500" />
         )}
       </button>
-      {isExpanded && (
-        <div className="p-3 bg-white border-t border-gray-200">
-          {children}
-        </div>
-      )}
+      {isExpanded && <div className="p-3 bg-white border-t border-gray-200">{children}</div>}
     </div>
   );
 }
@@ -124,7 +115,6 @@ function FilterSection({ title, icon, children, isExpanded, onToggle, count }: F
 function FilterGroup({
   title,
   icon,
-  type,
   options,
   selectedValues,
   onAddFilter,
@@ -139,7 +129,7 @@ function FilterGroup({
 
   const filteredOptions = useMemo(() => {
     let filtered = options;
-    
+
     // Filter by search term
     if (searchTerm) {
       filtered = filtered.filter(option =>
@@ -151,14 +141,20 @@ function FilterGroup({
     filtered.sort((a, b) => {
       const aSelected = selectedValues.includes(a.value);
       const bSelected = selectedValues.includes(b.value);
-      
+
       // Selected items first
-      if (aSelected && !bSelected) return -1;
-      if (!aSelected && bSelected) return 1;
-      
+      if (aSelected && !bSelected) {
+        return -1;
+      }
+      if (!aSelected && bSelected) {
+        return 1;
+      }
+
       // Then by count
-      if (b.count !== a.count) return b.count - a.count;
-      
+      if (b.count !== a.count) {
+        return b.count - a.count;
+      }
+
       // Then alphabetically
       return a.label.localeCompare(b.label);
     });
@@ -175,7 +171,7 @@ function FilterGroup({
 
   const handleOptionToggle = (value: string) => {
     const isSelected = selectedValues.includes(value);
-    
+
     if (isSelected) {
       onRemoveFilter(value);
     } else {
@@ -202,7 +198,7 @@ function FilterGroup({
             <input
               type="text"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={e => setSearchTerm(e.target.value)}
               placeholder={`Search ${title.toLowerCase()}...`}
               className="w-full pl-3 pr-8 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
@@ -212,7 +208,7 @@ function FilterGroup({
         {/* Selected filters summary */}
         {selectedValues.length > 0 && (
           <div className="flex flex-wrap gap-1">
-            {selectedValues.map((value) => {
+            {selectedValues.map(value => {
               const option = options.find(o => o.value === value);
               return (
                 <span
@@ -220,10 +216,7 @@ function FilterGroup({
                   className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full"
                 >
                   {option?.label || value}
-                  <button
-                    onClick={() => onRemoveFilter(value)}
-                    className="hover:text-blue-900"
-                  >
+                  <button onClick={() => onRemoveFilter(value)} className="hover:text-blue-900">
                     <X className="h-3 w-3" />
                   </button>
                 </span>
@@ -234,11 +227,10 @@ function FilterGroup({
 
         {/* Filter options */}
         <div className="space-y-1 max-h-64 overflow-y-auto">
-          {filteredOptions.map((option) => (
+          {filteredOptions.map(option => (
             <FilterOption
               key={option.value}
               label={option.label}
-              value={option.value}
               count={option.count}
               isSelected={selectedValues.includes(option.value)}
               onToggle={() => handleOptionToggle(option.value)}
@@ -274,7 +266,7 @@ function DateRangeFilter({
   isExpanded,
   onToggle,
 }: {
-  selectedRange?: string;
+  selectedRange?: string | undefined;
   onSelectRange: (range: string) => void;
   onClearRange: () => void;
   isExpanded: boolean;
@@ -303,25 +295,19 @@ function DateRangeFilter({
             <span className="text-sm text-blue-700">
               {dateRanges.find(r => r.value === selectedRange)?.label}
             </span>
-            <button
-              onClick={onClearRange}
-              className="text-blue-600 hover:text-blue-700"
-            >
+            <button onClick={onClearRange} className="text-blue-600 hover:text-blue-700">
               <X className="h-4 w-4" />
             </button>
           </div>
         )}
 
-        {dateRanges.map((range) => (
+        {dateRanges.map(range => (
           <FilterOption
             key={range.value}
             label={range.label}
-            value={range.value}
             isSelected={selectedRange === range.value}
-            onToggle={() => 
-              selectedRange === range.value 
-                ? onClearRange() 
-                : onSelectRange(range.value)
+            onToggle={() =>
+              selectedRange === range.value ? onClearRange() : onSelectRange(range.value)
             }
           />
         ))}
@@ -331,7 +317,7 @@ function DateRangeFilter({
 }
 
 // Main search filters component
-export default function SearchFilters({
+export default function SearchFiltersComponent({
   filters,
   availableFilters,
   isLoadingFilters = false,
@@ -356,16 +342,16 @@ export default function SearchFilters({
     });
   };
 
-  const hasActiveFilters = 
-    filters.tags.length > 0 || 
-    filters.companies.length > 0 || 
-    filters.industries.length > 0 || 
+  const hasActiveFilters =
+    filters.tags.length > 0 ||
+    filters.companies.length > 0 ||
+    filters.industries.length > 0 ||
     filters.dateRange;
 
-  const totalActiveFilters = 
-    filters.tags.length + 
-    filters.companies.length + 
-    filters.industries.length + 
+  const totalActiveFilters =
+    filters.tags.length +
+    filters.companies.length +
+    filters.industries.length +
     (filters.dateRange ? 1 : 0);
 
   if (!isOpen) {
@@ -423,8 +409,8 @@ export default function SearchFilters({
                 type="companies"
                 options={availableFilters.companies}
                 selectedValues={filters.companies}
-                onAddFilter={(value) => onAddFilter('companies', value)}
-                onRemoveFilter={(value) => onRemoveFilter('companies', value)}
+                onAddFilter={value => onAddFilter('companies', value)}
+                onRemoveFilter={value => onRemoveFilter('companies', value)}
                 isExpanded={expandedSections.has('companies')}
                 onToggle={() => toggleSection('companies')}
                 maxVisible={8}
@@ -439,8 +425,8 @@ export default function SearchFilters({
                 type="tags"
                 options={availableFilters.tags}
                 selectedValues={filters.tags}
-                onAddFilter={(value) => onAddFilter('tags', value)}
-                onRemoveFilter={(value) => onRemoveFilter('tags', value)}
+                onAddFilter={value => onAddFilter('tags', value)}
+                onRemoveFilter={value => onRemoveFilter('tags', value)}
                 isExpanded={expandedSections.has('tags')}
                 onToggle={() => toggleSection('tags')}
                 maxVisible={10}
@@ -455,8 +441,8 @@ export default function SearchFilters({
                 type="industries"
                 options={availableFilters.industries}
                 selectedValues={filters.industries}
-                onAddFilter={(value) => onAddFilter('industries', value)}
-                onRemoveFilter={(value) => onRemoveFilter('industries', value)}
+                onAddFilter={value => onAddFilter('industries', value)}
+                onRemoveFilter={value => onRemoveFilter('industries', value)}
                 isExpanded={expandedSections.has('industries')}
                 onToggle={() => toggleSection('industries')}
                 maxVisible={8}
@@ -466,7 +452,7 @@ export default function SearchFilters({
             {/* Date range filter */}
             <DateRangeFilter
               selectedRange={filters.dateRange}
-              onSelectRange={(range) => onAddFilter('dateRange', range)}
+              onSelectRange={range => onAddFilter('dateRange', range)}
               onClearRange={() => onRemoveFilter('dateRange')}
               isExpanded={expandedSections.has('dateRange')}
               onToggle={() => toggleSection('dateRange')}
@@ -480,8 +466,12 @@ export default function SearchFilters({
                 type="companies" // Using companies as placeholder since locations isn't in SearchFilters type
                 options={availableFilters.locations}
                 selectedValues={[]}
-                onAddFilter={() => {}}
-                onRemoveFilter={() => {}}
+                onAddFilter={() => {
+                  // TODO: Implement locations filter
+                }}
+                onRemoveFilter={() => {
+                  // TODO: Implement locations filter removal
+                }}
                 isExpanded={expandedSections.has('locations')}
                 onToggle={() => toggleSection('locations')}
                 maxVisible={8}

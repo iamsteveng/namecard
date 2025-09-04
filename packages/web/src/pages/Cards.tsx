@@ -2,7 +2,6 @@ import { useQuery } from '@tanstack/react-query';
 import { clsx } from 'clsx';
 import {
   Search,
-  Filter,
   Download,
   MoreVertical,
   Mail,
@@ -54,7 +53,6 @@ export default function Cards() {
     hasMore,
     filters,
     hasFilters,
-    hasResults: hasSearchResults,
     setQuery,
     addFilter,
     removeFilter,
@@ -64,10 +62,7 @@ export default function Cards() {
   } = useSearch();
 
   // Get available filter options
-  const { 
-    options: filterOptions, 
-    isLoading: isLoadingFilters 
-  } = useSearchFilters(query);
+  const { options: filterOptions, isLoading: isLoadingFilters } = useSearchFilters(query);
 
   // Fallback to regular cards query when not searching
   const {
@@ -95,8 +90,8 @@ export default function Cards() {
 
   // Determine which data to show
   const isSearchMode = query.length > 0 || hasFilters;
-  const cards = isSearchMode 
-    ? searchResults.map(result => result.item) 
+  const cards = isSearchMode
+    ? searchResults.map(result => result.item)
     : cardsResponse?.data?.cards || [];
   const isLoading = isSearchMode ? searchLoading : cardsLoading;
   const error = isSearchMode ? searchError : cardsError;
@@ -155,8 +150,8 @@ export default function Cards() {
             {isLoading
               ? 'Loading...'
               : isSearchMode
-              ? `${totalResults} search result${totalResults !== 1 ? 's' : ''} found`
-              : `${cards.length} card${cards.length !== 1 ? 's' : ''} total`}
+                ? `${totalResults} search result${totalResults !== 1 ? 's' : ''} found`
+                : `${cards.length} card${cards.length !== 1 ? 's' : ''} total`}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -258,7 +253,9 @@ export default function Cards() {
                         onClick={() => setViewMode('grid')}
                         className={clsx(
                           'inline-flex items-center gap-1 px-3 py-2 text-sm rounded-lg transition-colors',
-                          viewMode === 'grid' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
+                          viewMode === 'grid'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'text-gray-600 hover:bg-gray-100'
                         )}
                       >
                         Grid
@@ -267,7 +264,9 @@ export default function Cards() {
                         onClick={() => setViewMode('list')}
                         className={clsx(
                           'inline-flex items-center gap-1 px-3 py-2 text-sm rounded-lg transition-colors',
-                          viewMode === 'list' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
+                          viewMode === 'list'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'text-gray-600 hover:bg-gray-100'
                         )}
                       >
                         List
@@ -312,7 +311,9 @@ export default function Cards() {
                 onClick={() => setViewMode('grid')}
                 className={clsx(
                   'inline-flex items-center gap-1 px-3 py-2 text-sm rounded-lg transition-colors',
-                  viewMode === 'grid' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
+                  viewMode === 'grid'
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'text-gray-600 hover:bg-gray-100'
                 )}
               >
                 Grid
@@ -321,7 +322,9 @@ export default function Cards() {
                 onClick={() => setViewMode('list')}
                 className={clsx(
                   'inline-flex items-center gap-1 px-3 py-2 text-sm rounded-lg transition-colors',
-                  viewMode === 'list' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
+                  viewMode === 'list'
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'text-gray-600 hover:bg-gray-100'
                 )}
               >
                 List
@@ -417,174 +420,176 @@ export default function Cards() {
                       : 'border-gray-200 hover:border-gray-300'
                   )}
                 >
-                <div className="p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <input
-                      type="checkbox"
-                      checked={selectedCards.includes(card.id)}
-                      onChange={() => toggleCardSelection(card.id)}
-                      className="mt-1 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                    />
-                    <button className="text-gray-400 hover:text-gray-600">
-                      <MoreVertical className="h-5 w-5" />
-                    </button>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-gray-900">
-                          {card.name || 'Unknown Name'}
-                        </h3>
-                        <p className="text-sm text-gray-600">{card.title || 'No Title'}</p>
-                        <p className="text-sm font-medium text-gray-700">
-                          {card.company || 'No Company'}
-                        </p>
-                      </div>
-                      {card.company && (
-                        <EnrichmentStatusBadge
-                          status={card.lastEnrichmentDate ? 'enriched' : 'skipped'}
-                          confidence={card.lastEnrichmentDate ? 0.85 : 0}
-                          size="sm"
-                        />
-                      )}
+                  <div className="p-6">
+                    <div className="flex items-start justify-between mb-4">
+                      <input
+                        type="checkbox"
+                        checked={selectedCards.includes(card.id)}
+                        onChange={() => toggleCardSelection(card.id)}
+                        className="mt-1 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                      />
+                      <button className="text-gray-400 hover:text-gray-600">
+                        <MoreVertical className="h-5 w-5" />
+                      </button>
                     </div>
 
-                    <div className="space-y-2">
-                      {card.email && (
-                        <div className="flex items-center gap-2">
-                          <Mail className="h-4 w-4 text-gray-400" />
-                          <a
-                            href={`mailto:${card.email}`}
-                            className="text-sm text-blue-600 hover:text-blue-700 truncate"
-                          >
-                            {card.email}
-                          </a>
-                        </div>
-                      )}
-                      {card.phone && (
-                        <div className="flex items-center gap-2">
-                          <Phone className="h-4 w-4 text-gray-400" />
-                          <a
-                            href={`tel:${card.phone}`}
-                            className="text-sm text-gray-600 hover:text-gray-700"
-                          >
-                            {card.phone}
-                          </a>
-                        </div>
-                      )}
-                      {card.website && (
-                        <div className="flex items-center gap-2">
-                          <Globe className="h-4 w-4 text-gray-400" />
-                          <a
-                            href={card.website}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm text-blue-600 hover:text-blue-700 truncate"
-                          >
-                            {card.website.replace(/^https?:\/\//, '')}
-                          </a>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      {card.tags.map(tag => (
-                        <span
-                          key={tag}
-                          className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-
-                    <p className="text-xs text-gray-500">Scanned on {formatDate(card.scanDate)}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="bg-white rounded-lg border border-gray-200">
-            <div className="divide-y divide-gray-200">
-              {cards.map(card => (
-                <div
-                  key={card.id}
-                  onClick={e => handleCardClick(card.id, e)}
-                  className={clsx(
-                    'p-6 hover:bg-gray-50 transition-colors cursor-pointer',
-                    selectedCards.includes(card.id) && 'bg-blue-50'
-                  )}
-                >
-                  <div className="flex items-start gap-4">
-                    <input
-                      type="checkbox"
-                      checked={selectedCards.includes(card.id)}
-                      onChange={() => toggleCardSelection(card.id)}
-                      className="mt-1 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                    />
-                    <div className="flex-1 min-w-0">
+                    <div className="space-y-3">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <div className="flex items-center gap-3">
-                            <h3 className="font-semibold text-gray-900">
-                              {card.name || 'Unknown Name'}
-                            </h3>
-                            {card.company && (
-                              <EnrichmentStatusBadge
-                                status={card.lastEnrichmentDate ? 'enriched' : 'skipped'}
-                                confidence={card.lastEnrichmentDate ? 0.85 : 0}
-                                size="sm"
-                              />
-                            )}
-                          </div>
-                          <p className="text-sm text-gray-600">
-                            {card.title || 'No Title'} at {card.company || 'No Company'}
+                          <h3 className="font-semibold text-gray-900">
+                            {card.name || 'Unknown Name'}
+                          </h3>
+                          <p className="text-sm text-gray-600">{card.title || 'No Title'}</p>
+                          <p className="text-sm font-medium text-gray-700">
+                            {card.company || 'No Company'}
                           </p>
                         </div>
-                        <button className="text-gray-400 hover:text-gray-600">
-                          <MoreVertical className="h-5 w-5" />
-                        </button>
+                        {card.company && (
+                          <EnrichmentStatusBadge
+                            status={card.lastEnrichmentDate ? 'enriched' : 'skipped'}
+                            confidence={card.lastEnrichmentDate ? 0.85 : 0}
+                            size="sm"
+                          />
+                        )}
                       </div>
-                      <div className="mt-3 flex flex-wrap gap-4">
+
+                      <div className="space-y-2">
                         {card.email && (
-                          <a
-                            href={`mailto:${card.email}`}
-                            className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
-                          >
-                            <Mail className="h-4 w-4" />
-                            {card.email}
-                          </a>
+                          <div className="flex items-center gap-2">
+                            <Mail className="h-4 w-4 text-gray-400" />
+                            <a
+                              href={`mailto:${card.email}`}
+                              className="text-sm text-blue-600 hover:text-blue-700 truncate"
+                            >
+                              {card.email}
+                            </a>
+                          </div>
                         )}
                         {card.phone && (
-                          <a
-                            href={`tel:${card.phone}`}
-                            className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-700"
-                          >
-                            <Phone className="h-4 w-4" />
-                            {card.phone}
-                          </a>
+                          <div className="flex items-center gap-2">
+                            <Phone className="h-4 w-4 text-gray-400" />
+                            <a
+                              href={`tel:${card.phone}`}
+                              className="text-sm text-gray-600 hover:text-gray-700"
+                            >
+                              {card.phone}
+                            </a>
+                          </div>
                         )}
                         {card.website && (
-                          <a
-                            href={card.website}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
-                          >
-                            <Globe className="h-4 w-4" />
-                            {card.website.replace(/^https?:\/\//, '')}
-                          </a>
+                          <div className="flex items-center gap-2">
+                            <Globe className="h-4 w-4 text-gray-400" />
+                            <a
+                              href={card.website}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-blue-600 hover:text-blue-700 truncate"
+                            >
+                              {card.website.replace(/^https?:\/\//, '')}
+                            </a>
+                          </div>
                         )}
                       </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        {card.tags.map(tag => (
+                          <span
+                            key={tag}
+                            className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+
+                      <p className="text-xs text-gray-500">
+                        Scanned on {formatDate((card.scanDate || card.createdAt).toString())}
+                      </p>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="bg-white rounded-lg border border-gray-200">
+              <div className="divide-y divide-gray-200">
+                {cards.map(card => (
+                  <div
+                    key={card.id}
+                    onClick={e => handleCardClick(card.id, e)}
+                    className={clsx(
+                      'p-6 hover:bg-gray-50 transition-colors cursor-pointer',
+                      selectedCards.includes(card.id) && 'bg-blue-50'
+                    )}
+                  >
+                    <div className="flex items-start gap-4">
+                      <input
+                        type="checkbox"
+                        checked={selectedCards.includes(card.id)}
+                        onChange={() => toggleCardSelection(card.id)}
+                        className="mt-1 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3">
+                              <h3 className="font-semibold text-gray-900">
+                                {card.name || 'Unknown Name'}
+                              </h3>
+                              {card.company && (
+                                <EnrichmentStatusBadge
+                                  status={card.lastEnrichmentDate ? 'enriched' : 'skipped'}
+                                  confidence={card.lastEnrichmentDate ? 0.85 : 0}
+                                  size="sm"
+                                />
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-600">
+                              {card.title || 'No Title'} at {card.company || 'No Company'}
+                            </p>
+                          </div>
+                          <button className="text-gray-400 hover:text-gray-600">
+                            <MoreVertical className="h-5 w-5" />
+                          </button>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-4">
+                          {card.email && (
+                            <a
+                              href={`mailto:${card.email}`}
+                              className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
+                            >
+                              <Mail className="h-4 w-4" />
+                              {card.email}
+                            </a>
+                          )}
+                          {card.phone && (
+                            <a
+                              href={`tel:${card.phone}`}
+                              className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-700"
+                            >
+                              <Phone className="h-4 w-4" />
+                              {card.phone}
+                            </a>
+                          )}
+                          {card.website && (
+                            <a
+                              href={card.website}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
+                            >
+                              <Globe className="h-4 w-4" />
+                              {card.website.replace(/^https?:\/\//, '')}
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </>
       )}
 
@@ -593,9 +598,7 @@ export default function Cards() {
         <div className="text-center py-12">
           <Search className="mx-auto h-12 w-12 text-gray-400" />
           <h3 className="mt-2 text-sm font-medium text-gray-900">No cards found</h3>
-          <p className="mt-1 text-sm text-gray-500">
-            Start by scanning your first business card
-          </p>
+          <p className="mt-1 text-sm text-gray-500">Start by scanning your first business card</p>
           <Link
             to="/scan"
             className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -605,7 +608,6 @@ export default function Cards() {
           </Link>
         </div>
       )}
-
     </div>
   );
 }

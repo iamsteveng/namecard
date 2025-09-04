@@ -1,3 +1,5 @@
+import type { Card } from '@namecard/shared/types/card.types';
+import type { Company } from '@namecard/shared/types/company.types';
 import type {
   AdvancedSearchParams,
   FullTextSearchParams,
@@ -8,15 +10,13 @@ import type {
   SearchSuggestionParams,
   FilterOptions,
 } from '@namecard/shared/types/search.types';
-import type { Card } from '@namecard/shared/types/card.types';
-import type { Company } from '@namecard/shared/types/company.types';
 
 const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || '';
 
 class SearchService {
   private getAuthHeaders(): HeadersInit {
     const token = localStorage.getItem('accessToken');
-    
+
     return {
       'Content-Type': 'application/json',
       ...(token && { Authorization: `Bearer ${token}` }),
@@ -26,7 +26,9 @@ class SearchService {
   private async handleResponse<T>(response: Response): Promise<T> {
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`);
+      throw new Error(
+        errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`
+      );
     }
 
     return response.json();
@@ -113,11 +115,11 @@ class SearchService {
       limit: options.limit || 20,
       highlight: options.highlight ?? true,
       searchMode: 'simple',
-      
+
       // Apply filters if provided
       ...(options.tags && options.tags.length > 0 && { tags: options.tags }),
       ...(options.companies && options.companies.length > 0 && { mustHave: options.companies }),
-      
+
       // Enable search in all fields for comprehensive results
       searchInNames: true,
       searchInTitles: true,
@@ -153,19 +155,19 @@ class SearchService {
       limit: options.limit || 20,
       searchMode: 'advanced',
       highlight: true,
-      
-      // Boolean operators
-      mustHave: options.mustHave,
-      shouldHave: options.shouldHave,
-      mustNotHave: options.mustNotHave,
-      
-      // Search options
-      proximity: options.proximity,
-      fuzzy: options.fuzzy,
-      
+
+      // Boolean operators (only include if defined)
+      ...(options.mustHave && { mustHave: options.mustHave }),
+      ...(options.shouldHave && { shouldHave: options.shouldHave }),
+      ...(options.mustNotHave && { mustNotHave: options.mustNotHave }),
+
+      // Search options (only include if defined)
+      ...(options.proximity && { proximity: options.proximity }),
+      ...(options.fuzzy !== undefined && { fuzzy: options.fuzzy }),
+
       // Filters
       ...(options.tags && options.tags.length > 0 && { tags: options.tags }),
-      
+
       // Field search
       searchInNames: true,
       searchInTitles: true,
@@ -189,7 +191,7 @@ class SearchService {
       limit?: number;
     } = {}
   ): Promise<SearchCardsResponse> {
-    const query = options.adjacent 
+    const query = options.adjacent
       ? terms.join(' <-> ') // Adjacent terms
       : terms.join(` <${options.distance || 3}> `); // Terms within distance
 
@@ -201,8 +203,8 @@ class SearchService {
       highlight: true,
       proximity: true,
       proximityDistance: options.distance || 3,
-      adjacentTerms: options.adjacent,
-      
+      ...(options.adjacent !== undefined && { adjacentTerms: options.adjacent }),
+
       searchInNames: true,
       searchInTitles: true,
       searchInCompanies: true,
