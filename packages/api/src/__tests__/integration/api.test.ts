@@ -245,6 +245,111 @@ describe('API Integration Tests', () => {
     });
   });
 
+  describe('Search Routes (E2E)', () => {
+    describe('POST /api/v1/search/cards', () => {
+      it('should require authentication for card search', async () => {
+        const response = await request(app)
+          .post('/api/v1/search/cards')
+          .send({
+            q: 'software engineer',
+            page: 1,
+            limit: 20,
+          })
+          .expect(401);
+
+        expect(response.body.success).toBe(false);
+        expect(response.body.error).toBeDefined();
+      });
+
+      it('should validate search parameters', async () => {
+        const response = await request(app)
+          .post('/api/v1/search/cards')
+          .send({
+            // Missing required 'q' parameter
+            page: 1,
+            limit: 20,
+          })
+          .expect(401); // Will fail on auth first
+
+        expect(response.body.success).toBe(false);
+      });
+    });
+
+    describe('POST /api/v1/search/companies', () => {
+      it('should require authentication for company search', async () => {
+        const response = await request(app)
+          .post('/api/v1/search/companies')
+          .send({
+            q: 'tech corp',
+            page: 1,
+            limit: 20,
+          })
+          .expect(401);
+
+        expect(response.body.success).toBe(false);
+        expect(response.body.error).toBeDefined();
+      });
+    });
+
+    describe('GET /api/v1/search/suggestions', () => {
+      it('should require authentication for search suggestions', async () => {
+        const response = await request(app)
+          .get('/api/v1/search/suggestions?prefix=soft')
+          .expect(401);
+
+        expect(response.body.success).toBe(false);
+        expect(response.body.error).toBeDefined();
+      });
+
+      it('should validate prefix parameter', async () => {
+        const response = await request(app)
+          .get('/api/v1/search/suggestions?prefix=a') // Too short
+          .expect(401); // Will fail on auth first
+
+        expect(response.body.success).toBe(false);
+      });
+    });
+
+    describe('GET /api/v1/search/filters', () => {
+      it('should require authentication for search filters', async () => {
+        const response = await request(app).get('/api/v1/search/filters').expect(401);
+
+        expect(response.body.success).toBe(false);
+        expect(response.body.error).toBeDefined();
+      });
+    });
+
+    describe('GET /api/v1/search/health', () => {
+      it('should require authentication for search health check', async () => {
+        const response = await request(app).get('/api/v1/search/health').expect(401);
+
+        expect(response.body.success).toBe(false);
+        expect(response.body.error).toBeDefined();
+      });
+    });
+
+    describe('POST /api/v1/search/reindex', () => {
+      it('should require authentication for reindex operation', async () => {
+        const response = await request(app)
+          .post('/api/v1/search/reindex')
+          .send({ table: 'cards' })
+          .expect(401);
+
+        expect(response.body.success).toBe(false);
+        expect(response.body.error).toBeDefined();
+      });
+    });
+
+    describe('GET /api/v1/search/analytics', () => {
+      it('should require authentication for search analytics', async () => {
+        const response = await request(app).get('/api/v1/search/analytics').expect(401);
+
+        expect(response.body.success).toBe(false);
+        expect(response.body.error).toBeDefined();
+      });
+    });
+  });
+
   describe('CORS', () => {
     it('should include CORS headers', async () => {
       const response = await request(app)

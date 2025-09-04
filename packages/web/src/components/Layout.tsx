@@ -8,6 +8,7 @@ import {
   X,
   User,
   LogOut,
+  Search,
 } from 'lucide-react';
 import { useState, ReactNode, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -22,6 +23,7 @@ const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Scan', href: '/scan', icon: ScanLine },
   { name: 'Cards', href: '/cards', icon: CreditCard },
+  { name: 'Search', href: '/cards?search=advanced', icon: Search },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 

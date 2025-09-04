@@ -12,59 +12,94 @@ import {
   AlertCircle,
   Plus,
 } from 'lucide-react';
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { EnrichmentStatusBadge } from '../components/enrichment/EnrichmentStatusIndicator';
+import SearchBar from '../components/search/SearchBar';
+import SearchFilters from '../components/search/SearchFilters';
+import SearchResults from '../components/search/SearchResults';
+import { useSearch, useSearchFilters } from '../hooks/useSearch';
 import cardsService from '../services/cards.service';
 import { useAuthStore } from '../store/auth.store';
 
 export default function Cards() {
-  const [searchTerm, setSearchTerm] = useState('');
   const [selectedCards, setSelectedCards] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [currentPage, setCurrentPage] = useState(1);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [useAdvancedSearch, setUseAdvancedSearch] = useState(false);
 
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { session } = useAuthStore();
   const accessToken = session?.accessToken;
 
-  // Fetch cards with React Query
+  // Check URL params for advanced search mode
+  useEffect(() => {
+    const searchMode = searchParams.get('search');
+    if (searchMode === 'advanced') {
+      setUseAdvancedSearch(true);
+      setFiltersOpen(true);
+    }
+  }, [searchParams]);
+
+  // Initialize search functionality
+  const {
+    query,
+    results: searchResults,
+    isLoading: searchLoading,
+    error: searchError,
+    totalResults,
+    executionTime,
+    hasMore,
+    filters,
+    hasFilters,
+    hasResults: hasSearchResults,
+    setQuery,
+    addFilter,
+    removeFilter,
+    clearFilters,
+    loadMore,
+    clear: clearSearch,
+  } = useSearch();
+
+  // Get available filter options
+  const { 
+    options: filterOptions, 
+    isLoading: isLoadingFilters 
+  } = useSearchFilters(query);
+
+  // Fallback to regular cards query when not searching
   const {
     data: cardsResponse,
-    isLoading,
-    error,
+    isLoading: cardsLoading,
+    error: cardsError,
     refetch,
   } = useQuery({
-    queryKey: ['cards', currentPage, searchTerm],
+    queryKey: ['cards', 'all'],
     queryFn: () => {
       if (!accessToken) {
         throw new Error('Not authenticated');
       }
 
-      const params: any = {
-        page: currentPage,
-        limit: 20,
+      return cardsService.getCards(accessToken, {
+        page: 1,
+        limit: 100, // Get more cards for local fallback
         sort: 'desc',
         sortBy: 'createdAt',
-      };
-
-      if (searchTerm.trim()) {
-        return cardsService.searchCards(searchTerm.trim(), accessToken, {
-          ...params,
-          page: currentPage,
-          limit: 20,
-        });
-      }
-
-      return cardsService.getCards(accessToken, params);
+      });
     },
-    enabled: !!accessToken,
+    enabled: !!accessToken && !query, // Only fetch when not searching
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
-  const cards = cardsResponse?.data?.cards || [];
-  const pagination = cardsResponse?.data?.pagination;
+  // Determine which data to show
+  const isSearchMode = query.length > 0 || hasFilters;
+  const cards = isSearchMode 
+    ? searchResults.map(result => result.item) 
+    : cardsResponse?.data?.cards || [];
+  const isLoading = isSearchMode ? searchLoading : cardsLoading;
+  const error = isSearchMode ? searchError : cardsError;
 
   const toggleCardSelection = (cardId: string) => {
     setSelectedCards(prev =>
@@ -80,24 +115,25 @@ export default function Cards() {
     setSelectedCards([]);
   };
 
-  // Handle search with debouncing effect
-  const handleSearchChange = (value: string) => {
-    setSearchTerm(value);
-    setCurrentPage(1); // Reset to first page when searching
+  // Handle card click navigation
+  const handleCardClick = (card: any, e?: React.MouseEvent) => {
+    if (e) {
+      // Don't navigate if clicking on interactive elements
+      const target = e.target as HTMLElement;
+      if (
+        target.closest('input[type="checkbox"]') ||
+        target.closest('button') ||
+        target.closest('a[href]')
+      ) {
+        return;
+      }
+    }
+    navigate(`/cards/${card.id}`);
   };
 
-  // Handle card click navigation
-  const handleCardClick = (cardId: string, e: React.MouseEvent) => {
-    // Don't navigate if clicking on interactive elements
-    const target = e.target as HTMLElement;
-    if (
-      target.closest('input[type="checkbox"]') ||
-      target.closest('button') ||
-      target.closest('a[href]')
-    ) {
-      return;
-    }
-    navigate(`/cards/${cardId}`);
+  // Handle search functionality
+  const handleSearch = () => {
+    // Search is handled automatically by the useSearch hook
   };
 
   // Format date helper
@@ -118,7 +154,9 @@ export default function Cards() {
           <p className="text-gray-600">
             {isLoading
               ? 'Loading...'
-              : `${pagination?.total || 0} card${(pagination?.total || 0) !== 1 ? 's' : ''} found`}
+              : isSearchMode
+              ? `${totalResults} search result${totalResults !== 1 ? 's' : ''} found`
+              : `${cards.length} card${cards.length !== 1 ? 's' : ''} total`}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -133,47 +171,181 @@ export default function Cards() {
             <Download className="h-4 w-4" />
             Export
           </button>
-          <button className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
-            <Filter className="h-4 w-4" />
-            Filter
+          <button
+            onClick={() => {
+              setUseAdvancedSearch(!useAdvancedSearch);
+              if (!useAdvancedSearch) {
+                setSearchParams(prev => {
+                  const params = new URLSearchParams(prev);
+                  params.set('search', 'advanced');
+                  return params;
+                });
+              } else {
+                setSearchParams(prev => {
+                  const params = new URLSearchParams(prev);
+                  params.delete('search');
+                  return params;
+                });
+              }
+            }}
+            className={clsx(
+              'inline-flex items-center gap-2 px-4 py-2 border rounded-lg transition-colors',
+              useAdvancedSearch
+                ? 'border-blue-300 bg-blue-50 text-blue-700'
+                : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+            )}
+          >
+            <Search className="h-4 w-4" />
+            {useAdvancedSearch ? 'Basic Search' : 'Advanced Search'}
           </button>
         </div>
       </div>
 
-      {/* Search and Controls */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-          <input
-            type="text"
-            placeholder="Search cards by name, company, or email..."
-            value={searchTerm}
-            onChange={e => handleSearchChange(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      {/* Search Interface */}
+      {useAdvancedSearch ? (
+        <div className="space-y-4">
+          {/* Advanced Search Bar */}
+          <SearchBar
+            query={query}
+            onQueryChange={setQuery}
+            placeholder="Search cards, names, companies, emails..."
+            showFilters={true}
+            onToggleFilters={() => setFiltersOpen(!filtersOpen)}
+            filtersOpen={filtersOpen}
+            hasActiveFilters={hasFilters}
+            isLoading={isLoading}
+            onSearch={handleSearch}
+            size="md"
           />
+
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* Filters Sidebar */}
+            <div className={`lg:col-span-1 ${filtersOpen ? 'block' : 'hidden lg:block'}`}>
+              <SearchFilters
+                filters={filters}
+                availableFilters={filterOptions}
+                isLoadingFilters={isLoadingFilters}
+                onAddFilter={addFilter}
+                onRemoveFilter={removeFilter}
+                onClearFilters={clearFilters}
+                isOpen={true}
+                onToggle={() => setFiltersOpen(false)}
+              />
+            </div>
+
+            {/* Search Results or Card List */}
+            <div className="lg:col-span-3">
+              {isSearchMode ? (
+                <SearchResults
+                  results={searchResults}
+                  isLoading={searchLoading}
+                  error={searchError}
+                  totalResults={totalResults}
+                  executionTime={executionTime}
+                  hasMore={hasMore}
+                  onLoadMore={loadMore}
+                  onCardClick={handleCardClick}
+                  showRank={true}
+                  showHighlights={true}
+                />
+              ) : (
+                <div className="space-y-4">
+                  {/* View Mode Controls */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-500">View:</span>
+                      <button
+                        onClick={() => setViewMode('grid')}
+                        className={clsx(
+                          'inline-flex items-center gap-1 px-3 py-2 text-sm rounded-lg transition-colors',
+                          viewMode === 'grid' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
+                        )}
+                      >
+                        Grid
+                      </button>
+                      <button
+                        onClick={() => setViewMode('list')}
+                        className={clsx(
+                          'inline-flex items-center gap-1 px-3 py-2 text-sm rounded-lg transition-colors',
+                          viewMode === 'list' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
+                        )}
+                      >
+                        List
+                      </button>
+                    </div>
+
+                    {/* Clear search button */}
+                    {(query || hasFilters) && (
+                      <button
+                        onClick={() => {
+                          clearSearch();
+                          clearFilters();
+                        }}
+                        className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+                      >
+                        Clear search
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-500">View:</span>
-          <button
-            onClick={() => setViewMode('grid')}
-            className={clsx(
-              'px-3 py-2 text-sm rounded-lg transition-colors',
-              viewMode === 'grid' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
-            )}
-          >
-            Grid
-          </button>
-          <button
-            onClick={() => setViewMode('list')}
-            className={clsx(
-              'px-3 py-2 text-sm rounded-lg transition-colors',
-              viewMode === 'list' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
-            )}
-          >
-            List
-          </button>
+      ) : (
+        /* Basic Search Mode */
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+              <input
+                type="text"
+                placeholder="Search cards by name, company, or email..."
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500">View:</span>
+              <button
+                onClick={() => setViewMode('grid')}
+                className={clsx(
+                  'inline-flex items-center gap-1 px-3 py-2 text-sm rounded-lg transition-colors',
+                  viewMode === 'grid' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
+                )}
+              >
+                Grid
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={clsx(
+                  'inline-flex items-center gap-1 px-3 py-2 text-sm rounded-lg transition-colors',
+                  viewMode === 'list' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
+                )}
+              >
+                List
+              </button>
+            </div>
+          </div>
+
+          {/* Show SearchResults component for basic search when there are search results */}
+          {isSearchMode && (
+            <SearchResults
+              results={searchResults}
+              isLoading={searchLoading}
+              error={searchError}
+              totalResults={totalResults}
+              executionTime={executionTime}
+              hasMore={hasMore}
+              onLoadMore={loadMore}
+              onCardClick={handleCardClick}
+              showRank={false}
+              showHighlights={true}
+            />
+          )}
         </div>
-      </div>
+      )}
 
       {/* Selection Controls */}
       {selectedCards.length > 0 && (
@@ -229,22 +401,22 @@ export default function Cards() {
         </div>
       )}
 
-      {/* Cards Grid/List */}
-      {!isLoading &&
-        !error &&
-        (viewMode === 'grid' ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {cards.map(card => (
-              <div
-                key={card.id}
-                onClick={e => handleCardClick(card.id, e)}
-                className={clsx(
-                  'bg-white rounded-lg border transition-all duration-200 hover:shadow-md cursor-pointer',
-                  selectedCards.includes(card.id)
-                    ? 'border-blue-300 ring-2 ring-blue-100'
-                    : 'border-gray-200 hover:border-gray-300'
-                )}
-              >
+      {/* Cards Grid/List - Only show when not in search mode */}
+      {!useAdvancedSearch && !isSearchMode && !isLoading && !error && (
+        <>
+          {viewMode === 'grid' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {cards.map(card => (
+                <div
+                  key={card.id}
+                  onClick={e => handleCardClick(card, e)}
+                  className={clsx(
+                    'bg-white rounded-lg border transition-all duration-200 hover:shadow-md cursor-pointer',
+                    selectedCards.includes(card.id)
+                      ? 'border-blue-300 ring-2 ring-blue-100'
+                      : 'border-gray-200 hover:border-gray-300'
+                  )}
+                >
                 <div className="p-6">
                   <div className="flex items-start justify-between mb-4">
                     <input
@@ -412,136 +584,28 @@ export default function Cards() {
               ))}
             </div>
           </div>
-        ))}
+        )}
+        </>
+      )}
 
       {/* Empty State */}
-      {!isLoading && !error && cards.length === 0 && (
+      {!useAdvancedSearch && !isSearchMode && !isLoading && !error && cards.length === 0 && (
         <div className="text-center py-12">
           <Search className="mx-auto h-12 w-12 text-gray-400" />
           <h3 className="mt-2 text-sm font-medium text-gray-900">No cards found</h3>
           <p className="mt-1 text-sm text-gray-500">
-            {searchTerm
-              ? `No cards match "${searchTerm}"`
-              : 'Start by scanning your first business card'}
+            Start by scanning your first business card
           </p>
-          {!searchTerm && (
-            <Link
-              to="/scan"
-              className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Plus className="h-4 w-4" />
-              Scan Your First Card
-            </Link>
-          )}
+          <Link
+            to="/scan"
+            className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            Scan Your First Card
+          </Link>
         </div>
       )}
 
-      {/* Pagination */}
-      {!isLoading && !error && pagination && pagination.totalPages > 1 && (
-        <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 rounded-lg">
-          <div className="flex flex-1 justify-between sm:hidden">
-            <button
-              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-              disabled={!pagination.hasPrev}
-              className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Previous
-            </button>
-            <button
-              onClick={() => setCurrentPage(Math.min(pagination.totalPages, currentPage + 1))}
-              disabled={!pagination.hasNext}
-              className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Next
-            </button>
-          </div>
-          <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm text-gray-700">
-                Showing{' '}
-                <span className="font-medium">
-                  {Math.min((currentPage - 1) * (pagination.limit || 20) + 1, pagination.total)}
-                </span>{' '}
-                to{' '}
-                <span className="font-medium">
-                  {Math.min(currentPage * (pagination.limit || 20), pagination.total)}
-                </span>{' '}
-                of <span className="font-medium">{pagination.total}</span> results
-              </p>
-            </div>
-            <div>
-              <nav
-                className="isolate inline-flex -space-x-px rounded-md shadow-sm"
-                aria-label="Pagination"
-              >
-                <button
-                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                  disabled={!pagination.hasPrev}
-                  className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <span className="sr-only">Previous</span>
-                  <svg
-                    className="h-5 w-5"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                    aria-hidden="true"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </button>
-
-                {/* Page numbers */}
-                {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
-                  const pageNum =
-                    Math.max(1, Math.min(pagination.totalPages - 4, currentPage - 2)) + i;
-                  if (pageNum > pagination.totalPages) {
-                    return null;
-                  }
-
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => setCurrentPage(pageNum)}
-                      className={clsx(
-                        'relative inline-flex items-center px-4 py-2 text-sm font-semibold focus:z-20 focus:outline-offset-0',
-                        pageNum === currentPage
-                          ? 'z-10 bg-blue-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600'
-                          : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'
-                      )}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                })}
-
-                <button
-                  onClick={() => setCurrentPage(Math.min(pagination.totalPages, currentPage + 1))}
-                  disabled={!pagination.hasNext}
-                  className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <span className="sr-only">Next</span>
-                  <svg
-                    className="h-5 w-5"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                    aria-hidden="true"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </button>
-              </nav>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

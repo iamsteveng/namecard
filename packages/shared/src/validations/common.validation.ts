@@ -32,14 +32,14 @@ export const urlSchema = z
   .string()
   .max(2048, 'URL must not exceed 2048 characters')
   .refine(val => val === '' || z.string().url().safeParse(val).success, {
-    message: 'Invalid URL format'
+    message: 'Invalid URL format',
   });
 
 export const phoneSchema = z
   .string()
   .max(15, 'Phone number must not exceed 15 characters')
   .refine(val => val === '' || VALIDATION_PATTERNS.PHONE.test(val), {
-    message: 'Invalid phone number format'
+    message: 'Invalid phone number format',
   });
 
 // Pagination schemas
