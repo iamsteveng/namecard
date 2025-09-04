@@ -1,7 +1,7 @@
 // Card-specific types
-import type { BaseEntity, CalendarSource } from './common.types.js';
-import type { User } from './user.types.js';
-import type { Company } from './company.types.js';
+import type { BaseEntity, CalendarSource } from './common.types';
+import type { User } from './user.types';
+import type { Company } from './company.types';
 
 // Core Card interface matching Prisma schema
 export interface Card extends BaseEntity {

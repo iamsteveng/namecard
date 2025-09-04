@@ -522,7 +522,7 @@ router.get(
 
       if (company) {
         // Get the most recent enrichment data from multiple sources
-        const latestEnrichments = company.enrichments.filter(e => e.rawData);
+        const latestEnrichments = company.enrichments.filter((e: { rawData: any }) => e.rawData);
 
         // Build company enrichment data
         const companyData: CompanyEnrichmentData = {
@@ -610,13 +610,21 @@ router.get(
 
         // Add news articles from database
         if (company.newsArticles && company.newsArticles.length > 0) {
-          const dbNews = company.newsArticles.map(article => ({
-            title: article.title,
-            summary: article.summary || '',
-            url: article.url || '',
-            publishDate: article.publishedDate?.toISOString(),
-            source: article.source || 'Database',
-          }));
+          const dbNews = company.newsArticles.map(
+            (article: {
+              title: string;
+              summary?: string | null;
+              url?: string | null;
+              publishedDate?: Date | null;
+              source?: string | null;
+            }) => ({
+              title: article.title,
+              summary: article.summary || '',
+              url: article.url || '',
+              publishDate: article.publishedDate?.toISOString(),
+              source: article.source || 'Database',
+            })
+          );
           recentNews.unshift(...dbNews);
         }
 

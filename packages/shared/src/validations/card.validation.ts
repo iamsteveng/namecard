@@ -11,8 +11,8 @@ import {
   imageFileSchema,
   createArraySchema,
   createStringSchema,
-} from './common.validation.js';
-import { EXPORT_FORMATS, IMPORT_FORMATS, ENRICHMENT_TYPES } from '../constants/app.constants.js';
+} from './common.validation';
+import { EXPORT_FORMATS, IMPORT_FORMATS, ENRICHMENT_TYPES } from '../constants/app.constants';
 
 // Core card schema
 export const cardSchema = baseEntitySchema.extend({

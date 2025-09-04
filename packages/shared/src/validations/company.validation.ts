@@ -8,8 +8,8 @@ import {
   paginationParamsSchema,
   createStringSchema,
   createArraySchema,
-} from './common.validation.js';
-import { INDUSTRIES } from '../constants/app.constants.js';
+} from './common.validation';
+import { INDUSTRIES } from '../constants/app.constants';
 
 // Core company schema
 export const companySchema = baseEntitySchema.extend({

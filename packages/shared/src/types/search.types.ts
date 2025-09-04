@@ -1,7 +1,7 @@
 // Enhanced search types for PostgreSQL full-text search functionality
-import type { PaginationParams, SearchParams } from './common.types.js';
-import type { Card } from './card.types.js';
-import type { Company } from './company.types.js';
+import type { PaginationParams, SearchParams } from './common.types';
+import type { Card } from './card.types';
+import type { Company } from './company.types';
 
 // =============================================================================
 // SEARCH MODE TYPES

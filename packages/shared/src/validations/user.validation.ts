@@ -7,7 +7,7 @@ import {
   urlSchema,
   userPreferencesSchema,
   createStringSchema,
-} from './common.validation.js';
+} from './common.validation';
 
 // Core user schema
 export const userSchema = baseEntitySchema.extend({

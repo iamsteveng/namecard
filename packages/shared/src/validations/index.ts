@@ -1,5 +1,5 @@
 // Export all validation schemas
-export * from './common.validation.js';
-export * from './user.validation.js';
-export * from './card.validation.js';
-export * from './company.validation.js';
+export * from './common.validation';
+export * from './user.validation';
+export * from './card.validation';
+export * from './company.validation';

@@ -1,6 +1,6 @@
 // Company-related types
-import type { BaseEntity, CompanySize } from './common.types.js';
-import type { CardCompany, NewsArticle } from './card.types.js';
+import type { BaseEntity, CompanySize } from './common.types';
+import type { CardCompany, NewsArticle } from './card.types';
 
 // Core Company interface matching Prisma schema
 export interface Company extends BaseEntity {

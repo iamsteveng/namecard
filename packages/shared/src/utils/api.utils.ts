@@ -1,6 +1,6 @@
 // API utility functions and helpers
-import type { PaginationParams, SearchParams } from '../types/common.types.js';
-import { API_DEFAULTS } from '../constants/api.constants.js';
+import type { PaginationParams, SearchParams } from '../types/common.types';
+import { API_DEFAULTS } from '../constants/api.constants';
 
 // URL and query parameter utilities
 export const buildQueryString = (params: Record<string, any>): string => {

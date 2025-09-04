@@ -5,7 +5,7 @@ import type {
   PaginatedResponse,
   PaginationParams,
   SearchParams,
-} from './common.types.js';
+} from './common.types';
 import type {
   Card,
   UpdateCardData,
@@ -17,7 +17,7 @@ import type {
   CardExportResponse,
   CardImportRequest,
   CardImportResponse,
-} from './card.types.js';
+} from './card.types';
 import type {
   User,
   UpdateUserData,
@@ -26,8 +26,8 @@ import type {
   LoginCredentials,
   RegisterData,
   UserSession,
-} from './user.types.js';
-import type { Company, CompanyFilters, CompanyInsights } from './company.types.js';
+} from './user.types';
+import type { Company, CompanyFilters, CompanyInsights } from './company.types';
 
 // =============================================================================
 // AUTH ENDPOINTS

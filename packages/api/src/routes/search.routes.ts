@@ -201,20 +201,20 @@ router.get(
 
       const filters = {
         companies: companies
-          .filter(c => c.company)
-          .map(c => ({
+          .filter((c: { company: string | null; _count: { id: number } }) => c.company)
+          .map((c: { company: string | null; _count: { id: number } }) => ({
             value: c.company!,
             label: c.company!,
             count: c._count.id,
           })),
-        tags: tags.map(t => ({
+        tags: tags.map((t: { tag: string; count: bigint }) => ({
           value: t.tag,
           label: t.tag,
           count: Number(t.count),
         })),
         industries: industries
-          .filter(i => i.industry)
-          .map(i => ({
+          .filter((i: { industry: string | null; _count: { id: number } }) => i.industry)
+          .map((i: { industry: string | null; _count: { id: number } }) => ({
             value: i.industry!,
             label: i.industry!,
             count: i._count.id,

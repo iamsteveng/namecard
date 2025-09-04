@@ -1,11 +1,11 @@
 // Export all types
-export * from './types/index.js';
+export * from './types/index';
 
 // Export constants
-export * from './constants/index.js';
+export * from './constants/index';
 
 // Export utilities
-export * from './utils/index.js';
+export * from './utils/index';
 
 // Export validation schemas (namespaced to avoid conflicts)
-export * as schemas from './validations/index.js';
+export * as schemas from './validations/index';

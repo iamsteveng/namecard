@@ -1,5 +1,5 @@
 // User-related types
-import type { BaseEntity, UserPreferences } from './common.types.js';
+import type { BaseEntity, UserPreferences } from './common.types';
 
 // Core User interface matching Prisma schema
 export interface User extends BaseEntity {

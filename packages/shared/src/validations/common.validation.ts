@@ -1,12 +1,7 @@
 // Common validation schemas
 import { z } from 'zod';
-import { VALIDATION_PATTERNS } from '../constants/validation.constants.js';
-import {
-  THEMES,
-  SORT_ORDERS,
-  COMPANY_SIZES,
-  CALENDAR_SOURCES,
-} from '../constants/app.constants.js';
+import { VALIDATION_PATTERNS } from '../constants/validation.constants';
+import { THEMES, SORT_ORDERS, COMPANY_SIZES, CALENDAR_SOURCES } from '../constants/app.constants';
 
 // Base entity schema
 export const baseEntitySchema = z.object({
