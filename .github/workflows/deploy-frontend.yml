@@ -223,6 +223,36 @@ jobs:
               ;;
           esac
 
+      - name: Wait for stable CloudFormation stack
+        run: |
+          echo "🔍 Checking CloudFormation stack status before deployment..."
+          
+          STACK_STATUS=$(aws cloudformation describe-stacks --stack-name NameCardProd-staging --region ${{ env.AWS_REGION }} --query 'Stacks[0].StackStatus' --output text)
+          echo "Current stack status: $STACK_STATUS"
+          
+          if [[ "$STACK_STATUS" == *"IN_PROGRESS"* ]]; then
+            echo "⏳ Stack is in $STACK_STATUS state - waiting for completion..."
+            
+            # Wait for stack to reach stable state (max 20 minutes)
+            echo "⌛ Waiting for stack to reach stable state (max 20 minutes)..."
+            timeout 1200 aws cloudformation wait stack-update-complete --stack-name NameCardProd-staging --region ${{ env.AWS_REGION }} || {
+              echo "⚠️ Stack update didn't complete in 20 minutes, checking current status..."
+              FINAL_STATUS=$(aws cloudformation describe-stacks --stack-name NameCardProd-staging --region ${{ env.AWS_REGION }} --query 'Stacks[0].StackStatus' --output text)
+              echo "Final status: $FINAL_STATUS"
+              
+              if [[ "$FINAL_STATUS" == *"ROLLBACK_COMPLETE"* ]] || [[ "$FINAL_STATUS" == *"UPDATE_COMPLETE"* ]] || [[ "$FINAL_STATUS" == *"CREATE_COMPLETE"* ]]; then
+                echo "✅ Stack reached stable state: $FINAL_STATUS"
+              else
+                echo "❌ Stack is still in unstable state: $FINAL_STATUS"
+                echo "🔍 Recent stack events:"
+                aws cloudformation describe-stack-events --stack-name NameCardProd-staging --region ${{ env.AWS_REGION }} --query 'StackEvents[:5].[Timestamp,LogicalResourceId,ResourceStatus,ResourceStatusReason]' --output table
+                exit 1
+              fi
+            }
+          else
+            echo "✅ Stack is in stable state: $STACK_STATUS"
+          fi
+
       - name: Deploy frontend infrastructure
         run: |
           echo "🏗️  Deploying frontend infrastructure..."
