@@ -21,12 +21,12 @@ export interface FullTextSearchParams extends SearchParams, PaginationParams {
   highlight?: boolean;
   includeRank?: boolean;
   minRank?: number;
-  
+
   // Search operators
   proximity?: boolean;
   fuzzy?: boolean;
   exactPhrase?: boolean;
-  
+
   // Performance options
   maxResults?: number;
   timeout?: number;
@@ -34,17 +34,17 @@ export interface FullTextSearchParams extends SearchParams, PaginationParams {
 
 export interface AdvancedSearchParams extends FullTextSearchParams {
   // Boolean operators
-  mustHave?: string[];      // AND terms
-  shouldHave?: string[];    // OR terms  
-  mustNotHave?: string[];   // NOT terms
-  
+  mustHave?: string[]; // AND terms
+  shouldHave?: string[]; // OR terms
+  mustNotHave?: string[]; // NOT terms
+
   // Field-specific search
   searchInNames?: boolean;
   searchInTitles?: boolean;
   searchInCompanies?: boolean;
   searchInNotes?: boolean;
   searchInEmails?: boolean;
-  
+
   // Proximity search
   proximityDistance?: number;
   adjacentTerms?: boolean;
@@ -237,7 +237,7 @@ export interface SearchCardsRequest {
 
 export interface SearchCardsResponse extends SearchResults<Card> {}
 
-// Company search requests  
+// Company search requests
 export interface SearchCompaniesRequest {
   query: FullTextSearchParams;
   headers: {
