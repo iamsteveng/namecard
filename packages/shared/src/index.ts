@@ -7,6 +7,5 @@ export * from './constants/index';
 // Export utilities
 export * from './utils/index';
 
-// Export validation schemas (both direct and namespaced for backward compatibility)
-export * from './validations/index';
+// Export validation schemas (namespaced to avoid conflicts)
 export * as schemas from './validations/index';

@@ -1,13 +1,4 @@
-import {
-  paginationParamsSchema,
-  searchParamsSchema,
-  getCardParamsSchema,
-  updateCardSchema,
-  createCardSchema,
-  listCardsParamsSchema,
-  userRegistrationSchema,
-  userLoginSchema,
-} from '@namecard/shared';
+import { schemas } from '@namecard/shared';
 import { Request, Response, NextFunction } from 'express';
 import { ZodSchema } from 'zod';
 
@@ -55,18 +46,18 @@ export const validate = (validationSchemas: ValidationOptions) => {
 // Direct imports from @namecard/shared - no namespace needed
 
 // Specific validation middleware functions
-export const validatePagination = validate({ query: paginationParamsSchema });
-export const validateId = validate({ params: getCardParamsSchema });
-export const validateSearch = validate({ query: searchParamsSchema });
+export const validatePagination = validate({ query: schemas.paginationParamsSchema });
+export const validateId = validate({ params: schemas.getCardParamsSchema });
+export const validateSearch = validate({ query: schemas.searchParamsSchema });
 
 // Combined pagination and search validation
 export const validatePaginationAndSearch = validate({
-  query: listCardsParamsSchema,
+  query: schemas.listCardsParamsSchema,
 });
-export const validateUserRegistration = validate({ body: userRegistrationSchema });
-export const validateUserLogin = validate({ body: userLoginSchema });
-export const validateCardCreate = validate({ body: createCardSchema });
-export const validateCardUpdate = validate({ body: updateCardSchema });
+export const validateUserRegistration = validate({ body: schemas.userRegistrationSchema });
+export const validateUserLogin = validate({ body: schemas.userLoginSchema });
+export const validateCardCreate = validate({ body: schemas.createCardSchema });
+export const validateCardUpdate = validate({ body: schemas.updateCardSchema });
 
 // Generic validation function for request body
 export const validateRequest = (schema: ZodSchema) => {
