@@ -14,12 +14,12 @@ interface ValidationOptions {
 }
 
 // Main validation middleware factory
-export const validate = (schemas: ValidationOptions) => {
+export const validate = (validationSchemas: ValidationOptions) => {
   return (req: Request, _res: Response, next: NextFunction): void => {
     const errors: string[] = [];
 
     // Validate each schema if provided
-    Object.entries(schemas).forEach(([source, schema]) => {
+    Object.entries(validationSchemas).forEach(([source, schema]) => {
       if (schema) {
         const result = schema.safeParse(req[source as keyof Request] || {});
 
@@ -43,17 +43,15 @@ export const validate = (schemas: ValidationOptions) => {
   };
 };
 
-// Using shared validation schemas from @namecard/shared
-const {
-  paginationParamsSchema,
-  searchParamsSchema,
-  getCardParamsSchema,
-  updateCardSchema,
-  createCardSchema,
-  listCardsParamsSchema,
-  userRegistrationSchema,
-  userLoginSchema,
-} = schemas;
+// Using shared validation schemas from @namecard/shared namespace
+const paginationParamsSchema = schemas.paginationParamsSchema;
+const searchParamsSchema = schemas.searchParamsSchema;
+const getCardParamsSchema = schemas.getCardParamsSchema;
+const updateCardSchema = schemas.updateCardSchema;
+const createCardSchema = schemas.createCardSchema;
+const listCardsParamsSchema = schemas.listCardsParamsSchema;
+const userRegistrationSchema = schemas.userRegistrationSchema;
+const userLoginSchema = schemas.userLoginSchema;
 
 // Specific validation middleware functions
 export const validatePagination = validate({ query: paginationParamsSchema });
