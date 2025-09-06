@@ -1,0 +1,134 @@
+// Cards service proxy for local development
+import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
+import { createSuccessResponse, createErrorResponse, getRequestId } from '../services/shared/utils/response.js';
+import { logRequest, logResponse } from '../services/shared/utils/logger.js';
+
+export const handler = async (
+  event: APIGatewayProxyEvent,
+  context: Context
+): Promise<APIGatewayProxyResult> => {
+  const startTime = Date.now();
+  const requestId = getRequestId(event);
+  const method = event.httpMethod;
+  const path = event.path;
+
+  logRequest(method, path, { requestId, functionName: context.functionName });
+
+  try {
+    // Extract the route path after /api/v1/cards/
+    const routePath = event.path.replace('/api/v1/cards/', '').replace('/api/v1/cards', '');
+    
+    // Route to appropriate handler based on path and method
+    switch (true) {
+      case routePath === '' && method === 'POST':
+        return await handleCreate(event, requestId);
+        
+      case routePath === '' && method === 'GET':
+        return await handleList(event, requestId);
+        
+      case routePath === 'search' && method === 'GET':
+        return await handleSearch(event, requestId);
+        
+      case routePath.match(/^[0-9a-f-]+$/) && method === 'GET':
+        return await handleGet(event, requestId);
+        
+      case routePath.match(/^[0-9a-f-]+$/) && method === 'PUT':
+        return await handleUpdate(event, requestId);
+        
+      case routePath.match(/^[0-9a-f-]+$/) && method === 'DELETE':
+        return await handleDelete(event, requestId);
+        
+      default:
+        return createErrorResponse(`Route not found: ${method} ${routePath}`, 404, requestId);
+    }
+  } catch (error) {
+    return createErrorResponse(error, 500, requestId);
+  } finally {
+    const duration = Date.now() - startTime;
+    logResponse(200, duration, { requestId, functionName: context.functionName });
+  }
+};
+
+// Temporary mock handlers - will be replaced with actual service logic
+async function handleCreate(event: APIGatewayProxyEvent, requestId: string): Promise<APIGatewayProxyResult> {
+  return createSuccessResponse(
+    {
+      message: 'Create card endpoint - to be implemented',
+      path: event.path,
+      method: event.httpMethod,
+    },
+    200,
+    'Cards proxy working',
+    requestId
+  );
+}
+
+async function handleList(event: APIGatewayProxyEvent, requestId: string): Promise<APIGatewayProxyResult> {
+  return createSuccessResponse(
+    {
+      message: 'List cards endpoint - to be implemented',
+      path: event.path,
+      method: event.httpMethod,
+      queryParams: event.queryStringParameters,
+    },
+    200,
+    'Cards proxy working',
+    requestId
+  );
+}
+
+async function handleGet(event: APIGatewayProxyEvent, requestId: string): Promise<APIGatewayProxyResult> {
+  return createSuccessResponse(
+    {
+      message: 'Get card endpoint - to be implemented',
+      path: event.path,
+      method: event.httpMethod,
+      cardId: event.pathParameters?.proxy || event.path.split('/').pop(),
+    },
+    200,
+    'Cards proxy working',
+    requestId
+  );
+}
+
+async function handleUpdate(event: APIGatewayProxyEvent, requestId: string): Promise<APIGatewayProxyResult> {
+  return createSuccessResponse(
+    {
+      message: 'Update card endpoint - to be implemented',
+      path: event.path,
+      method: event.httpMethod,
+      cardId: event.pathParameters?.proxy || event.path.split('/').pop(),
+    },
+    200,
+    'Cards proxy working',
+    requestId
+  );
+}
+
+async function handleDelete(event: APIGatewayProxyEvent, requestId: string): Promise<APIGatewayProxyResult> {
+  return createSuccessResponse(
+    {
+      message: 'Delete card endpoint - to be implemented',
+      path: event.path,
+      method: event.httpMethod,
+      cardId: event.pathParameters?.proxy || event.path.split('/').pop(),
+    },
+    200,
+    'Cards proxy working',
+    requestId
+  );
+}
+
+async function handleSearch(event: APIGatewayProxyEvent, requestId: string): Promise<APIGatewayProxyResult> {
+  return createSuccessResponse(
+    {
+      message: 'Search cards endpoint - to be implemented',
+      path: event.path,
+      method: event.httpMethod,
+      queryParams: event.queryStringParameters,
+    },
+    200,
+    'Cards proxy working',
+    requestId
+  );
+}

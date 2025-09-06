@@ -1,0 +1,122 @@
+# Cards Service Configuration
+service: namecard-cards
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: ap-southeast-1
+  stage: ${opt:stage, 'dev'}
+  environment:
+    NODE_ENV: ${self:provider.stage}
+    STAGE: ${self:provider.stage}
+    
+    # Database
+    DATABASE_URL: ${ssm:/namecard/${self:provider.stage}/database-url}
+    
+    # JWT for authentication
+    JWT_SECRET: ${ssm:/namecard/${self:provider.stage}/jwt-secret~true}
+    
+    # S3 Configuration
+    S3_BUCKET_NAME: ${ssm:/namecard/${self:provider.stage}/s3-bucket-name}
+    S3_REGION: ${self:provider.region}
+    S3_CDN_DOMAIN: ${ssm:/namecard/${self:provider.stage}/s3-cdn-domain}
+
+  iamRoleStatements:
+    # RDS Proxy permissions
+    - Effect: Allow
+      Action:
+        - rds-db:connect
+      Resource:
+        - arn:aws:rds-db:${self:provider.region}:${aws:accountId}:dbuser:*/namecard-lambda-user
+    
+    # S3 permissions for card images
+    - Effect: Allow
+      Action:
+        - s3:GetObject
+        - s3:PutObject
+        - s3:DeleteObject
+        - s3:ListBucket
+      Resource:
+        - arn:aws:s3:::${ssm:/namecard/${self:provider.stage}/s3-bucket-name}
+        - arn:aws:s3:::${ssm:/namecard/${self:provider.stage}/s3-bucket-name}/*
+    
+    # SSM Parameter Store permissions
+    - Effect: Allow
+      Action:
+        - ssm:GetParameter
+        - ssm:GetParameters
+      Resource:
+        - arn:aws:ssm:${self:provider.region}:${aws:accountId}:parameter/namecard/${self:provider.stage}/*
+
+functions:
+  create:
+    handler: handlers/create.handler
+    description: Create a new business card
+    events:
+      - http:
+          path: ''
+          method: post
+          cors: true
+    provisionedConcurrency: ${self:custom.provisionedConcurrency.${self:provider.stage}, 0}
+
+  list:
+    handler: handlers/list.handler
+    description: List user's business cards
+    events:
+      - http:
+          path: ''
+          method: get
+          cors: true
+    provisionedConcurrency: ${self:custom.provisionedConcurrency.${self:provider.stage}, 0}
+
+  get:
+    handler: handlers/get.handler
+    description: Get a specific business card
+    events:
+      - http:
+          path: '{id}'
+          method: get
+          cors: true
+
+  update:
+    handler: handlers/update.handler
+    description: Update a business card
+    events:
+      - http:
+          path: '{id}'
+          method: put
+          cors: true
+
+  delete:
+    handler: handlers/delete.handler
+    description: Delete a business card
+    events:
+      - http:
+          path: '{id}'
+          method: delete
+          cors: true
+
+  search:
+    handler: handlers/search.handler
+    description: Search business cards
+    events:
+      - http:
+          path: search
+          method: get
+          cors: true
+
+plugins:
+  - serverless-webpack
+  
+custom:
+  webpack:
+    webpackConfig: '../../webpack.config.js'
+    includeModules: true
+    
+  # Provisioned concurrency by stage
+  provisionedConcurrency:
+    production: 2
+    staging: 1
+    dev: 0
+    local: 0

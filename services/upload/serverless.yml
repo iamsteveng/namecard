@@ -1,0 +1,103 @@
+# Upload Service Configuration
+service: namecard-upload
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: ap-southeast-1
+  stage: ${opt:stage, 'dev'}
+  timeout: 30
+  environment:
+    NODE_ENV: ${self:provider.stage}
+    STAGE: ${self:provider.stage}
+    
+    # Database
+    DATABASE_URL: ${ssm:/namecard/${self:provider.stage}/database-url}
+    
+    # S3 Configuration
+    S3_BUCKET_NAME: ${ssm:/namecard/${self:provider.stage}/s3-bucket-name}
+    S3_REGION: ${self:provider.region}
+    S3_CDN_DOMAIN: ${ssm:/namecard/${self:provider.stage}/s3-cdn-domain}
+    
+    # Upload Configuration
+    MAX_FILE_SIZE: ${ssm:/namecard/${self:provider.stage}/max-file-size, '10485760'}
+    ALLOWED_FILE_TYPES: ${ssm:/namecard/${self:provider.stage}/allowed-file-types, 'image/jpeg,image/png,image/heic,image/webp'}
+
+  iamRoleStatements:
+    # S3 permissions
+    - Effect: Allow
+      Action:
+        - s3:GetObject
+        - s3:PutObject
+        - s3:DeleteObject
+        - s3:ListBucket
+        - s3:GetBucketLocation
+        - s3:PutObjectAcl
+      Resource:
+        - arn:aws:s3:::${ssm:/namecard/${self:provider.stage}/s3-bucket-name}
+        - arn:aws:s3:::${ssm:/namecard/${self:provider.stage}/s3-bucket-name}/*
+    
+    # SQS permissions for async processing
+    - Effect: Allow
+      Action:
+        - sqs:SendMessage
+        - sqs:GetQueueUrl
+      Resource:
+        - arn:aws:sqs:${self:provider.region}:${aws:accountId}:namecard-ocr-queue-${self:provider.stage}
+    
+    # SSM Parameter Store permissions
+    - Effect: Allow
+      Action:
+        - ssm:GetParameter
+        - ssm:GetParameters
+      Resource:
+        - arn:aws:ssm:${self:provider.region}:${aws:accountId}:parameter/namecard/${self:provider.stage}/*
+
+functions:
+  single:
+    handler: handlers/single.handler
+    description: Upload a single image file
+    events:
+      - http:
+          path: single
+          method: post
+          cors: true
+    memorySize: 1024
+
+  batch:
+    handler: handlers/batch.handler  
+    description: Upload multiple image files
+    events:
+      - http:
+          path: batch
+          method: post
+          cors: true
+    memorySize: 1024
+    timeout: 60
+
+  presigned-url:
+    handler: handlers/presigned-url.handler
+    description: Generate presigned URL for direct S3 upload
+    events:
+      - http:
+          path: presigned-url
+          method: post
+          cors: true
+
+  validate:
+    handler: handlers/validate.handler
+    description: Validate uploaded file
+    events:
+      - http:
+          path: validate
+          method: post
+          cors: true
+
+plugins:
+  - serverless-webpack
+  
+custom:
+  webpack:
+    webpackConfig: '../../webpack.config.js'
+    includeModules: true

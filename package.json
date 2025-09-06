@@ -30,6 +30,12 @@
     "fullstack:test": "docker-compose up -d && sleep 15 && curl http://localhost:3001/health && curl http://localhost:8080/health",
     "frontend:up": "docker-compose up -d frontend",
     "frontend:logs": "docker-compose logs -f frontend",
+    "serverless:dev": "sls offline start --stage local",
+    "serverless:build": "npm run build:shared && sls package",
+    "serverless:deploy:dev": "sls deploy --stage dev",
+    "serverless:deploy:staging": "sls deploy --stage staging",
+    "serverless:deploy:prod": "sls deploy --stage production",
+    "build:shared": "cd services/shared && npm run build",
     "prepare": "husky install || echo 'Husky install failed, continuing...'"
   },
   "workspaces": [
@@ -52,9 +58,14 @@
     "jest": "^30.0.4",
     "jest-environment-jsdom": "^30.0.4",
     "prettier": "^3.2.4",
+    "serverless-offline": "^14.4.0",
+    "serverless-webpack": "^5.15.3",
     "start-server-and-test": "^2.0.12",
+    "ts-loader": "^9.5.4",
     "turbo": "^1.12.4",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "webpack": "^5.101.3",
+    "webpack-node-externals": "^3.0.0"
   },
   "engines": {
     "node": ">=18.0.0",

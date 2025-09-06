@@ -1,0 +1,102 @@
+# Authentication Service Configuration
+service: namecard-auth
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: ap-southeast-1
+  stage: ${opt:stage, 'dev'}
+  environment:
+    NODE_ENV: ${self:provider.stage}
+    STAGE: ${self:provider.stage}
+    
+    # Database
+    DATABASE_URL: ${ssm:/namecard/${self:provider.stage}/database-url}
+    
+    # JWT & Authentication
+    JWT_SECRET: ${ssm:/namecard/${self:provider.stage}/jwt-secret~true}
+    JWT_EXPIRES_IN: ${ssm:/namecard/${self:provider.stage}/jwt-expires-in, '24h'}
+    
+    # Cognito
+    COGNITO_USER_POOL_ID: ${ssm:/namecard/${self:provider.stage}/cognito-user-pool-id}
+    COGNITO_CLIENT_ID: ${ssm:/namecard/${self:provider.stage}/cognito-client-id}
+    COGNITO_REGION: ${self:provider.region}
+
+  iamRoleStatements:
+    # Cognito permissions
+    - Effect: Allow
+      Action:
+        - cognito-idp:AdminCreateUser
+        - cognito-idp:AdminSetUserPassword
+        - cognito-idp:AdminInitiateAuth
+        - cognito-idp:AdminGetUser
+        - cognito-idp:AdminUpdateUserAttributes
+        - cognito-idp:AdminDeleteUser
+        - cognito-idp:AdminConfirmSignUp
+        - cognito-idp:AdminRespondToAuthChallenge
+        - cognito-idp:ListUsers
+      Resource:
+        - arn:aws:cognito-idp:${self:provider.region}:${aws:accountId}:userpool/*
+    
+    # SSM Parameter Store permissions
+    - Effect: Allow
+      Action:
+        - ssm:GetParameter
+        - ssm:GetParameters
+      Resource:
+        - arn:aws:ssm:${self:provider.region}:${aws:accountId}:parameter/namecard/${self:provider.stage}/*
+
+functions:
+  login:
+    handler: handlers/login.handler
+    description: User login with JWT token generation
+    events:
+      - http:
+          path: login
+          method: post
+          cors: true
+
+  register:
+    handler: handlers/register.handler
+    description: User registration with Cognito
+    events:
+      - http:
+          path: register
+          method: post
+          cors: true
+
+  refresh:
+    handler: handlers/refresh.handler
+    description: JWT token refresh
+    events:
+      - http:
+          path: refresh
+          method: post
+          cors: true
+
+  profile:
+    handler: handlers/profile.handler
+    description: Get user profile information
+    events:
+      - http:
+          path: profile
+          method: get
+          cors: true
+
+  logout:
+    handler: handlers/logout.handler
+    description: User logout and token invalidation
+    events:
+      - http:
+          path: logout
+          method: post
+          cors: true
+
+plugins:
+  - serverless-webpack
+  
+custom:
+  webpack:
+    webpackConfig: '../../webpack.config.js'
+    includeModules: true

@@ -1,0 +1,50 @@
+# Production environment configuration (AWS SSM Parameter Store paths)
+
+# Database - RDS Proxy endpoint for Lambda connections
+DATABASE_URL: "/namecard/production/database-url"
+
+# JWT Configuration
+JWT_SECRET: "/namecard/production/jwt-secret"
+JWT_EXPIRES_IN: "/namecard/production/jwt-expires-in"
+
+# Cognito Configuration
+COGNITO_USER_POOL_ID: "/namecard/production/cognito-user-pool-id"
+COGNITO_CLIENT_ID: "/namecard/production/cognito-client-id"
+COGNITO_REGION: "/namecard/production/cognito-region"
+
+# S3 Configuration
+S3_BUCKET_NAME: "/namecard/production/s3-bucket-name"
+S3_REGION: "/namecard/production/s3-region"
+S3_CDN_DOMAIN: "/namecard/production/s3-cdn-domain"
+
+# Upload Configuration
+MAX_FILE_SIZE: "/namecard/production/max-file-size"
+ALLOWED_FILE_TYPES: "/namecard/production/allowed-file-types"
+
+# OCR Configuration
+OCR_CONFIDENCE_THRESHOLD: "/namecard/production/ocr-confidence-threshold"
+
+# Perplexity AI Configuration
+PERPLEXITY_API_KEY: "/namecard/production/perplexity-api-key"
+PERPLEXITY_BASE_URL: "/namecard/production/perplexity-base-url"
+PERPLEXITY_RATE_LIMIT_RPM: "/namecard/production/perplexity-rate-limit-rpm"
+PERPLEXITY_RATE_LIMIT_RPD: "/namecard/production/perplexity-rate-limit-rpd"
+PERPLEXITY_TIMEOUT: "/namecard/production/perplexity-timeout"
+PERPLEXITY_MAX_RETRIES: "/namecard/production/perplexity-max-retries"
+PERPLEXITY_BACKOFF_MS: "/namecard/production/perplexity-backoff-ms"
+
+# Enrichment Configuration
+ENRICHMENT_ENABLED_SOURCES: "/namecard/production/enrichment-enabled-sources"
+PERPLEXITY_ENABLED: "/namecard/production/perplexity-enabled"
+PERPLEXITY_WEIGHT: "/namecard/production/perplexity-weight"
+PERPLEXITY_TRUST_LEVEL: "/namecard/production/perplexity-trust-level"
+
+# Redis Configuration
+REDIS_URL: "/namecard/production/redis-url"
+REDIS_PASSWORD: "/namecard/production/redis-password"
+
+# CORS Configuration
+CORS_ORIGIN: "/namecard/production/cors-origin"
+
+# Logging
+LOG_LEVEL: "/namecard/production/log-level"

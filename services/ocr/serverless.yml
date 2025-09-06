@@ -1,0 +1,111 @@
+# OCR Service Configuration
+service: namecard-ocr
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: ap-southeast-1
+  stage: ${opt:stage, 'dev'}
+  timeout: 300 # 5 minutes for OCR processing
+  environment:
+    NODE_ENV: ${self:provider.stage}
+    STAGE: ${self:provider.stage}
+    
+    # Database
+    DATABASE_URL: ${ssm:/namecard/${self:provider.stage}/database-url}
+    
+    # S3 Configuration
+    S3_BUCKET_NAME: ${ssm:/namecard/${self:provider.stage}/s3-bucket-name}
+    S3_REGION: ${self:provider.region}
+    
+    # OCR Configuration
+    OCR_CONFIDENCE_THRESHOLD: ${ssm:/namecard/${self:provider.stage}/ocr-confidence-threshold, '80'}
+
+  iamRoleStatements:
+    # Textract permissions
+    - Effect: Allow
+      Action:
+        - textract:DetectDocumentText
+        - textract:AnalyzeDocument
+        - textract:StartDocumentTextDetection
+        - textract:GetDocumentTextDetection
+      Resource: '*'
+    
+    # S3 permissions for reading images
+    - Effect: Allow
+      Action:
+        - s3:GetObject
+        - s3:ListBucket
+      Resource:
+        - arn:aws:s3:::${ssm:/namecard/${self:provider.stage}/s3-bucket-name}
+        - arn:aws:s3:::${ssm:/namecard/${self:provider.stage}/s3-bucket-name}/*
+    
+    # SQS permissions
+    - Effect: Allow
+      Action:
+        - sqs:ReceiveMessage
+        - sqs:DeleteMessage
+        - sqs:SendMessage
+        - sqs:GetQueueAttributes
+      Resource:
+        - arn:aws:sqs:${self:provider.region}:${aws:accountId}:namecard-ocr-queue-${self:provider.stage}
+        - arn:aws:sqs:${self:provider.region}:${aws:accountId}:namecard-enrichment-queue-${self:provider.stage}
+    
+    # SSM Parameter Store permissions
+    - Effect: Allow
+      Action:
+        - ssm:GetParameter
+        - ssm:GetParameters
+      Resource:
+        - arn:aws:ssm:${self:provider.region}:${aws:accountId}:parameter/namecard/${self:provider.stage}/*
+
+functions:
+  extract-text:
+    handler: handlers/extract-text.handler
+    description: Extract text from business card image using Textract
+    events:
+      - http:
+          path: extract-text
+          method: post
+          cors: true
+    memorySize: 1024
+
+  analyze-card:
+    handler: handlers/analyze-card.handler
+    description: Analyze business card and extract structured data
+    events:
+      - http:
+          path: analyze-card
+          method: post
+          cors: true
+    memorySize: 1024
+
+  process-async:
+    handler: handlers/process-async.handler
+    description: Process OCR from SQS queue (async)
+    events:
+      - sqs:
+          arn: arn:aws:sqs:${self:provider.region}:${aws:accountId}:namecard-ocr-queue-${self:provider.stage}
+          batchSize: 1
+          maximumBatchingWindowInSeconds: 5
+    memorySize: 1024
+    reservedConcurrency: 5
+
+  preprocess-image:
+    handler: handlers/preprocess-image.handler
+    description: Preprocess image for better OCR results
+    events:
+      - http:
+          path: preprocess
+          method: post
+          cors: true
+    memorySize: 2048
+
+plugins:
+  - serverless-webpack
+  
+custom:
+  webpack:
+    webpackConfig: '../../webpack.config.js'
+    includeModules: true

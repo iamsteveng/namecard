@@ -1,0 +1,86 @@
+# Root serverless.yml for local development and unified API
+service: namecard-local
+frameworkVersion: '3'
+useDotenv: true
+
+plugins:
+  - serverless-offline
+  - serverless-webpack
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: ap-southeast-1
+  stage: ${opt:stage, 'local'}
+  environment:
+    NODE_ENV: ${opt:stage, 'local'}
+    STAGE: ${opt:stage, 'local'}
+
+custom:
+  webpack:
+    webpackConfig: './webpack.config.js'
+    includeModules: true
+    packager: 'npm'
+
+  serverless-offline:
+    httpPort: 3001
+    host: 0.0.0.0
+    prefix: api/v1
+    corsAllowHeaders: 'accept,content-type,x-api-key,authorization'
+    corsAllowOrigin: '*'
+    corsAllowMethods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS'
+
+functions:
+  # Auth service proxy
+  auth-proxy:
+    handler: local/auth-proxy.handler
+    events:
+      - http:
+          path: auth/{proxy+}
+          method: ANY
+          cors: true
+
+  # Cards service proxy  
+  cards-proxy:
+    handler: local/cards-proxy.handler
+    events:
+      - http:
+          path: cards/{proxy+}
+          method: ANY
+          cors: true
+
+  # Upload service proxy
+  upload-proxy:
+    handler: local/upload-proxy.handler
+    events:
+      - http:
+          path: upload/{proxy+}
+          method: ANY
+          cors: true
+
+  # OCR/Scan service proxy
+  scan-proxy:
+    handler: local/scan-proxy.handler
+    events:
+      - http:
+          path: scan/{proxy+}
+          method: ANY
+          cors: true
+
+  # Enrichment service proxy
+  enrichment-proxy:
+    handler: local/enrichment-proxy.handler
+    events:
+      - http:
+          path: enrichment/{proxy+}
+          method: ANY
+          cors: true
+
+  # Health check
+  health:
+    handler: local/health.handler
+    events:
+      - http:
+          path: health
+          method: GET
+          cors: true
