@@ -3,15 +3,15 @@ import winston from 'winston';
 
 // Create logger with JSON format for CloudWatch
 const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL || 'info',
+  level: process.env['LOG_LEVEL'] || 'info',
   format: winston.format.combine(
     winston.format.timestamp(),
     winston.format.errors({ stack: true }),
     winston.format.json()
   ),
   defaultMeta: {
-    service: process.env.AWS_LAMBDA_FUNCTION_NAME || 'namecard-service',
-    stage: process.env.STAGE || 'local',
+    service: process.env['AWS_LAMBDA_FUNCTION_NAME'] || 'namecard-service',
+    stage: process.env['STAGE'] || 'local',
   },
   transports: [
     new winston.transports.Console({

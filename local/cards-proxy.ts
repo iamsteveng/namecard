@@ -1,7 +1,7 @@
 // Cards service proxy for local development
-import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
-import { createSuccessResponse, createErrorResponse, getRequestId } from '../services/shared/utils/response.js';
-import { logRequest, logResponse } from '../services/shared/utils/logger.js';
+import type { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
+import { createSuccessResponse, createErrorResponse, getRequestId } from '../services/shared/utils/response';
+import { logRequest, logResponse } from '../services/shared/utils/logger';
 
 export const handler = async (
   event: APIGatewayProxyEvent,
@@ -15,8 +15,12 @@ export const handler = async (
   logRequest(method, path, { requestId, functionName: context.functionName });
 
   try {
-    // Extract the route path after /api/v1/cards/
-    const routePath = event.path.replace('/api/v1/cards/', '').replace('/api/v1/cards', '');
+    // Extract the route path after the cards prefix (handle serverless-offline path format)
+    const routePath = event.path
+      .replace('/api/v1/local/cards/', '')
+      .replace('/api/v1/local/cards', '')
+      .replace('1/local/cards/', '')
+      .replace('1/local/cards', '');
     
     // Route to appropriate handler based on path and method
     switch (true) {
@@ -42,7 +46,8 @@ export const handler = async (
         return createErrorResponse(`Route not found: ${method} ${routePath}`, 404, requestId);
     }
   } catch (error) {
-    return createErrorResponse(error, 500, requestId);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return createErrorResponse(errorMessage, 500, requestId);
   } finally {
     const duration = Date.now() - startTime;
     logResponse(200, duration, { requestId, functionName: context.functionName });
@@ -83,7 +88,7 @@ async function handleGet(event: APIGatewayProxyEvent, requestId: string): Promis
       message: 'Get card endpoint - to be implemented',
       path: event.path,
       method: event.httpMethod,
-      cardId: event.pathParameters?.proxy || event.path.split('/').pop(),
+      cardId: event.pathParameters?.['proxy'] || event.path.split('/').pop(),
     },
     200,
     'Cards proxy working',
@@ -97,7 +102,7 @@ async function handleUpdate(event: APIGatewayProxyEvent, requestId: string): Pro
       message: 'Update card endpoint - to be implemented',
       path: event.path,
       method: event.httpMethod,
-      cardId: event.pathParameters?.proxy || event.path.split('/').pop(),
+      cardId: event.pathParameters?.['proxy'] || event.path.split('/').pop(),
     },
     200,
     'Cards proxy working',
@@ -111,7 +116,7 @@ async function handleDelete(event: APIGatewayProxyEvent, requestId: string): Pro
       message: 'Delete card endpoint - to be implemented',
       path: event.path,
       method: event.httpMethod,
-      cardId: event.pathParameters?.proxy || event.path.split('/').pop(),
+      cardId: event.pathParameters?.['proxy'] || event.path.split('/').pop(),
     },
     200,
     'Cards proxy working',

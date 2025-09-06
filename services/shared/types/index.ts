@@ -1,5 +1,5 @@
 // Shared TypeScript interfaces and types
-import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
+import type { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
 
 // Lambda handler types
 export type LambdaHandler = (
@@ -12,7 +12,7 @@ export interface ApiResponse<T = any> {
   success: boolean;
   data?: T;
   error?: string;
-  message?: string;
+  message?: string | undefined;
   timestamp: string;
   requestId: string;
 }

@@ -1,7 +1,7 @@
 // Auth service proxy for local development
-import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
-import { createSuccessResponse, createErrorResponse, getRequestId } from '../services/shared/utils/response.js';
-import { logRequest, logResponse } from '../services/shared/utils/logger.js';
+import type { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
+import { createSuccessResponse, createErrorResponse, getRequestId } from '../services/shared/utils/response';
+import { logRequest, logResponse } from '../services/shared/utils/logger';
 
 export const handler = async (
   event: APIGatewayProxyEvent,
@@ -15,8 +15,12 @@ export const handler = async (
   logRequest(method, path, { requestId, functionName: context.functionName });
 
   try {
-    // Extract the route path after /api/v1/auth/
-    const routePath = event.path.replace('/api/v1/auth/', '').replace('/api/v1/auth', '');
+    // Extract the route path after the auth prefix (handle serverless-offline path format)
+    const routePath = event.path
+      .replace('/api/v1/local/auth/', '')
+      .replace('/api/v1/local/auth', '')
+      .replace('1/local/auth/', '')
+      .replace('1/local/auth', '');
     
     // Route to appropriate handler based on path and method
     switch (true) {
@@ -39,7 +43,8 @@ export const handler = async (
         return createErrorResponse(`Route not found: ${method} ${routePath}`, 404, requestId);
     }
   } catch (error) {
-    return createErrorResponse(error, 500, requestId);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return createErrorResponse(errorMessage, 500, requestId);
   } finally {
     const duration = Date.now() - startTime;
     logResponse(200, duration, { requestId, functionName: context.functionName });

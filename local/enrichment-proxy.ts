@@ -1,7 +1,7 @@
 // Enrichment service proxy for local development
-import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
-import { createSuccessResponse, createErrorResponse, getRequestId } from '../services/shared/utils/response.js';
-import { logRequest, logResponse } from '../services/shared/utils/logger.js';
+import type { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
+import { createSuccessResponse, createErrorResponse, getRequestId } from '../services/shared/utils/response';
+import { logRequest, logResponse } from '../services/shared/utils/logger';
 
 export const handler = async (
   event: APIGatewayProxyEvent,
@@ -33,7 +33,8 @@ export const handler = async (
         return createErrorResponse(`Route not found: ${method} ${routePath}`, 404, requestId);
     }
   } catch (error) {
-    return createErrorResponse(error, 500, requestId);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return createErrorResponse(errorMessage, 500, requestId);
   } finally {
     const duration = Date.now() - startTime;
     logResponse(200, duration, { requestId, functionName: context.functionName });

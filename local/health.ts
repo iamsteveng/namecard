@@ -1,18 +1,18 @@
 // Health check handler for local development
-import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
-import { createSuccessResponse, createErrorResponse, getRequestId } from '../services/shared/utils/response.js';
+import type { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
+import { createSuccessResponse, createErrorResponse, getRequestId } from '../services/shared/utils/response';
 
 export const handler = async (
   event: APIGatewayProxyEvent,
-  context: Context
+  _context: Context
 ): Promise<APIGatewayProxyResult> => {
   const requestId = getRequestId(event);
 
   try {
     const healthData = {
       status: 'healthy',
-      environment: process.env.NODE_ENV || 'local',
-      stage: process.env.STAGE || 'local',
+      environment: process.env['NODE_ENV'] || 'local',
+      stage: process.env['STAGE'] || 'local',
       timestamp: new Date().toISOString(),
       version: '0.1.0',
       services: {
@@ -34,6 +34,7 @@ export const handler = async (
       requestId
     );
   } catch (error) {
-    return createErrorResponse(error, 500, requestId);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return createErrorResponse(errorMessage, 500, requestId);
   }
 };

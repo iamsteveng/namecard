@@ -1,6 +1,6 @@
 // Lambda response utilities following SERVERLESS.md best practices
-import { APIGatewayProxyResult } from 'aws-lambda';
-import { ApiResponse } from '../types/index.js';
+import type { APIGatewayProxyResult } from 'aws-lambda';
+import type { ApiResponse } from '../types/index';
 
 // CORS headers for all responses
 const corsHeaders = {
@@ -20,9 +20,9 @@ export function createSuccessResponse<T>(
   const response: ApiResponse<T> = {
     success: true,
     data,
-    message,
     timestamp: new Date().toISOString(),
     requestId,
+    ...(message && { message }),
   };
 
   return {
