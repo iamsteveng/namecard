@@ -1,0 +1,122 @@
+service: namecard-auth-${self:custom.stage}
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: ap-southeast-1
+  stage: ${opt:stage, 'staging'}
+  timeout: 30
+  memorySize: 512
+  
+  # X-Ray tracing
+  tracing:
+    lambda: true
+    apiGateway: true
+  
+  environment:
+    NODE_ENV: ${self:custom.stage}
+    STAGE: ${self:custom.stage}
+    LOG_LEVEL: ${self:custom.logLevel.${self:custom.stage}}
+    ENABLE_CUSTOM_METRICS: true
+    CUSTOM_METRICS_NAMESPACE: NameCard/Business
+    
+    # Database configuration (will be populated from secrets at runtime)
+    DATABASE_URL: ''
+    
+    # Cognito configuration
+    COGNITO_USER_POOL_ID: ap-southeast-1_bOA22s0Op
+    COGNITO_CLIENT_ID: 5s54d0ifpt3frtvut325uglrjp
+    COGNITO_REGION: ${self:provider.region}
+
+  iam:
+    role:
+      statements:
+        # Database access via Secrets Manager
+        - Effect: Allow
+          Action:
+            - secretsmanager:GetSecretValue
+          Resource: 
+            - arn:aws:secretsmanager:${self:provider.region}:*:secret:namecard/database/${self:custom.stage}-*
+        
+        # Cognito access
+        - Effect: Allow
+          Action:
+            - cognito-idp:AdminInitiateAuth
+            - cognito-idp:AdminCreateUser
+            - cognito-idp:AdminSetUserPassword
+            - cognito-idp:AdminConfirmSignUp
+            - cognito-idp:AdminGetUser
+            - cognito-idp:AdminUpdateUserAttributes
+            - cognito-idp:AdminDeleteUser
+          Resource: arn:aws:cognito-idp:${self:provider.region}:*:userpool/ap-southeast-1_bOA22s0Op
+        
+        # CloudWatch custom metrics
+        - Effect: Allow
+          Action:
+            - cloudwatch:PutMetricData
+          Resource: '*'
+        
+        # X-Ray tracing
+        - Effect: Allow
+          Action:
+            - xray:PutTraceSegments
+            - xray:PutTelemetryRecords
+          Resource: '*'
+
+custom:
+  stage: ${opt:stage, 'staging'}
+  
+  # Log level by stage
+  logLevel:
+    production: info
+    staging: debug
+    development: debug
+    local: debug
+  
+  # Webpack configuration for bundling
+  webpack:
+    webpackConfig: ./webpack.config.js
+    includeModules: true
+    packager: npm
+    excludeFiles:
+      - '**/*.test.ts'
+      - '**/*.spec.ts'
+      - '**/*.md'
+
+functions:
+  # Health check endpoint
+  health:
+    handler: handlers/health.handler
+    description: Auth service health check
+    events:
+      - http:
+          path: health
+          method: get
+          cors: true
+
+plugins:
+  - serverless-webpack
+  - serverless-offline
+
+resources:
+  Resources:
+    AuthLogGroup:
+      Type: AWS::Logs::LogGroup
+      Properties:
+        LogGroupName: /aws/lambda/namecard-auth-${self:custom.stage}
+        RetentionInDays: 7
+        
+  Outputs:
+    AuthApiUrl:
+      Description: Auth service API Gateway URL
+      Value: 
+        Fn::Join:
+          - ""
+          - - "https://"
+            - Ref: ApiGatewayRestApi
+            - ".execute-api."
+            - ${self:provider.region}
+            - ".amazonaws.com/"
+            - ${self:custom.stage}
+      Export:
+        Name: ${self:custom.stage}-auth-api-url

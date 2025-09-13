@@ -1,102 +1,208 @@
 # Authentication Service Configuration
-service: namecard-auth
+service: namecard-auth-${self:custom.stage}
 frameworkVersion: '3'
 
 provider:
   name: aws
   runtime: nodejs18.x
   region: ap-southeast-1
-  stage: ${opt:stage, 'dev'}
+  stage: ${opt:stage, 'staging'}
+  timeout: 30
+  memorySize: 512
+  
+  # Enable X-Ray tracing
+  tracing:
+    lambda: true
+    apiGateway: true
+    
+  # VPC configuration for database access
+  vpc:
+    securityGroupIds:
+      - sg-0af0106683e7a0f5f  # namecard-migration-sg-staging (allows database access)
+    subnetIds:
+      - subnet-0403b9e9f399616f7  # Private subnet AZ 1a
+      - subnet-04b6efe73095e9358  # Private subnet AZ 1b
+  
   environment:
-    NODE_ENV: ${self:provider.stage}
-    STAGE: ${self:provider.stage}
+    NODE_ENV: production
+    STAGE: ${self:custom.stage}
+    LOG_LEVEL: ${self:custom.logLevel.${self:custom.stage}}
+    ENABLE_CUSTOM_METRICS: true
+    CUSTOM_METRICS_NAMESPACE: NameCard/Business
     
-    # Database
-    DATABASE_URL: ${ssm:/namecard/${self:provider.stage}/database-url}
+    # Secrets Manager ARNs (populated at runtime)
+    DATABASE_SECRET_ARN: arn:aws:secretsmanager:${self:provider.region}:${aws:accountId}:secret:namecard/database/${self:custom.stage}
+    API_SECRET_ARN: arn:aws:secretsmanager:${self:provider.region}:${aws:accountId}:secret:namecard/api/${self:custom.stage}
     
-    # JWT & Authentication
-    JWT_SECRET: ${ssm:/namecard/${self:provider.stage}/jwt-secret~true}
-    JWT_EXPIRES_IN: ${ssm:/namecard/${self:provider.stage}/jwt-expires-in, '24h'}
+    # JWT configuration 
+    JWT_EXPIRES_IN: 7d
+    JWT_REFRESH_EXPIRES_IN: 30d
     
-    # Cognito
-    COGNITO_USER_POOL_ID: ${ssm:/namecard/${self:provider.stage}/cognito-user-pool-id}
-    COGNITO_CLIENT_ID: ${ssm:/namecard/${self:provider.stage}/cognito-client-id}
+    # Cognito configuration
+    COGNITO_USER_POOL_ID: ap-southeast-1_bOA22s0Op
+    COGNITO_CLIENT_ID: 5s54d0ifpt3frtvut325uglrjp
     COGNITO_REGION: ${self:provider.region}
 
-  iamRoleStatements:
-    # Cognito permissions
-    - Effect: Allow
-      Action:
-        - cognito-idp:AdminCreateUser
-        - cognito-idp:AdminSetUserPassword
-        - cognito-idp:AdminInitiateAuth
-        - cognito-idp:AdminGetUser
-        - cognito-idp:AdminUpdateUserAttributes
-        - cognito-idp:AdminDeleteUser
-        - cognito-idp:AdminConfirmSignUp
-        - cognito-idp:AdminRespondToAuthChallenge
-        - cognito-idp:ListUsers
-      Resource:
-        - arn:aws:cognito-idp:${self:provider.region}:${aws:accountId}:userpool/*
-    
-    # SSM Parameter Store permissions
-    - Effect: Allow
-      Action:
-        - ssm:GetParameter
-        - ssm:GetParameters
-      Resource:
-        - arn:aws:ssm:${self:provider.region}:${aws:accountId}:parameter/namecard/${self:provider.stage}/*
+  iam:
+    role:
+      statements:
+        # Database access via Secrets Manager
+        - Effect: Allow
+          Action:
+            - secretsmanager:GetSecretValue
+          Resource:
+            - arn:aws:secretsmanager:${self:provider.region}:${aws:accountId}:secret:namecard/database/${self:custom.stage}-*
+            - arn:aws:secretsmanager:${self:provider.region}:${aws:accountId}:secret:namecard/api/${self:custom.stage}-*
+        
+        # Cognito permissions
+        - Effect: Allow
+          Action:
+            - cognito-idp:AdminCreateUser
+            - cognito-idp:AdminSetUserPassword
+            - cognito-idp:AdminInitiateAuth
+            - cognito-idp:AdminGetUser
+            - cognito-idp:AdminUpdateUserAttributes
+            - cognito-idp:AdminDeleteUser
+            - cognito-idp:AdminConfirmSignUp
+            - cognito-idp:AdminRespondToAuthChallenge
+            - cognito-idp:ListUsers
+          Resource:
+            - arn:aws:cognito-idp:${self:provider.region}:${aws:accountId}:userpool/ap-southeast-1_bOA22s0Op
+        
+        # CloudWatch metrics
+        - Effect: Allow
+          Action:
+            - cloudwatch:PutMetricData
+          Resource: '*'
+        
+        # X-Ray tracing
+        - Effect: Allow
+          Action:
+            - xray:PutTraceSegments
+            - xray:PutTelemetryRecords
+          Resource: '*'
+
+custom:
+  stage: ${opt:stage, 'staging'}
+  
+  # Log level by stage
+  logLevel:
+    production: info
+    staging: debug
+    development: debug
+    local: debug
+  
+  # Provisioned concurrency by stage
+  provisionedConcurrency:
+    production: 1
+    staging: 0
+    development: 0
+    local: 0
+  
+  # Log retention by stage
+  logRetention:
+    production: 30
+    staging: 7
+    development: 7
+    local: 7
+  
 
 functions:
-  login:
-    handler: handlers/login.handler
-    description: User login with JWT token generation
+  # Health check endpoint
+  health:
+    handler: handlers/health.handler
+    description: Auth service health check
     events:
       - http:
-          path: login
-          method: post
+          path: health
+          method: get
           cors: true
-
+    provisionedConcurrency: ${self:custom.provisionedConcurrency.${self:custom.stage}}
+    
+  # User registration
   register:
     handler: handlers/register.handler
-    description: User registration with Cognito
+    description: User registration endpoint
+    timeout: 30
+    memorySize: 1024
     events:
       - http:
           path: register
           method: post
           cors: true
-
+    
+  # User login
+  login:
+    handler: handlers/login.handler
+    description: User login endpoint
+    timeout: 30
+    memorySize: 1024
+    events:
+      - http:
+          path: login
+          method: post
+          cors: true
+    provisionedConcurrency: ${self:custom.provisionedConcurrency.${self:custom.stage}}
+    
+  # Token refresh
   refresh:
     handler: handlers/refresh.handler
-    description: JWT token refresh
+    description: Token refresh endpoint
     events:
       - http:
           path: refresh
           method: post
           cors: true
-
+    provisionedConcurrency: ${self:custom.provisionedConcurrency.${self:custom.stage}}
+    
+  # User logout
+  logout:
+    handler: handlers/logout.handler
+    description: User logout endpoint
+    events:
+      - http:
+          path: logout
+          method: post
+          cors: true
+    
+  # Get user profile
   profile:
     handler: handlers/profile.handler
-    description: Get user profile information
+    description: Get user profile endpoint
     events:
       - http:
           path: profile
           method: get
           cors: true
 
-  logout:
-    handler: handlers/logout.handler
-    description: User logout and token invalidation
-    events:
-      - http:
-          path: logout
-          method: post
-          cors: true
-
 plugins:
   - serverless-webpack
-  
-custom:
-  webpack:
-    webpackConfig: '../../webpack.config.js'
-    includeModules: true
+  - serverless-offline
+
+# CloudFormation resources
+resources:
+  Resources:
+    # CloudWatch Log Group for better log retention
+    AuthLogGroup:
+      Type: AWS::Logs::LogGroup
+      Properties:
+        LogGroupName: /aws/lambda/namecard-auth-${self:custom.stage}
+        RetentionInDays: ${self:custom.logRetention.${self:custom.stage}}
+        
+  Outputs:
+    AuthApiUrl:
+      Description: Auth service API Gateway URL
+      Value:
+        Fn::Join:
+          - ""
+          - - "https://"
+            - Ref: "ApiGatewayRestApi"
+            - ".execute-api.${self:provider.region}.amazonaws.com/${self:custom.stage}"
+      Export:
+        Name: ${self:service}-api-url
+        
+    AuthServiceName:
+      Description: Auth service name
+      Value: ${self:service}
+      Export:
+        Name: ${self:service}-name

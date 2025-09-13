@@ -1,0 +1,30 @@
+service: namecard-auth-${self:custom.stage}
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: ap-southeast-1
+  stage: ${opt:stage, 'staging'}
+  timeout: 30
+  memorySize: 512
+  
+  environment:
+    NODE_ENV: ${self:custom.stage}
+    STAGE: ${self:custom.stage}
+
+custom:
+  stage: ${opt:stage, 'staging'}
+
+functions:
+  # Health check endpoint
+  health:
+    handler: health.handler
+    description: Auth service health check
+    events:
+      - http:
+          path: health
+          method: get
+          cors: true
+
+plugins:
+  - serverless-offline

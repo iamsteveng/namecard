@@ -1,0 +1,39 @@
+{
+  "name": "@namecard/auth-service",
+  "version": "1.0.0",
+  "description": "NameCard Authentication Service - Lambda Functions",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "sls offline start --stage local",
+    "deploy:staging": "sls deploy --stage staging",
+    "deploy:production": "sls deploy --stage production",
+    "package": "sls package",
+    "remove": "sls remove",
+    "logs": "sls logs -f login --tail",
+    "invoke": "sls invoke -f login",
+    "test": "jest",
+    "lint": "eslint *.ts handlers/*.ts",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@namecard/serverless-shared": "file:../shared",
+    "@namecard/shared": "file:../../packages/shared",
+    "@prisma/client": "^6.15.0",
+    "aws-lambda": "^1.0.7",
+    "aws-xray-sdk-core": "^3.9.0",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.145",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^20.11.0",
+    "copy-webpack-plugin": "^13.0.1",
+    "jest": "^30.0.4",
+    "serverless": "^3.38.0",
+    "serverless-offline": "^14.4.0",
+    "serverless-webpack": "^5.15.3",
+    "typescript": "^5.3.3",
+    "webpack": "^5.101.3"
+  }
+}
