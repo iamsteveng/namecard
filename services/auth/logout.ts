@@ -1,13 +1,7 @@
 import type { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
 import type { LogoutResponse } from '@namecard/shared';
 
-import {
-  logger,
-  createSuccessResponse,
-  createErrorResponse,
-  getRequestId,
-} from '@shared/index';
-import cognitoService from '@shared/services/cognito.service';
+import { logger, createSuccessResponse, getRequestId, cognitoService } from '@namecard/serverless-shared/auth-index';
 
 export const handler = async (
   event: APIGatewayProxyEvent,
@@ -22,7 +16,7 @@ export const handler = async (
   });
 
   try {
-    const authHeader = event.headers?.authorization || event.headers?.Authorization;
+    const authHeader = event.headers?.['authorization'] || event.headers?.['Authorization'];
     const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
 
     if (token) {

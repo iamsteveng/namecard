@@ -5,6 +5,7 @@ import { InfrastructureStack } from '../lib/infrastructure-stack';
 import { SecretsStack } from '../lib/secrets-stack';
 import { ProductionStack } from '../lib/production-stack';
 import { FrontendStack } from '../lib/frontend-stack';
+import { ServerlessStack } from '../lib/serverless-stack';
 
 const app = new cdk.App();
 
@@ -79,6 +80,30 @@ if (environment === 'staging' || environment === 'production') {
   productionStack.addDependency(cognitoStack);
   productionStack.addDependency(infraStack);
   productionStack.addDependency(secretsStack);
+
+  // Deploy serverless stack (Lambda functions and API Gateway)
+  const serverlessStack = new ServerlessStack(app, `NameCardServerless-${environment}`, {
+    environment,
+    env,
+    description: `Serverless infrastructure for NameCard Application - ${environment}`,
+    tags: commonTags,
+    
+    // VPC configuration from production stack
+    vpc: productionStack.vpc,
+    databaseSecurityGroup: productionStack.databaseSecurityGroup,
+    
+    // References to other stacks
+    cognitoUserPoolId: cognitoStack.userPool?.userPoolId,
+    s3BucketName: infraStack.bucket.bucketName,
+    s3CdnDomain: infraStack.cloudFrontDomainName,
+    apiSecret: secretsStack.apiSecret,
+  });
+
+  // Add dependencies
+  serverlessStack.addDependency(productionStack);
+  serverlessStack.addDependency(cognitoStack);
+  serverlessStack.addDependency(infraStack);
+  serverlessStack.addDependency(secretsStack);
 
   // Deploy frontend stack
   const frontendStack = new FrontendStack(app, `NameCardFrontend-${environment}`, {

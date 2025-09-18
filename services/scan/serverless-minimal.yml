@@ -1,0 +1,35 @@
+service: namecard-scan-${self:custom.stage}
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: ap-southeast-1
+  stage: ${opt:stage, 'staging'}
+  timeout: 15
+  memorySize: 256
+  environment:
+    NODE_ENV: ${self:custom.stage}
+    STAGE: ${self:custom.stage}
+
+custom:
+  stage: ${opt:stage, 'staging'}
+  webpack:
+    webpackConfig: 'webpack.health.config.js'
+    includeModules: false
+    packager: 'npm'
+    packagerOptions:
+      noInstall: true
+
+functions:
+  health:
+    handler: handlers/health-lite.handler
+    description: Scan service health check
+    events:
+      - http:
+          path: health
+          method: get
+          cors: true
+
+plugins:
+  - serverless-webpack
+  - serverless-offline

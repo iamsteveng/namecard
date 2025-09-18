@@ -40,6 +40,12 @@ export class ProductionStack extends cdk.Stack {
   public readonly apiSecret: secretsmanager.ISecret;
   public readonly migrationFunction: lambda.Function;
   
+  private _databaseSecurityGroup: ec2.SecurityGroup;
+  
+  public get databaseSecurityGroup(): ec2.SecurityGroup {
+    return this._databaseSecurityGroup;
+  }
+  
   constructor(scope: Construct, id: string, props: ProductionStackProps) {
     super(scope, id, props);
 
@@ -179,7 +185,7 @@ export class ProductionStack extends cdk.Stack {
     });
 
     // Database security group
-    const databaseSG = new ec2.SecurityGroup(this, 'DatabaseSecurityGroup', {
+    this._databaseSecurityGroup = new ec2.SecurityGroup(this, 'DatabaseSecurityGroup', {
       vpc: this.vpc,
       securityGroupName: `namecard-db-sg-${environment}`,
       description: 'Security group for NameCard database',
@@ -206,7 +212,7 @@ export class ProductionStack extends cdk.Stack {
       // Network configuration
       vpc: this.vpc,
       subnetGroup,
-      securityGroups: [databaseSG],
+      securityGroups: [this._databaseSecurityGroup],
       
       // Storage configuration
       allocatedStorage: environment === 'production' ? 100 : 20,

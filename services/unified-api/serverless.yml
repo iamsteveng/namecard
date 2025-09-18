@@ -1,0 +1,128 @@
+service: namecard-unified-api-${self:custom.stage}
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: ap-southeast-1
+  stage: ${opt:stage, 'staging'}
+  timeout: 30
+  memorySize: 512
+  
+  environment:
+    NODE_ENV: ${self:custom.stage}
+    STAGE: ${self:custom.stage}
+
+custom:
+  stage: ${opt:stage, 'staging'}
+
+functions:
+  # Health check endpoint
+  health:
+    handler: handlers/health.handler
+    description: Unified API health check
+    events:
+      - http:
+          path: health
+          method: get
+          cors: true
+
+  # Auth service endpoints
+  authHealth:
+    handler: handlers/proxy.authHealth
+    description: Auth service health check proxy
+    events:
+      - http:
+          path: auth/health
+          method: get
+          cors: true
+
+  authRegister:
+    handler: handlers/proxy.authRegister
+    description: User registration proxy
+    events:
+      - http:
+          path: auth/register
+          method: post
+          cors: true
+
+  authLogin:
+    handler: handlers/proxy.authLogin
+    description: User login proxy
+    events:
+      - http:
+          path: auth/login
+          method: post
+          cors: true
+
+  # Cards service endpoints
+  cardsHealth:
+    handler: handlers/proxy.cardsHealth
+    description: Cards service health check proxy
+    events:
+      - http:
+          path: cards/health
+          method: get
+          cors: true
+
+  cardsGet:
+    handler: handlers/proxy.cardsGet
+    description: Get cards proxy
+    events:
+      - http:
+          path: cards
+          method: get
+          cors: true
+
+  cardsCreate:
+    handler: handlers/proxy.cardsCreate
+    description: Create card proxy
+    events:
+      - http:
+          path: cards
+          method: post
+          cors: true
+
+  # Upload service endpoints
+  uploadHealth:
+    handler: handlers/proxy.uploadHealth
+    description: Upload service health check proxy
+    events:
+      - http:
+          path: upload/health
+          method: get
+          cors: true
+
+  uploadSingle:
+    handler: handlers/proxy.uploadSingle
+    description: Upload single file proxy
+    events:
+      - http:
+          path: upload/single
+          method: post
+          cors: true
+
+plugins:
+  - serverless-offline
+
+resources:
+  Resources:
+    UnifiedApiLogGroup:
+      Type: AWS::Logs::LogGroup
+      Properties:
+        LogGroupName: /aws/lambda/namecard-unified-api-${self:custom.stage}
+        RetentionInDays: 7
+        
+  Outputs:
+    UnifiedApiUrl:
+      Description: Unified API Gateway URL
+      Value: 
+        Fn::Join:
+          - ""
+          - - "https://"
+            - Ref: ApiGatewayRestApi
+            - ".execute-api."
+            - ${self:provider.region}
+            - ".amazonaws.com/"
+            - ${self:custom.stage}
+      Export:
+        Name: ${self:custom.stage}-unified-api-url

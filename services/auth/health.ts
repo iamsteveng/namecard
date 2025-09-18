@@ -2,7 +2,7 @@
  * Auth Service Health Check Handler
  */
 
-import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
+import type { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
 import {
   lambdaHandler,
   createSuccessResponse,
@@ -10,14 +10,13 @@ import {
   emitBusinessMetric,
 } from '@namecard/serverless-shared';
 
+// Keep health check independent of external dependencies (no Cognito/Secrets checks)
 const requiredEnvVars = [
   'NODE_ENV',
-  'COGNITO_USER_POOL_ID',
-  'COGNITO_CLIENT_ID'
 ];
 
 async function healthCheckHandler(
-  event: APIGatewayProxyEvent,
+  _event: APIGatewayProxyEvent,
   context: Context
 ): Promise<APIGatewayProxyResult> {
   try {
@@ -32,13 +31,13 @@ async function healthCheckHandler(
       status: 'healthy',
       timestamp: new Date().toISOString(),
       version: '1.0.0',
-      environment: process.env.NODE_ENV,
-      region: process.env.AWS_REGION,
+      environment: process.env['NODE_ENV'],
+      region: process.env['AWS_REGION'],
       runtime: `nodejs${process.version}`,
       memoryLimitInMB: context.memoryLimitInMB,
       functionName: context.functionName,
       functionVersion: context.functionVersion,
-      cognitoUserPoolId: process.env.COGNITO_USER_POOL_ID,
+      cognitoUserPoolId: process.env['COGNITO_USER_POOL_ID'],
       features: {
         registration: true,
         login: true,
@@ -53,7 +52,7 @@ async function healthCheckHandler(
       },
     };
 
-    return createSuccessResponse(healthData, 'Auth service is healthy');
+    return createSuccessResponse(healthData, 200, 'Auth service is healthy');
   } catch (error) {
     console.error('Auth service health check failed:', error);
     throw error;

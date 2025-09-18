@@ -3,6 +3,13 @@ import type { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-l
 import { createSuccessResponse, createErrorResponse, getRequestId } from '../services/shared/utils/response';
 import { logRequest, logResponse } from '../services/shared/utils/logger';
 
+// Import actual Lambda handlers
+import { handler as textHandler } from '../services/scan/text';
+import { handler as analyzeHandler } from '../services/scan/analyze';
+import { handler as businessCardHandler } from '../services/scan/business-card';
+import { handler as healthHandler } from '../services/scan/health';
+import { handler as infoHandler } from '../services/scan/info';
+
 export const handler = async (
   event: APIGatewayProxyEvent,
   context: Context
@@ -18,16 +25,22 @@ export const handler = async (
     // Extract the route path after /api/v1/scan/
     const routePath = event.path.replace('/api/v1/scan/', '').replace('/api/v1/scan', '');
     
-    // Route to appropriate handler based on path and method
+    // Route to appropriate handler based on path and method - matching original scan routes
     switch (true) {
-      case routePath === 'extract-text' && method === 'POST':
-        return await handleExtractText(event, requestId);
+      case routePath === 'text' && method === 'POST':
+        return await textHandler(event, context);
         
-      case routePath === 'analyze-card' && method === 'POST':
-        return await handleAnalyzeCard(event, requestId);
+      case routePath === 'analyze' && method === 'POST':
+        return await analyzeHandler(event, context);
         
-      case routePath === 'preprocess' && method === 'POST':
-        return await handlePreprocess(event, requestId);
+      case routePath === 'business-card' && method === 'POST':
+        return await businessCardHandler(event, context);
+        
+      case routePath === 'health' && method === 'GET':
+        return await healthHandler(event, context);
+        
+      case routePath === 'info' && method === 'GET':
+        return await infoHandler(event, context);
         
       default:
         return createErrorResponse(`Route not found: ${method} ${routePath}`, 404, requestId);
@@ -40,43 +53,3 @@ export const handler = async (
     logResponse(200, duration, { requestId, functionName: context.functionName });
   }
 };
-
-// Temporary mock handlers - will be replaced with actual service logic
-async function handleExtractText(event: APIGatewayProxyEvent, requestId: string): Promise<APIGatewayProxyResult> {
-  return createSuccessResponse(
-    {
-      message: 'Extract text endpoint - to be implemented',
-      path: event.path,
-      method: event.httpMethod,
-    },
-    200,
-    'OCR proxy working',
-    requestId
-  );
-}
-
-async function handleAnalyzeCard(event: APIGatewayProxyEvent, requestId: string): Promise<APIGatewayProxyResult> {
-  return createSuccessResponse(
-    {
-      message: 'Analyze card endpoint - to be implemented',
-      path: event.path,
-      method: event.httpMethod,
-    },
-    200,
-    'OCR proxy working',
-    requestId
-  );
-}
-
-async function handlePreprocess(event: APIGatewayProxyEvent, requestId: string): Promise<APIGatewayProxyResult> {
-  return createSuccessResponse(
-    {
-      message: 'Preprocess image endpoint - to be implemented',
-      path: event.path,
-      method: event.httpMethod,
-    },
-    200,
-    'OCR proxy working',
-    requestId
-  );
-}

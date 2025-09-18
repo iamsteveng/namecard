@@ -2,9 +2,9 @@
 
 ## Project Status: Business Name Card Scanner & Enrichment App
 
-**Current Phase**: Complete Production Deployment (Phase 7+)  
-**Last Updated**: August 24, 2025
-**Overall Progress**: Phase 1-7 Complete (100%) - Full production deployment with automated CI/CD
+**Current Phase**: Serverless Migration Phase 2 Complete - Ready for Phase 3  
+**Last Updated**: September 7, 2025
+**Overall Progress**: Phase 1-7 Complete (100%) + Serverless Migration Phase 2 Complete (100%)
 
 ## ✅ Completed Phases
 
@@ -30,8 +30,19 @@
 - **Frontend CI/CD**: Automated React builds with S3 sync + CloudFront invalidation
 - **Issue Resolutions**: Mixed content, API proxy, CloudFront routing, lint errors
 
+### Phase 8: Serverless Architecture Migration Phase 2 (100% COMPLETE)
+- **Serverless Framework Setup**: Local development environment with `serverless-offline`
+- **Lambda Handler Extraction**: All Express API business logic extracted to individual Lambda functions
+- **Service Architecture**: 5 microservices (Auth, Cards, Upload, Scan, Enrichment) with 15+ Lambda handlers
+- **Shared Infrastructure**: Optimized Prisma client with connection pooling for Lambda
+- **Database Integration**: All handlers using shared database services with proper error handling
+- **Local Development**: Complete serverless API simulation running on `http://localhost:3001`
+- **Verification Testing**: Comprehensive end-to-end testing of all Lambda handlers
+- **Request/Response Handling**: Proper API Gateway event formatting and error responses
+
 ## Architecture Overview
 
+### Current Production (ECS)
 ```
 Frontend (React) → CloudFront → S3
                 ↘ /api/* → Load Balancer → ECS Fargate (API)
@@ -40,15 +51,36 @@ Frontend (React) → CloudFront → S3
                                         ↘ S3 (images) + CloudFront CDN
 ```
 
+### Serverless Migration (Phase 2 Complete - Local Dev)
+```
+Frontend (React) → API Gateway → Lambda Functions (Auth, Cards, Upload, Scan, Enrichment)
+                                             ↘ RDS Proxy → PostgreSQL
+                                             ↘ ElastiCache Redis
+                                             ↘ S3 (images) + CloudFront CDN
+```
+
 ## Current Production Status 🚀
 
-**✅ FULLY OPERATIONAL**
+**✅ FULLY OPERATIONAL (ECS Architecture)**
 - **Environment**: staging (namecard-staging)
 - **Region**: ap-southeast-1 (Singapore)
 - **Database**: PostgreSQL RDS with proper connectivity
 - **Authentication**: AWS Cognito integration working
 - **Image Storage**: S3 + CloudFront CDN for fast delivery
 - **CI/CD**: Automated deployment pipeline with quality gates
+
+## 🔴 Critical: Database Schema Updates Required
+
+### Local Development: ✅ COMPLETED
+- **Status**: Database successfully reset with `prisma db push --force-reset`
+- **Schema**: Now includes required `users.cognito_id` column for Lambda authentication
+- **Testing**: All Lambda handlers connecting successfully to updated schema
+
+### Production AWS RDS: ❌ REQUIRES ACTION BEFORE PHASE 3
+- **Issue**: Missing `users.cognito_id` column will break production Lambda authentication
+- **Impact**: Phase 3 serverless deployment will fail without schema updates
+- **Required**: RDS database recreation with new schema including all Phase 2 changes
+- **Planning Needed**: Data migration strategy for existing production data
 
 ## Key API Endpoints
 
@@ -61,7 +93,7 @@ Frontend (React) → CloudFront → S3
 
 ## Development Environment
 
-### Local Development
+### Local Development (ECS Architecture)
 ```bash
 # Start database
 npm run db:up
@@ -76,11 +108,39 @@ cd packages/web && npm run dev
 npm run fullstack:up
 ```
 
+### Serverless Development (Phase 2 Complete)
+```bash
+# Start database
+npm run db:up
+
+# Start serverless API (all Lambda handlers)
+npm run serverless:dev
+
+# Start frontend (connects to serverless API)
+cd packages/web && npm run dev
+
+# Access serverless API
+# http://localhost:3001/api/v1/* - All Lambda endpoints
+```
+
 ### Database Connections
 - **Development**: `postgresql://namecard_user:namecard_password@localhost:5432/namecard_dev`
 - **Test**: `postgresql://namecard_user:namecard_password@localhost:5433/namecard_test`
 
 ## Recent Fixes & Improvements
+
+### Session 22 (September 7, 2025)
+- **Serverless Migration Phase 2 Complete (100% COMPLETE)**:
+  - **Achievement**: Successfully extracted all Express API business logic to individual Lambda handlers
+  - **Services Created**: 5 microservices (Auth, Cards, Upload, Scan, Enrichment) with 15+ Lambda functions
+  - **Infrastructure**: Serverless Framework with `serverless-offline` for local development
+  - **Database Integration**: Shared Prisma client optimized for Lambda with connection pooling
+  - **Local Development**: Complete serverless API simulation at `http://localhost:3001`
+  - **Testing**: Comprehensive verification of all Lambda handlers and database operations
+  - **Database Schema**: Local development database reset with `prisma db push --force-reset`
+  - **Critical Requirement**: Production RDS database requires schema recreation before Phase 3
+  - **Files Created**: 15+ Lambda handlers, shared services, proxy routing configuration
+  - **Impact**: Ready for Phase 3 production serverless deployment (pending database update)
 
 ### Session 21 (August 24, 2025)
 - **GitHub Actions Lint Failure Resolution (COMPLETE)**:
@@ -106,8 +166,17 @@ namecard/
 │   ├── api/          # Express backend (COMPLETE)  
 │   ├── shared/       # Common utilities (COMPLETE)
 │   └── workers/      # Lambda functions (BASIC)
+├── services/         # Serverless Lambda handlers (COMPLETE - Phase 2)
+│   ├── auth/         # Authentication Lambda functions
+│   ├── cards/        # Card CRUD Lambda functions  
+│   ├── upload/       # Upload processing Lambda functions
+│   ├── scan/         # OCR processing Lambda functions
+│   ├── enrichment/   # Data enrichment Lambda functions
+│   └── shared/       # Shared Lambda utilities and services
+├── local/            # Local development proxy handlers (COMPLETE)
 ├── infrastructure/   # CDK deployment (COMPLETE)
 ├── .github/workflows/# CI/CD pipelines (COMPLETE)
+├── serverless.yml    # Serverless Framework configuration (COMPLETE)
 └── CLAUDE.md         # This progress file
 ```
 

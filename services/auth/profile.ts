@@ -8,8 +8,8 @@ import {
   createErrorResponse,
   parseJsonBody,
   getRequestId,
-} from '@shared/index';
-import cognitoService from '@shared/services/cognito.service';
+  cognitoService,
+} from '@namecard/serverless-shared/auth-index';
 
 interface User {
   id: string;
@@ -63,7 +63,7 @@ export const handler = async (
 
   try {
     // Verify authentication
-    const authHeader = event.headers?.authorization || event.headers?.Authorization;
+    const authHeader = event.headers?.['authorization'] || event.headers?.['Authorization'];
     const user = await verifyAuthToken(authHeader);
     
     if (!user) {

@@ -1,32 +1,14 @@
 const path = require('path');
-const nodeExternals = require('webpack-node-externals');
+const slsw = require('serverless-webpack');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 
 module.exports = {
   mode: 'development',
   target: 'node',
-  externals: [
-    nodeExternals({
-      // Bundle all dependencies except AWS SDK and built-in Node.js modules
-      allowlist: /.*/,  // Allow everything to be bundled
-      externals: [
-        // Keep these as external (available in Lambda runtime)
-        'aws-sdk',
-        /^@aws-sdk\//,
-        /^@smithy\//,
-        'aws-lambda',
-        'aws-xray-sdk-core'
-      ]
-    })
-  ],
-  entry: {
-    'handlers/health': './handlers/health.js',
-    'handlers/register': './handlers/register.js', 
-    'handlers/login': './handlers/login.js',
-    'handlers/refresh': './handlers/refresh.js',
-    'handlers/logout': './handlers/logout.js',
-    'handlers/profile': './handlers/profile.js',
+  externals: {
+    'aws-sdk': 'commonjs aws-sdk',
   },
+  entry: slsw.lib.entries,
   module: {
     rules: [
       {
@@ -59,21 +41,7 @@ module.exports = {
   plugins: [
     new CopyWebpackPlugin({
       patterns: [
-        {
-          from: path.resolve(__dirname, 'node_modules/.prisma/client'),
-          to: '.prisma/client',
-          globOptions: {
-            ignore: ['**/*.d.ts'],
-          },
-        },
-        {
-          from: path.resolve(__dirname, '../shared/node_modules/.prisma/client'),
-          to: '.prisma/client',
-          noErrorOnMissing: true,
-          globOptions: {
-            ignore: ['**/*.d.ts'],
-          },
-        },
+        { from: 'node_modules/.prisma/client', to: '.prisma/client', noErrorOnMissing: true },
       ],
     }),
   ],

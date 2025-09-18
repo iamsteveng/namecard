@@ -14,11 +14,17 @@ provider:
 
 custom:
   stage: ${opt:stage, 'staging'}
+  webpack:
+    webpackConfig: 'webpack.health.config.js'
+    includeModules: false
+    packager: 'npm'
+    packagerOptions:
+      noInstall: true
 
 functions:
   # Health check endpoint
   health:
-    handler: health.handler
+    handler: handlers/health.handler
     description: Auth service health check
     events:
       - http:
@@ -27,4 +33,5 @@ functions:
           cors: true
 
 plugins:
+  - serverless-webpack
   - serverless-offline

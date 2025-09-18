@@ -55,6 +55,15 @@ provider:
         - arn:aws:ssm:${self:provider.region}:${aws:accountId}:parameter/namecard/${self:provider.stage}/*
 
 functions:
+  health:
+    handler: handlers/health.handler
+    description: Health check endpoint
+    events:
+      - http:
+          path: health
+          method: get
+          cors: true
+
   single:
     handler: handlers/single.handler
     description: Upload a single image file
@@ -98,6 +107,3 @@ plugins:
   - serverless-webpack
   
 custom:
-  webpack:
-    webpackConfig: '../../webpack.config.js'
-    includeModules: true

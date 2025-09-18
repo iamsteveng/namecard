@@ -198,6 +198,98 @@ Ensure consistency across development, testing, and production environments whil
 
 **Implementation Guidelines:**
 - Use environment-specific configuration without code changes
+
+---
+
+## Phase 3 Lambda Deployment Checklist (Staging)
+
+This checklist validates packaging, IAM, VPC networking, and runtime for each microservice before enabling full flows.
+
+1) Prerequisites (once per environment)
+- VPC: two private subnets + security group allowing egress + DB access
+- RDS: PostgreSQL reachable from Lambda subnets/security group
+- NAT Gateway: outbound internet for Textract/Secrets/Cognito etc. (if Lambdas are in private subnets)
+- Cognito: confirm User Pool ID and App Client ID configured
+- Secrets Manager:
+  - `namecard/database/staging` JSON: `{ "host":"...","port":5432,"username":"...","password":"...","dbname":"..." }`
+  - `namecard/api/staging` JSON: `{ "jwtSecret":"...", "perplexityApiKey":"..." }`
+
+SSM (Parameter Store) – set these before deploying full services
+- Cards service expects the following SSM parameters:
+  - `/namecard/staging/database-url`
+  - `/namecard/staging/jwt-secret`
+  - `/namecard/staging/s3-bucket-name`
+  - `/namecard/staging/s3-cdn-domain`
+- Auth service VPC (parameterized in serverless.yml):
+  - `/namecard/staging/vpc/securityGroupIds` (JSON array, e.g. `["sg-abc","sg-def"]`)
+  - `/namecard/staging/vpc/subnetIds` (JSON array, e.g. `["subnet-1","subnet-2"]`)
+
+Example AWS CLI
+```bash
+# Cards SSM parameters
+aws ssm put-parameter --name /namecard/staging/database-url --type String --value "postgresql://user:pass@host:5432/db"
+aws ssm put-parameter --name /namecard/staging/jwt-secret --type String --value "your-jwt-secret"
+aws ssm put-parameter --name /namecard/staging/s3-bucket-name --type String --value "your-bucket"
+aws ssm put-parameter --name /namecard/staging/s3-cdn-domain --type String --value "cdn.example.com"
+
+# Auth VPC parameters (JSON arrays)
+aws ssm put-parameter --name /namecard/staging/vpc/securityGroupIds --type String --value '["sg-xxxxxxxxxxxxxxxxx"]'
+aws ssm put-parameter --name /namecard/staging/vpc/subnetIds --type String --value '["subnet-aaaaaaaaaaaaaaaaa","subnet-bbbbbbbbbbbbbbbbb"]'
+```
+
+2) Build shared package (used by all services)
+```bash
+cd services/shared
+npm install
+npm run build
+```
+
+3) Deploy health endpoints first (per service)
+```bash
+# Auth
+cd services/auth && npm install && npm run package && npm run deploy:staging
+
+# Cards
+cd services/cards && npm install && npm run package && npm run deploy:staging
+
+# Upload
+cd services/upload && npm install && npm run package && npm run deploy:staging
+
+# Scan (Textract)
+cd services/scan && npm install && npm run package && npm run deploy:staging
+
+# Enrichment
+cd services/enrichment && npm install && npm run package && npm run deploy:staging
+```
+
+Quick option: deploy all health endpoints
+- Ensure AWS credentials and SSM parameters are set as above
+- Then run the helper script from the repo root:
+```bash
+chmod +x scripts/deploy-health-staging.sh
+scripts/deploy-health-staging.sh
+```
+This builds the shared package and packages/deploys `serverless-minimal.yml` for: auth, cards, upload, scan, enrichment.
+
+4) Validate runtime quickly
+- Open the API Gateway URL printed by each deploy and call `/health`
+- Check CloudWatch Logs for structured entries and errors
+- Confirm X-Ray traces appear (if enabled)
+
+5) Enable data flows incrementally
+- Auth service: test `register`, `login`, `refresh`, `profile`, `logout`
+- Cards service: test `list` and `get-by-id` using a known user
+- Upload/Scan: confirm S3/Textract permissions and response times
+- Enrichment: validate Perplexity calls and outbound access
+
+6) Observability and safety
+- Add CloudWatch alarms for 5xx rate, throttles, and high duration
+- Enable provisioned concurrency gradually if cold start impacts are material
+
+Notes
+- Shared Lambda helper imports AWS SDK via default import for robust ESM/CJS interop:
+  `import AWS from 'aws-sdk'; const cloudwatch = AWSXRay.captureAWSClient(new AWS.CloudWatch());`
+- Continue using `serverless-webpack`; AWS SDK stays external and is provided by the Lambda runtime.
 - Implement consistent deployment processes across all environments
 - Maintain separate IAM roles and permissions for each environment
 - Use infrastructure templates that can be parameterized for different environments
@@ -261,4 +353,3 @@ Design applications with debugging in mind, providing sufficient information and
 - Implement health check endpoints for service validation
 
 By following these 27 comprehensive rules, AI agents can ensure that serverless applications they design and implement will be robust, maintainable, secure, and cost-effective. These practices address the core requirements of making serverless applications easy to verify through comprehensive testing, easy to debug through proper logging and monitoring, well-architected through separation of concerns, and easy to deploy through automated CI/CD processes. The combination of these practices creates a solid foundation for building enterprise-grade serverless applications that can scale effectively while maintaining high reliability and security standards.[3][24][1][11][2]
-

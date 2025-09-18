@@ -3,6 +3,10 @@ import type { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-l
 import { createSuccessResponse, createErrorResponse, getRequestId } from '../services/shared/utils/response';
 import { logRequest, logResponse } from '../services/shared/utils/logger';
 
+// Import actual Lambda handlers
+import { handler as healthHandler } from '../services/enrichment/health';
+import { handler as sourcesHandler } from '../services/enrichment/sources';
+
 export const handler = async (
   event: APIGatewayProxyEvent,
   context: Context
@@ -15,11 +19,33 @@ export const handler = async (
   logRequest(method, path, { requestId, functionName: context.functionName });
 
   try {
-    // Extract the route path after /api/v1/enrichment/
-    const routePath = event.path.replace('/api/v1/enrichment/', '').replace('/api/v1/enrichment', '');
+    // Extract the route path after /api/v1/local/enrichment/ or handle direct paths
+    let routePath = event.path;
+    console.log(`DEBUG: Original path: "${event.path}"`);
     
-    // Route to appropriate handler based on path and method
+    if (routePath.includes('/api/v1/local/enrichment/')) {
+      routePath = routePath.replace('/api/v1/local/enrichment/', '');
+    } else if (routePath.includes('/local/enrichment/')) {
+      routePath = routePath.replace('/local/enrichment/', '');
+    } else {
+      // Handle paths like "1/local/enrichment/health" from serverless-offline
+      const pathParts = routePath.split('/');
+      const enrichmentIndex = pathParts.indexOf('enrichment');
+      if (enrichmentIndex !== -1 && enrichmentIndex < pathParts.length - 1) {
+        routePath = pathParts.slice(enrichmentIndex + 1).join('/');
+      }
+    }
+    
+    console.log(`DEBUG: Parsed route path: "${routePath}"`)
+    
+    // Route to appropriate handler based on path and method - matching original enrichment routes
     switch (true) {
+      case routePath === 'health' && method === 'GET':
+        return await healthHandler(event, context);
+        
+      case routePath === 'sources' && method === 'GET':
+        return await sourcesHandler(event, context);
+        
       case routePath === 'enrich' && method === 'POST':
         return await handleEnrich(event, requestId);
         

@@ -1,26 +1,35 @@
 # Cards Service Configuration
-service: namecard-cards
+service: namecard-cards-${self:custom.stage}
 frameworkVersion: '3'
 
 provider:
   name: aws
   runtime: nodejs18.x
   region: ap-southeast-1
-  stage: ${opt:stage, 'dev'}
+  stage: ${opt:stage, 'staging'}
   environment:
-    NODE_ENV: ${self:provider.stage}
-    STAGE: ${self:provider.stage}
+    # Use production runtime for staging/prod to satisfy env schema
+    NODE_ENV: production
+    STAGE: ${self:custom.stage}
     
     # Database
     DATABASE_URL: ${ssm:/namecard/${self:provider.stage}/database-url}
+    # Secrets Manager (for Prisma Lambda client)
+    DATABASE_SECRET_ARN: namecard/database/${self:provider.stage}
+    API_SECRET_ARN: namecard/api/${self:provider.stage}
     
     # JWT for authentication
-    JWT_SECRET: ${ssm:/namecard/${self:provider.stage}/jwt-secret~true}
+    JWT_SECRET: ${ssm:/namecard/${self:provider.stage}/jwt-secret}
     
     # S3 Configuration
     S3_BUCKET_NAME: ${ssm:/namecard/${self:provider.stage}/s3-bucket-name}
     S3_REGION: ${self:provider.region}
     S3_CDN_DOMAIN: ${ssm:/namecard/${self:provider.stage}/s3-cdn-domain}
+    
+    # Cognito verification (to validate JWTs)
+    COGNITO_USER_POOL_ID: ap-southeast-1_bOA22s0Op
+    COGNITO_CLIENT_ID: 5s54d0ifpt3frtvut325uglrjp
+    COGNITO_REGION: ${self:provider.region}
 
   iamRoleStatements:
     # RDS Proxy permissions
@@ -48,8 +57,24 @@ provider:
         - ssm:GetParameters
       Resource:
         - arn:aws:ssm:${self:provider.region}:${aws:accountId}:parameter/namecard/${self:provider.stage}/*
+    # Secrets Manager for DB/API secrets
+    - Effect: Allow
+      Action:
+        - secretsmanager:GetSecretValue
+      Resource:
+        - arn:aws:secretsmanager:${self:provider.region}:${aws:accountId}:secret:namecard/database/${self:provider.stage}-*
+        - arn:aws:secretsmanager:${self:provider.region}:${aws:accountId}:secret:namecard/api/${self:provider.stage}-*
 
 functions:
+  health:
+    handler: health-lite.handler
+    description: Health check endpoint
+    events:
+      - http:
+          path: health
+          method: get
+          cors: true
+
   create:
     handler: handlers/create.handler
     description: Create a new business card
@@ -61,8 +86,14 @@ functions:
     provisionedConcurrency: ${self:custom.provisionedConcurrency.${self:provider.stage}, 0}
 
   list:
-    handler: handlers/list.handler
+    handler: list.handler
     description: List user's business cards
+    vpc:
+      securityGroupIds:
+        - sg-0af0106683e7a0f5f
+      subnetIds:
+        - subnet-0403b9e9f399616f7
+        - subnet-04b6efe73095e9358
     events:
       - http:
           path: ''
@@ -71,8 +102,14 @@ functions:
     provisionedConcurrency: ${self:custom.provisionedConcurrency.${self:provider.stage}, 0}
 
   get:
-    handler: handlers/get.handler
+    handler: get-by-id.handler
     description: Get a specific business card
+    vpc:
+      securityGroupIds:
+        - sg-0af0106683e7a0f5f
+      subnetIds:
+        - subnet-0403b9e9f399616f7
+        - subnet-04b6efe73095e9358
     events:
       - http:
           path: '{id}'
@@ -107,16 +144,39 @@ functions:
           cors: true
 
 plugins:
-  - serverless-webpack
-  
+  - serverless-esbuild
+
 custom:
-  webpack:
-    webpackConfig: '../../webpack.config.js'
-    includeModules: true
-    
+  stage: ${opt:stage, 'staging'}
+  esbuild:
+    bundle: true
+    minify: true
+    sourcemap: false
+    target: node18
+    platform: node
+    external:
+      - aws-sdk
+      - '@prisma/client'
+      - '.prisma/client'
+    keepOutputDirectory: false
+    packager: npm
+    concurrency: 3
+    define:
+      'process.env.NODE_ENV': '"production"'
+  
   # Provisioned concurrency by stage
   provisionedConcurrency:
     production: 2
-    staging: 1
-    dev: 0
+    staging: 0
+    development: 0
     local: 0
+
+package:
+  patterns:
+    - 'node_modules/@prisma/client/**'
+    - 'node_modules/.prisma/**'
+    - '!**/*.ts'
+    - '!**/*.map'
+    - '!**/.git/**'
+    - '!**/test/**'
+    - '!**/scripts/**'

@@ -1,7 +1,16 @@
 // Auth service proxy for local development
 import type { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
-import { createSuccessResponse, createErrorResponse, getRequestId } from '../services/shared/utils/response';
-import { logRequest, logResponse } from '../services/shared/utils/logger';
+import { createErrorResponse, getRequestId } from '@shared/utils/response';
+import { logRequest, logResponse } from '@shared/utils/logger';
+
+// Import auth handlers
+import { handler as registerHandler } from '@services/auth/register';
+import { handler as loginHandler } from '@services/auth/login';
+import { handler as logoutHandler } from '@services/auth/logout';
+import { handler as refreshHandler } from '@services/auth/refresh';
+import { handler as profileHandler } from '@services/auth/profile';
+import { handler as forgotPasswordHandler } from '@services/auth/forgot-password';
+import { handler as resetPasswordHandler } from '@services/auth/reset-password';
 
 export const handler = async (
   event: APIGatewayProxyEvent,
@@ -25,19 +34,25 @@ export const handler = async (
     // Route to appropriate handler based on path and method
     switch (true) {
       case routePath === 'login' && method === 'POST':
-        return await handleLogin(event, requestId);
+        return await loginHandler(event, context);
         
       case routePath === 'register' && method === 'POST':
-        return await handleRegister(event, requestId);
+        return await registerHandler(event, context);
         
       case routePath === 'refresh' && method === 'POST':
-        return await handleRefresh(event, requestId);
+        return await refreshHandler(event, context);
         
-      case routePath === 'profile' && method === 'GET':
-        return await handleProfile(event, requestId);
+      case (routePath === 'profile' && method === 'GET') || (routePath === 'profile' && method === 'PUT'):
+        return await profileHandler(event, context);
         
       case routePath === 'logout' && method === 'POST':
-        return await handleLogout(event, requestId);
+        return await logoutHandler(event, context);
+        
+      case routePath === 'forgot-password' && method === 'POST':
+        return await forgotPasswordHandler(event, context);
+        
+      case routePath === 'reset-password' && method === 'POST':
+        return await resetPasswordHandler(event, context);
         
       default:
         return createErrorResponse(`Route not found: ${method} ${routePath}`, 404, requestId);
@@ -51,68 +66,3 @@ export const handler = async (
   }
 };
 
-// Temporary mock handlers - will be replaced with actual service logic
-async function handleLogin(event: APIGatewayProxyEvent, requestId: string): Promise<APIGatewayProxyResult> {
-  return createSuccessResponse(
-    {
-      message: 'Login endpoint - to be implemented',
-      path: event.path,
-      method: event.httpMethod,
-    },
-    200,
-    'Auth proxy working',
-    requestId
-  );
-}
-
-async function handleRegister(event: APIGatewayProxyEvent, requestId: string): Promise<APIGatewayProxyResult> {
-  return createSuccessResponse(
-    {
-      message: 'Register endpoint - to be implemented',
-      path: event.path,
-      method: event.httpMethod,
-    },
-    200,
-    'Auth proxy working',
-    requestId
-  );
-}
-
-async function handleRefresh(event: APIGatewayProxyEvent, requestId: string): Promise<APIGatewayProxyResult> {
-  return createSuccessResponse(
-    {
-      message: 'Refresh endpoint - to be implemented',
-      path: event.path,
-      method: event.httpMethod,
-    },
-    200,
-    'Auth proxy working',
-    requestId
-  );
-}
-
-async function handleProfile(event: APIGatewayProxyEvent, requestId: string): Promise<APIGatewayProxyResult> {
-  return createSuccessResponse(
-    {
-      message: 'Profile endpoint - to be implemented',
-      path: event.path,
-      method: event.httpMethod,
-    },
-    200,
-    'Auth proxy working',
-    requestId
-  );
-}
-
-async function handleLogout(event: APIGatewayProxyEvent, requestId: string): Promise<APIGatewayProxyResult> {
-  return createSuccessResponse(
-    {
-      message: 'Logout endpoint - to be implemented',
-      path: event.path,
-      method: event.httpMethod,
-    },
-    200,
-    'Auth proxy working',
-    requestId
-  );
-}

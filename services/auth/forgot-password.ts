@@ -7,8 +7,8 @@ import {
   createErrorResponse,
   parseJsonBody,
   getRequestId,
-} from '@shared/index';
-import cognitoService from '@shared/services/cognito.service';
+  cognitoService,
+} from '@namecard/serverless-shared/auth-index';
 
 interface ForgotPasswordRequest {
   email: string;

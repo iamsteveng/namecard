@@ -1,7 +1,11 @@
 // Cards service proxy for local development
 import type { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
-import { createSuccessResponse, createErrorResponse, getRequestId } from '../services/shared/utils/response';
-import { logRequest, logResponse } from '../services/shared/utils/logger';
+import { createSuccessResponse, createErrorResponse, getRequestId } from '@shared/utils/response';
+import { logRequest, logResponse } from '@shared/utils/logger';
+
+// Import cards handlers
+import { handler as listHandler } from '@services/cards/list';
+import { handler as getByIdHandler } from '@services/cards/get-by-id';
 
 export const handler = async (
   event: APIGatewayProxyEvent,
@@ -28,13 +32,13 @@ export const handler = async (
         return await handleCreate(event, requestId);
         
       case routePath === '' && method === 'GET':
-        return await handleList(event, requestId);
+        return await listHandler(event, context);
         
       case routePath === 'search' && method === 'GET':
         return await handleSearch(event, requestId);
         
       case routePath.match(/^[0-9a-f-]+$/) && method === 'GET':
-        return await handleGet(event, requestId);
+        return await getByIdHandler(event, context);
         
       case routePath.match(/^[0-9a-f-]+$/) && method === 'PUT':
         return await handleUpdate(event, requestId);

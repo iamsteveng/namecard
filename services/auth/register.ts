@@ -9,7 +9,7 @@ import {
   parseJsonBody,
   getRequestId,
   cognitoService,
-} from '@shared/index';
+} from '@namecard/serverless-shared/auth-index';
 
 interface RegisterRequest {
   email: string;

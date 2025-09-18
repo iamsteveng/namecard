@@ -1,0 +1,38 @@
+{
+  "name": "@namecard/scan-service",
+  "version": "1.0.0",
+  "description": "NameCard Scan Service - Lambda Functions",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "sls offline start --stage local",
+    "deploy:staging": "sls deploy --stage staging",
+    "deploy:production": "sls deploy --stage production",
+    "package": "sls package",
+    "remove": "sls remove",
+    "logs": "sls logs -f businessCard --tail",
+    "invoke": "sls invoke -f businessCard",
+    "test": "jest",
+    "lint": "eslint *.ts handlers/*.ts",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@namecard/serverless-shared": "file:../shared",
+    "@namecard/shared": "file:../../packages/shared",
+    "@aws-sdk/client-textract": "^3.423.0",
+    "@aws-sdk/client-s3": "^3.423.0",
+    "sharp": "^0.32.6",
+    "aws-lambda": "^1.0.7",
+    "aws-xray-sdk-core": "^3.9.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.145",
+    "@types/node": "^20.11.0",
+    "serverless": "^3.38.0",
+    "serverless-webpack": "^5.15.3",
+    "serverless-offline": "^14.4.0",
+    "typescript": "^5.3.3",
+    "webpack": "^5.101.3",
+    "jest": "^30.0.4"
+  }
+}

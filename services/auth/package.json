@@ -22,6 +22,7 @@
     "@prisma/client": "^6.15.0",
     "aws-lambda": "^1.0.7",
     "aws-xray-sdk-core": "^3.9.0",
+    "dotenv": "^16.4.5",
     "jsonwebtoken": "^9.0.2"
   },
   "devDependencies": {
@@ -32,6 +33,7 @@
     "jest": "^30.0.4",
     "serverless": "^3.38.0",
     "serverless-offline": "^14.4.0",
+    "serverless-esbuild": "^1.54.4",
     "serverless-webpack": "^5.15.3",
     "typescript": "^5.3.3",
     "webpack": "^5.101.3"
