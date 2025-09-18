@@ -4,6 +4,9 @@ set -euo pipefail
 # Deploy Cards service (serverless-webpack) to staging with profile namecard-staging
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+STAGE="${STAGE:-staging}"
+AWS_REGION="${AWS_REGION:-ap-southeast-1}"
+AWS_PROFILE="${AWS_PROFILE:-namecard-staging}"
 TIMEOUT_SECONDS=${DEPLOY_TIMEOUT_SECONDS:-300}
 
 run_with_timeout() {
@@ -31,7 +34,7 @@ run_with_timeout() {
   if [ -f "$timed_flag" ]; then
     rm -f "$timed_flag"
     echo "Deployment detected as stuck (timeout ${timeout}s)."
-    echo "Tip: aws cloudformation describe-stack-events --stack-name namecard-cards-staging-staging --region ap-southeast-1 --profile namecard-staging"
+    echo "Tip: aws cloudformation describe-stack-events --stack-name namecard-cards-${STAGE}-${STAGE} --region ${AWS_REGION} --profile ${AWS_PROFILE}"
     exit 124
   fi
   return $rc
@@ -48,7 +51,7 @@ pushd "$ROOT_DIR" >/dev/null
 npx prisma generate --schema packages/api/prisma/schema.prisma || true
 popd >/dev/null
 
-echo "Deploying Cards service to staging..."
+echo "Deploying Cards service to ${STAGE}..."
 pushd "$ROOT_DIR/services/cards" >/dev/null
 npm install --silent || true
 # Copy generated Prisma client and engines into this service package
@@ -61,7 +64,12 @@ if [ -d ../../node_modules/.prisma ]; then
 fi
 
 # 5-minute hard timeout to detect stuck CloudFormation deploys (exit 124)
-run_with_timeout "$TIMEOUT_SECONDS" ./node_modules/.bin/serverless deploy --stage staging --region ap-southeast-1 --aws-profile namecard-staging
+if [ -x ./node_modules/.bin/serverless ]; then
+  SLS_CMD=(./node_modules/.bin/serverless)
+else
+  SLS_CMD=(npx -y serverless@3.40.0)
+fi
+run_with_timeout "$TIMEOUT_SECONDS" "${SLS_CMD[@]}" deploy --stage "$STAGE" --region "$AWS_REGION" --aws-profile "$AWS_PROFILE"
 popd >/dev/null
 
-echo "Cards deploy complete. Use: ./node_modules/.bin/serverless info --stage staging"
+echo "Cards deploy complete. Use: ./node_modules/.bin/serverless info --stage ${STAGE}"

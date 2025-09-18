@@ -6,6 +6,9 @@ set -euo pipefail
 # Secrets Manager entries exist: namecard/database/staging, namecard/api/staging
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+STAGE="${STAGE:-staging}"
+AWS_REGION="${AWS_REGION:-ap-southeast-1}"
+AWS_PROFILE="${AWS_PROFILE:-namecard-staging}"
 
 echo "Building shared package (services/shared)..."
 pushd "$ROOT_DIR/services/shared" >/dev/null
@@ -38,7 +41,7 @@ run_with_timeout() {
   if [ -f "$timed_flag" ]; then
     rm -f "$timed_flag"
     echo "Deployment detected as stuck (timeout ${timeout}s)."
-    echo "Tip: aws cloudformation describe-stack-events --stack-name namecard-auth-staging-staging --region ap-southeast-1 --profile namecard-staging"
+    echo "Tip: aws cloudformation describe-stack-events --stack-name namecard-auth-${STAGE}-${STAGE} --region ${AWS_REGION} --profile ${AWS_PROFILE}"
     exit 124
   fi
   return $rc
@@ -46,7 +49,7 @@ run_with_timeout() {
 
 TIMEOUT_SECONDS=${DEPLOY_TIMEOUT_SECONDS:-300}
 
-echo "Deploying Auth service to staging (serverless-esbuild)..."
+echo "Deploying Auth service to ${STAGE} (serverless-esbuild)..."
 pushd "$ROOT_DIR/services/auth" >/dev/null
 npm install --silent || true
 # Ensure Prisma client is generated for Lambda runtime
@@ -59,7 +62,12 @@ fi
 if [ -d ../../node_modules/.prisma ]; then
   rsync -a ../../node_modules/.prisma/ node_modules/.prisma/
 fi
-run_with_timeout "$TIMEOUT_SECONDS" npx serverless deploy --stage staging --region ap-southeast-1 --aws-profile namecard-staging
+if [ -x ./node_modules/.bin/serverless ]; then
+  SLS_CMD=(./node_modules/.bin/serverless)
+else
+  SLS_CMD=(npx -y serverless@3.40.0)
+fi
+run_with_timeout "$TIMEOUT_SECONDS" "${SLS_CMD[@]}" deploy --stage "$STAGE" --region "$AWS_REGION" --aws-profile "$AWS_PROFILE"
 popd >/dev/null
 
 echo "Done. Check the stack output for AuthApiUrl and try /health and /login."

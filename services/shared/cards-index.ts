@@ -17,3 +17,4 @@ export {
   getRequestId,
 } from './lambda.js';
 export { default as secretsService } from './services/secrets.service.js';
+export { default as cognitoService } from './services/cognito.service.js';

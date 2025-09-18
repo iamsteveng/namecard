@@ -8,7 +8,7 @@ import {
   getRequestId,
   getIdFromPath,
   cognitoService,
-} from '@namecard/serverless-shared';
+} from '@namecard/serverless-shared/cards-index';
 
 async function getUserFromAuthHeader(authHeader: string | undefined) {
   if (!authHeader) return null;

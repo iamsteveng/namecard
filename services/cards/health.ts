@@ -5,7 +5,7 @@ import {
   validateEnvironmentVariables,
   emitBusinessMetric,
   logger,
-} from '@namecard/serverless-shared';
+} from '@namecard/serverless-shared/cards-index';
 
 const requiredEnvVars = [
   'NODE_ENV',
