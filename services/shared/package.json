@@ -3,7 +3,26 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "main": "index.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./auth-index": {
+      "types": "./dist/auth-index.d.ts",
+      "import": "./dist/auth-index.js"
+    },
+    "./lite-index": {
+      "types": "./dist/lite-index.d.ts",
+      "import": "./dist/lite-index.js"
+    },
+    "./cards-index": {
+      "types": "./dist/cards-index.d.ts",
+      "import": "./dist/cards-index.js"
+    }
+  },
   "scripts": {
     "build": "tsc",
     "type-check": "tsc --noEmit"
@@ -12,9 +31,15 @@
     "@prisma/client": "^6.15.0",
     "joi": "^17.12.0",
     "jsonwebtoken": "^9.0.2",
-    "winston": "^3.11.0"
+    "winston": "^3.11.0",
+    "aws-lambda": "^1.0.7",
+    "@aws-sdk/client-cloudwatch": "^3.665.0",
+    "@aws-sdk/client-secrets-manager": "^3.665.0",
+    "aws-xray-sdk-core": "^3.9.0",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@types/aws-lambda": "^8.10.145",
     "@types/jsonwebtoken": "^9.0.5",
     "@types/node": "^20.11.0",
     "prisma": "^6.15.0",

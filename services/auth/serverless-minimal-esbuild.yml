@@ -1,0 +1,41 @@
+service: namecard-auth-${self:custom.stage}
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: ap-southeast-1
+  stage: ${opt:stage, 'staging'}
+  timeout: 15
+  memorySize: 256
+  environment:
+    NODE_ENV: ${self:custom.stage}
+    STAGE: ${self:custom.stage}
+
+custom:
+  stage: ${opt:stage, 'staging'}
+  esbuild:
+    bundle: true
+    minify: true
+    sourcemap: false
+    target: node18
+    platform: node
+    external:
+      - aws-sdk
+    packager: npm
+
+functions:
+  health:
+    handler: health.handler
+    description: Auth service health check (esbuild minimal)
+    events:
+      - http:
+          path: health
+          method: get
+          cors: true
+
+plugins:
+  - serverless-esbuild
+  - serverless-offline
+

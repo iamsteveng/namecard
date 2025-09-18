@@ -1,0 +1,173 @@
+service: namecard-auth-${self:custom.stage}
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: ap-southeast-1
+  stage: ${opt:stage, 'staging'}
+  timeout: 30
+  memorySize: 512
+
+  tracing:
+    lambda: true
+    apiGateway: true
+
+  environment:
+    NODE_ENV: ${self:custom.stage}
+    STAGE: ${self:custom.stage}
+    LOG_LEVEL: debug
+    ENABLE_CUSTOM_METRICS: true
+    CUSTOM_METRICS_NAMESPACE: NameCard/Business
+    DATABASE_SECRET_ARN: namecard/database/${self:custom.stage}
+    API_SECRET_ARN: namecard/api/${self:custom.stage}
+    JWT_EXPIRES_IN: 7d
+    JWT_REFRESH_EXPIRES_IN: 30d
+    COGNITO_USER_POOL_ID: ap-southeast-1_bOA22s0Op
+    COGNITO_CLIENT_ID: 5s54d0ifpt3frtvut325uglrjp
+    COGNITO_REGION: ${self:provider.region}
+
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - secretsmanager:GetSecretValue
+          Resource: '*'
+        - Effect: Allow
+          Action:
+            - cognito-idp:AdminCreateUser
+            - cognito-idp:AdminSetUserPassword
+            - cognito-idp:AdminInitiateAuth
+            - cognito-idp:AdminGetUser
+            - cognito-idp:AdminUpdateUserAttributes
+            - cognito-idp:AdminDeleteUser
+            - cognito-idp:AdminConfirmSignUp
+            - cognito-idp:AdminRespondToAuthChallenge
+            - cognito-idp:ListUsers
+          Resource: '*'
+        - Effect: Allow
+          Action:
+            - cloudwatch:PutMetricData
+          Resource: '*'
+        - Effect: Allow
+          Action:
+            - xray:PutTraceSegments
+            - xray:PutTelemetryRecords
+          Resource: '*'
+
+custom:
+  stage: ${opt:stage, 'staging'}
+  esbuild:
+    bundle: true
+    minify: true
+    sourcemap: false
+    target: node18
+    platform: node
+    external:
+      - aws-sdk
+      - '@prisma/client'
+      - '.prisma/client'
+    keepOutputDirectory: false
+    packager: npm
+    concurrency: 3
+
+functions:
+  health:
+    handler: health.handler
+    description: Auth service health check
+    events:
+      - http:
+          path: health
+          method: get
+          cors: true
+
+  register:
+    handler: register.handler
+    description: User registration endpoint (no VPC)
+    timeout: 30
+    memorySize: 1024
+    events:
+      - http:
+          path: register
+          method: post
+          cors: true
+
+  login:
+    handler: login.handler
+    description: User login endpoint (no VPC)
+    timeout: 30
+    memorySize: 1024
+    events:
+      - http:
+          path: login
+          method: post
+          cors: true
+
+  refresh:
+    handler: refresh.handler
+    description: Token refresh endpoint (no VPC)
+    events:
+      - http:
+          path: refresh
+          method: post
+          cors: true
+
+  logout:
+    handler: logout.handler
+    description: User logout endpoint (no VPC)
+    events:
+      - http:
+          path: logout
+          method: post
+          cors: true
+
+  profile:
+    handler: profile.handler
+    description: Get user profile endpoint (no VPC)
+    events:
+      - http:
+          path: profile
+          method: get
+          cors: true
+
+plugins:
+  - serverless-esbuild
+  - serverless-offline
+
+resources:
+  Resources:
+    AuthLogGroup:
+      Type: AWS::Logs::LogGroup
+      Properties:
+        LogGroupName: /aws/lambda/namecard-auth-${self:custom.stage}
+        RetentionInDays: 7
+
+  Outputs:
+    AuthApiUrl:
+      Description: Auth service API Gateway URL
+      Value:
+        Fn::Join:
+          - ""
+          - - "https://"
+            - Ref: "ApiGatewayRestApi"
+            - ".execute-api.${self:provider.region}.amazonaws.com/${self:custom.stage}"
+      Export:
+        Name: ${self:service}-api-url
+
+    AuthServiceName:
+      Description: Auth service name
+      Value: ${self:service}
+      Export:
+        Name: ${self:service}-name
+
+package:
+  patterns:
+    - 'node_modules/@prisma/client/**'
+    - 'node_modules/.prisma/**'
+    - '!**/*.ts'
+    - '!**/*.map'
+    - '!**/.git/**'
+    - '!**/test/**'
+    - '!**/scripts/**'
+

@@ -1,5 +1,5 @@
 // Authentication utilities for Lambda functions
-import jwt from 'jsonwebtoken';
+import jwt, { type Secret, type SignOptions } from 'jsonwebtoken';
 import { APIGatewayProxyEvent } from 'aws-lambda';
 import { AuthToken } from '../types/index.js';
 
@@ -38,13 +38,16 @@ export function verifyJwtToken(token: string, secret?: string): AuthToken | null
 }
 
 // Generate JWT token
-export function generateJwtToken(payload: Omit<AuthToken, 'iat' | 'exp'>, expiresIn: string = '24h'): string {
+export function generateJwtToken(
+  payload: Omit<AuthToken, 'iat' | 'exp'>,
+  expiresIn: string = '24h'
+): string {
   const jwtSecret = process.env.JWT_SECRET;
   if (!jwtSecret) {
     throw new Error('JWT_SECRET not configured');
   }
 
-  return jwt.sign(payload, jwtSecret, { expiresIn });
+  return jwt.sign(payload as any, jwtSecret as Secret, { expiresIn } as SignOptions);
 }
 
 // Extract and verify user from event

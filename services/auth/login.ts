@@ -2,14 +2,13 @@ import type { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-l
 import type { LoginResponse } from '@namecard/shared';
 
 import {
-  getPrismaClient,
   logger,
   createSuccessResponse,
   createErrorResponse,
   parseJsonBody,
   getRequestId,
   cognitoService,
-} from '@shared/index';
+} from '@namecard/serverless-shared/auth-index';
 
 interface LoginRequest {
   email: string;
@@ -67,9 +66,6 @@ export const handler = async (
 
     const { email, password }: LoginRequest = body;
 
-    // Get Prisma client
-    const prisma = await getPrismaClient();
-
     logger.info('User login attempt', { email, requestId });
 
     // Authenticate with Cognito
@@ -89,42 +85,9 @@ export const handler = async (
       );
     }
 
-    // Get or update user in our database
-    let user = await prisma.user.findUnique({
-      where: { cognitoId: authResult.user.sub },
-    });
-
-    if (!user) {
-      // Create user if doesn't exist (shouldn't happen normally)
-      user = await prisma.user.create({
-        data: {
-          cognitoId: authResult.user.sub,
-          email: authResult.user.email,
-          name: authResult.user.name || null,
-          preferences: {},
-        },
-      });
-      logger.info('Created user during login', { userId: user.id, requestId });
-    } else {
-      // Update user info if changed
-      const needsUpdate =
-        user.email !== authResult.user.email || user.name !== authResult.user.name;
-
-      if (needsUpdate) {
-        user = await prisma.user.update({
-          where: { id: user.id },
-          data: {
-            email: authResult.user.email,
-            name: authResult.user.name || null,
-          },
-        });
-        logger.info('Updated user during login', { userId: user.id, requestId });
-      }
-    }
-
     logger.info('User logged in successfully', {
-      userId: user.id,
-      email: user.email,
+      cognitoSub: authResult.user.sub,
+      email: authResult.user.email,
       requestId,
     });
 
@@ -132,26 +95,20 @@ export const handler = async (
       success: true,
       data: {
         user: {
-          id: user.id,
-          cognitoId: user.cognitoId,
-          email: user.email,
-          name: user.name || undefined,
-          avatarUrl: user.avatarUrl || undefined,
-          preferences: user.preferences as any,
-          createdAt: user.createdAt,
-          updatedAt: user.updatedAt,
+          id: authResult.user.sub,
+          cognitoId: authResult.user.sub,
+          email: authResult.user.email,
+          name: authResult.user.name || undefined,
         },
         session: {
           user: {
-            id: user.id,
-            cognitoId: user.cognitoId,
-            email: user.email,
-            name: user.name || undefined,
-            avatarUrl: user.avatarUrl || undefined,
-            preferences: user.preferences as any,
-            createdAt: user.createdAt,
-            updatedAt: user.updatedAt,
+            id: authResult.user.sub,
+            cognitoId: authResult.user.sub,
+            email: authResult.user.email,
+            name: authResult.user.name || undefined,
           },
+          // Include ID token so downstream services (e.g., Cards) can validate JWTs directly
+          idToken: authResult.idToken,
           accessToken: authResult.accessToken,
           refreshToken: authResult.refreshToken,
           expiresAt: new Date(Date.now() + authResult.expiresIn * 1000),
