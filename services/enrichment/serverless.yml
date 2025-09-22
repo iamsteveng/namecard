@@ -1,114 +1,147 @@
 # Enrichment Service Configuration
-service: namecard-enrichment
+service: namecard-enrichment-${self:custom.stage}
 frameworkVersion: '3'
 
 provider:
   name: aws
   runtime: nodejs18.x
   region: ap-southeast-1
-  stage: ${opt:stage, 'dev'}
-  timeout: 180 # 3 minutes for enrichment processing
+  stage: ${opt:stage, 'staging'}
+  profile: namecard-staging
+  timeout: 60
+  memorySize: 1024
+  logRetentionInDays: ${self:custom.logRetention.${self:custom.stage}, 7}
   environment:
-    NODE_ENV: ${self:provider.stage}
-    STAGE: ${self:provider.stage}
-    
-    # Database
-    DATABASE_URL: ${ssm:/namecard/${self:provider.stage}/database-url}
-    
-    # Perplexity AI Configuration
-    PERPLEXITY_API_KEY: ${ssm:/namecard/${self:provider.stage}/perplexity-api-key~true}
-    PERPLEXITY_BASE_URL: ${ssm:/namecard/${self:provider.stage}/perplexity-base-url, 'https://api.perplexity.ai'}
-    PERPLEXITY_RATE_LIMIT_RPM: ${ssm:/namecard/${self:provider.stage}/perplexity-rate-limit-rpm, '60'}
-    PERPLEXITY_RATE_LIMIT_RPD: ${ssm:/namecard/${self:provider.stage}/perplexity-rate-limit-rpd, '1000'}
-    PERPLEXITY_TIMEOUT: ${ssm:/namecard/${self:provider.stage}/perplexity-timeout, '30000'}
-    PERPLEXITY_MAX_RETRIES: ${ssm:/namecard/${self:provider.stage}/perplexity-max-retries, '2'}
-    PERPLEXITY_BACKOFF_MS: ${ssm:/namecard/${self:provider.stage}/perplexity-backoff-ms, '3000'}
-    
-    # Enrichment Configuration
-    ENRICHMENT_ENABLED_SOURCES: ${ssm:/namecard/${self:provider.stage}/enrichment-enabled-sources, 'perplexity'}
-    PERPLEXITY_ENABLED: ${ssm:/namecard/${self:provider.stage}/perplexity-enabled, 'true'}
-    PERPLEXITY_WEIGHT: ${ssm:/namecard/${self:provider.stage}/perplexity-weight, '0.9'}
-    PERPLEXITY_TRUST_LEVEL: ${ssm:/namecard/${self:provider.stage}/perplexity-trust-level, '88'}
+    NODE_ENV: production
+    STAGE: ${self:custom.stage}
+    LOG_LEVEL: ${self:custom.logLevel.${self:custom.stage}, 'debug'}
+    AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1'
 
-  iamRoleStatements:
-    # RDS Proxy permissions
-    - Effect: Allow
-      Action:
-        - rds-db:connect
-      Resource:
-        - arn:aws:rds-db:${self:provider.region}:${aws:accountId}:dbuser:*/namecard-lambda-user
-    
-    # SQS permissions
-    - Effect: Allow
-      Action:
-        - sqs:ReceiveMessage
-        - sqs:DeleteMessage
-        - sqs:SendMessage
-        - sqs:GetQueueAttributes
-      Resource:
-        - arn:aws:sqs:${self:provider.region}:${aws:accountId}:namecard-enrichment-queue-${self:provider.stage}
-    
-    # SNS permissions for notifications
-    - Effect: Allow
-      Action:
-        - sns:Publish
-      Resource:
-        - arn:aws:sns:${self:provider.region}:${aws:accountId}:namecard-enrichment-complete-${self:provider.stage}
-    
-    # SSM Parameter Store permissions
-    - Effect: Allow
-      Action:
-        - ssm:GetParameter
-        - ssm:GetParameters
-      Resource:
-        - arn:aws:ssm:${self:provider.region}:${aws:accountId}:parameter/namecard/${self:provider.stage}/*
+    DATABASE_SECRET_ARN: namecard/database/${self:custom.stage}
+    API_SECRET_ARN: namecard/api/${self:custom.stage}
+
+    PERPLEXITY_API_KEY: ${env:PERPLEXITY_API_KEY, ''}
+    PERPLEXITY_BASE_URL: ${ssm:/namecard/${self:custom.stage}/perplexity-base-url, 'https://api.perplexity.ai'}
+    PERPLEXITY_RATE_LIMIT_RPM: ${ssm:/namecard/${self:custom.stage}/perplexity-rate-limit-rpm, '60'}
+    PERPLEXITY_RATE_LIMIT_RPD: ${ssm:/namecard/${self:custom.stage}/perplexity-rate-limit-rpd, '1000'}
+    PERPLEXITY_TIMEOUT: ${ssm:/namecard/${self:custom.stage}/perplexity-timeout, '30000'}
+    PERPLEXITY_MAX_RETRIES: ${ssm:/namecard/${self:custom.stage}/perplexity-max-retries, '2'}
+    PERPLEXITY_BACKOFF_MS: ${ssm:/namecard/${self:custom.stage}/perplexity-backoff-ms, '3000'}
+
+    ENRICHMENT_ENABLED_SOURCES: ${ssm:/namecard/${self:custom.stage}/enrichment-enabled-sources, 'perplexity'}
+    PERPLEXITY_ENABLED: ${ssm:/namecard/${self:custom.stage}/perplexity-enabled, 'true'}
+    PERPLEXITY_WEIGHT: ${ssm:/namecard/${self:custom.stage}/perplexity-weight, '0.9'}
+    PERPLEXITY_TRUST_LEVEL: ${ssm:/namecard/${self:custom.stage}/perplexity-trust-level, '88'}
+
+    COGNITO_USER_POOL_ID: ap-southeast-1_bOA22s0Op
+    COGNITO_CLIENT_ID: 5s54d0ifpt3frtvut325uglrjp
+    COGNITO_REGION: ${self:provider.region}
+
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - secretsmanager:GetSecretValue
+          Resource:
+            - arn:aws:secretsmanager:${self:provider.region}:${aws:accountId}:secret:namecard/database/${self:custom.stage}-*
+            - arn:aws:secretsmanager:${self:provider.region}:${aws:accountId}:secret:namecard/api/${self:custom.stage}-*
+
+        - Effect: Allow
+          Action:
+            - sqs:ReceiveMessage
+            - sqs:DeleteMessage
+            - sqs:SendMessage
+            - sqs:GetQueueAttributes
+          Resource:
+            - arn:aws:sqs:${self:provider.region}:${aws:accountId}:namecard-enrichment-queue-${self:custom.stage}
+
+        - Effect: Allow
+          Action:
+            - sns:Publish
+          Resource:
+            - arn:aws:sns:${self:provider.region}:${aws:accountId}:namecard-enrichment-complete-${self:custom.stage}
+
+        - Effect: Allow
+          Action:
+            - ssm:GetParameter
+            - ssm:GetParameters
+          Resource:
+            - arn:aws:ssm:${self:provider.region}:${aws:accountId}:parameter/namecard/${self:custom.stage}/*
+
+custom:
+  stage: ${opt:stage, 'staging'}
+  logLevel:
+    production: info
+    staging: debug
+    development: debug
+    local: debug
+  logRetention:
+    production: 30
+    staging: 7
+    development: 7
+    local: 7
+  esbuild:
+    bundle: true
+    minify: true
+    sourcemap: false
+    target: node18
+    platform: node
+    external:
+      - aws-sdk
+      - '@prisma/client'
+      - '.prisma/client'
+    keepOutputDirectory: false
+    packager: npm
+    concurrency: 3
+    define:
+      'process.env.NODE_ENV': '"production"'
 
 functions:
-  enrich-card:
-    handler: handlers/enrich-card.handler
-    description: Enrich business card with company information
+  health:
+    handler: health.handler
+    description: Enrichment service health check
     events:
       - http:
-          path: enrich
-          method: post
+          path: health
+          method: get
           cors: true
-    memorySize: 512
 
-  perplexity-lookup:
-    handler: handlers/perplexity-lookup.handler
-    description: Lookup company information via Perplexity AI
+  sources:
+    handler: sources.handler
+    description: List available enrichment sources
     events:
       - http:
-          path: perplexity-lookup
-          method: post
+          path: sources
+          method: get
           cors: true
-    memorySize: 512
-
-  batch-process:
-    handler: handlers/batch-process.handler
-    description: Process enrichment from SQS queue (async)
-    events:
-      - sqs:
-          arn: arn:aws:sqs:${self:provider.region}:${aws:accountId}:namecard-enrichment-queue-${self:provider.stage}
-          batchSize: 1
-          maximumBatchingWindowInSeconds: 10
-    memorySize: 512
-    reservedConcurrency: 3
-
-  refresh-enrichment:
-    handler: handlers/refresh-enrichment.handler
-    description: Refresh enrichment data for existing cards
-    events:
-      - http:
-          path: refresh
-          method: post
-          cors: true
-    memorySize: 512
 
 plugins:
-  - serverless-webpack
-  
-custom:
-  webpack:
-    webpackConfig: '../../webpack.config.js'
-    includeModules: true
+  - serverless-esbuild
+  - ../../serverless-offline.cjs
+
+resources:
+  Resources:
+    EnrichmentLogGroup:
+      Type: AWS::Logs::LogGroup
+      Properties:
+        LogGroupName: /aws/lambda/namecard-enrichment-${self:custom.stage}
+        RetentionInDays: ${self:custom.logRetention.${self:custom.stage}, 7}
+
+  Outputs:
+    EnrichmentServiceName:
+      Description: Enrichment service name
+      Value: ${self:service}
+      Export:
+        Name: ${self:service}-name
+
+package:
+  individually: true
+  patterns:
+    - 'node_modules/@prisma/client/**'
+    - 'node_modules/.prisma/**'
+    - '!**/*.ts'
+    - '!**/*.map'
+    - '!**/.git/**'
+    - '!**/test/**'
+    - '!**/scripts/**'

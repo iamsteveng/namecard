@@ -1,32 +1,63 @@
+# Unified API Gateway Configuration
 service: namecard-unified-api-${self:custom.stage}
+frameworkVersion: '3'
 
 provider:
   name: aws
   runtime: nodejs18.x
   region: ap-southeast-1
   stage: ${opt:stage, 'staging'}
+  profile: namecard-staging
   timeout: 30
   memorySize: 512
-  
+  logRetentionInDays: ${self:custom.logRetention.${self:custom.stage}, 7}
   environment:
-    NODE_ENV: ${self:custom.stage}
+    NODE_ENV: production
     STAGE: ${self:custom.stage}
+    LOG_LEVEL: ${self:custom.logLevel.${self:custom.stage}, 'debug'}
+    AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1'
+    AWS_REGION: ${self:provider.region}
+
+    AUTH_SERVICE_URL: ${ssm:/namecard/${self:custom.stage}/auth-service-url, 'https://rai2raecji.execute-api.ap-southeast-1.amazonaws.com/staging'}
+    CARDS_SERVICE_URL: ${ssm:/namecard/${self:custom.stage}/cards-service-url, 'https://v7h0gz3ozi.execute-api.ap-southeast-1.amazonaws.com/staging'}
+    UPLOAD_SERVICE_URL: ${ssm:/namecard/${self:custom.stage}/upload-service-url, 'https://gk5ezv6x2j.execute-api.ap-southeast-1.amazonaws.com/staging'}
 
 custom:
   stage: ${opt:stage, 'staging'}
+  logLevel:
+    production: info
+    staging: debug
+    development: debug
+    local: debug
+  logRetention:
+    production: 30
+    staging: 7
+    development: 7
+    local: 7
+  esbuild:
+    bundle: true
+    minify: true
+    sourcemap: false
+    target: node18
+    platform: node
+    external:
+      - aws-sdk
+    keepOutputDirectory: false
+    packager: npm
+    concurrency: 3
+    define:
+      'process.env.NODE_ENV': '"production"'
 
 functions:
-  # Health check endpoint
   health:
     handler: handlers/health.handler
-    description: Unified API health check
+    description: Unified API service health check
     events:
       - http:
           path: health
           method: get
           cors: true
 
-  # Auth service endpoints
   authHealth:
     handler: handlers/proxy.authHealth
     description: Auth service health check proxy
@@ -54,7 +85,6 @@ functions:
           method: post
           cors: true
 
-  # Cards service endpoints
   cardsHealth:
     handler: handlers/proxy.cardsHealth
     description: Cards service health check proxy
@@ -82,7 +112,6 @@ functions:
           method: post
           cors: true
 
-  # Upload service endpoints
   uploadHealth:
     handler: handlers/proxy.uploadHealth
     description: Upload service health check proxy
@@ -102,7 +131,8 @@ functions:
           cors: true
 
 plugins:
-  - serverless-offline
+  - serverless-esbuild
+  - ../../serverless-offline.cjs
 
 resources:
   Resources:
@@ -110,12 +140,12 @@ resources:
       Type: AWS::Logs::LogGroup
       Properties:
         LogGroupName: /aws/lambda/namecard-unified-api-${self:custom.stage}
-        RetentionInDays: 7
-        
+        RetentionInDays: ${self:custom.logRetention.${self:custom.stage}, 7}
+
   Outputs:
     UnifiedApiUrl:
       Description: Unified API Gateway URL
-      Value: 
+      Value:
         Fn::Join:
           - ""
           - - "https://"
@@ -125,4 +155,18 @@ resources:
             - ".amazonaws.com/"
             - ${self:custom.stage}
       Export:
-        Name: ${self:custom.stage}-unified-api-url
+        Name: ${self:service}-url
+
+    UnifiedApiServiceName:
+      Description: Unified API service name
+      Value: ${self:service}
+      Export:
+        Name: ${self:service}-name
+
+package:
+  individually: true
+  patterns:
+    - '!**/*.ts'
+    - '!**/.git/**'
+    - '!**/test/**'
+    - '!**/scripts/**'

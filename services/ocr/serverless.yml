@@ -1,111 +1,186 @@
 # OCR Service Configuration
-service: namecard-ocr
+service: namecard-ocr-${self:custom.stage}
 frameworkVersion: '3'
 
 provider:
   name: aws
   runtime: nodejs18.x
   region: ap-southeast-1
-  stage: ${opt:stage, 'dev'}
-  timeout: 300 # 5 minutes for OCR processing
-  environment:
-    NODE_ENV: ${self:provider.stage}
-    STAGE: ${self:provider.stage}
-    
-    # Database
-    DATABASE_URL: ${ssm:/namecard/${self:provider.stage}/database-url}
-    
-    # S3 Configuration
-    S3_BUCKET_NAME: ${ssm:/namecard/${self:provider.stage}/s3-bucket-name}
-    S3_REGION: ${self:provider.region}
-    
-    # OCR Configuration
-    OCR_CONFIDENCE_THRESHOLD: ${ssm:/namecard/${self:provider.stage}/ocr-confidence-threshold, '80'}
+  stage: ${opt:stage, 'staging'}
+  profile: namecard-staging
+  timeout: 60
+  memorySize: 1024
+  apiGateway:
+    binaryMediaTypes:
+      - 'multipart/form-data'
+      - 'application/octet-stream'
+  logRetentionInDays: ${self:custom.logRetention.${self:custom.stage}, 7}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - secretsmanager:GetSecretValue
+          Resource:
+            - arn:aws:secretsmanager:${self:provider.region}:${aws:accountId}:secret:namecard/database/${self:custom.stage}-*
+            - arn:aws:secretsmanager:${self:provider.region}:${aws:accountId}:secret:namecard/api/${self:custom.stage}-*
 
-  iamRoleStatements:
-    # Textract permissions
-    - Effect: Allow
-      Action:
-        - textract:DetectDocumentText
-        - textract:AnalyzeDocument
-        - textract:StartDocumentTextDetection
-        - textract:GetDocumentTextDetection
-      Resource: '*'
-    
-    # S3 permissions for reading images
-    - Effect: Allow
-      Action:
-        - s3:GetObject
-        - s3:ListBucket
-      Resource:
-        - arn:aws:s3:::${ssm:/namecard/${self:provider.stage}/s3-bucket-name}
-        - arn:aws:s3:::${ssm:/namecard/${self:provider.stage}/s3-bucket-name}/*
-    
-    # SQS permissions
-    - Effect: Allow
-      Action:
-        - sqs:ReceiveMessage
-        - sqs:DeleteMessage
-        - sqs:SendMessage
-        - sqs:GetQueueAttributes
-      Resource:
-        - arn:aws:sqs:${self:provider.region}:${aws:accountId}:namecard-ocr-queue-${self:provider.stage}
-        - arn:aws:sqs:${self:provider.region}:${aws:accountId}:namecard-enrichment-queue-${self:provider.stage}
-    
-    # SSM Parameter Store permissions
-    - Effect: Allow
-      Action:
-        - ssm:GetParameter
-        - ssm:GetParameters
-      Resource:
-        - arn:aws:ssm:${self:provider.region}:${aws:accountId}:parameter/namecard/${self:provider.stage}/*
+        - Effect: Allow
+          Action:
+            - textract:DetectDocumentText
+            - textract:AnalyzeDocument
+            - textract:StartDocumentTextDetection
+            - textract:GetDocumentTextDetection
+          Resource: '*'
+
+        - Effect: Allow
+          Action:
+            - s3:GetObject
+            - s3:ListBucket
+          Resource:
+            - arn:aws:s3:::${ssm:/namecard/${self:custom.stage}/s3-bucket-name}
+            - arn:aws:s3:::${ssm:/namecard/${self:custom.stage}/s3-bucket-name}/*
+
+        - Effect: Allow
+          Action:
+            - sqs:ReceiveMessage
+            - sqs:DeleteMessage
+            - sqs:SendMessage
+            - sqs:GetQueueAttributes
+          Resource:
+            - Fn::GetAtt:
+                - OcrQueue
+                - Arn
+            - Fn::GetAtt:
+                - EnrichmentQueue
+                - Arn
+
+        - Effect: Allow
+          Action:
+            - ssm:GetParameter
+            - ssm:GetParameters
+          Resource:
+            - arn:aws:ssm:${self:provider.region}:${aws:accountId}:parameter/namecard/${self:custom.stage}/*
+  environment:
+    NODE_ENV: production
+    STAGE: ${self:custom.stage}
+    LOG_LEVEL: ${self:custom.logLevel.${self:custom.stage}, 'debug'}
+    AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1'
+
+    DATABASE_SECRET_ARN: namecard/database/${self:custom.stage}
+    API_SECRET_ARN: namecard/api/${self:custom.stage}
+
+    S3_BUCKET_NAME: ${ssm:/namecard/${self:custom.stage}/s3-bucket-name}
+    S3_REGION: ${self:provider.region}
+
+    OCR_CONFIDENCE_THRESHOLD: ${ssm:/namecard/${self:custom.stage}/ocr-confidence-threshold, '80'}
+    COGNITO_USER_POOL_ID: ap-southeast-1_bOA22s0Op
+    COGNITO_CLIENT_ID: 5s54d0ifpt3frtvut325uglrjp
+    COGNITO_REGION: ${self:provider.region}
 
 functions:
-  extract-text:
-    handler: handlers/extract-text.handler
+  health:
+    handler: health.handler
+    description: OCR service health check
+    events:
+      - http:
+          path: health
+          method: get
+          cors: true
+
+  extractText:
+    handler: extract-text.handler
     description: Extract text from business card image using Textract
+    timeout: 30
     events:
       - http:
           path: extract-text
           method: post
           cors: true
-    memorySize: 1024
 
-  analyze-card:
-    handler: handlers/analyze-card.handler
+  analyzeCard:
+    handler: analyze-card.handler
     description: Analyze business card and extract structured data
+    timeout: 30
     events:
       - http:
           path: analyze-card
           method: post
           cors: true
-    memorySize: 1024
 
-  process-async:
-    handler: handlers/process-async.handler
-    description: Process OCR from SQS queue (async)
-    events:
-      - sqs:
-          arn: arn:aws:sqs:${self:provider.region}:${aws:accountId}:namecard-ocr-queue-${self:provider.stage}
-          batchSize: 1
-          maximumBatchingWindowInSeconds: 5
-    memorySize: 1024
-    reservedConcurrency: 5
-
-  preprocess-image:
-    handler: handlers/preprocess-image.handler
+  preprocessImage:
+    handler: preprocess-image.handler
     description: Preprocess image for better OCR results
+    timeout: 30
     events:
       - http:
           path: preprocess
           method: post
           cors: true
-    memorySize: 2048
+
+  processAsync:
+    handler: process-async.handler
+    description: Process OCR tasks from SQS queue
+    memorySize: 1024
+    timeout: 300
+    events:
+      - sqs:
+          arn:
+            Fn::GetAtt:
+              - OcrQueue
+              - Arn
+          batchSize: 1
+          maximumBatchingWindow: 5
 
 plugins:
-  - serverless-webpack
-  
+  - serverless-esbuild
+  - ../../serverless-offline.cjs
+
 custom:
-  webpack:
-    webpackConfig: '../../webpack.config.js'
-    includeModules: true
+  stage: ${opt:stage, 'staging'}
+  logLevel:
+    production: info
+    staging: debug
+    development: debug
+    local: debug
+  logRetention:
+    production: 30
+    staging: 7
+    development: 7
+    local: 7
+  esbuild:
+    bundle: true
+    minify: true
+    sourcemap: false
+    target: node18
+    platform: node
+    external:
+      - aws-sdk
+      - sharp
+    keepOutputDirectory: false
+    packager: npm
+    concurrency: 3
+    define:
+      'process.env.NODE_ENV': '"production"'
+
+package:
+  patterns:
+    - 'node_modules/sharp/**'
+    - '!**/*.ts'
+    - '!**/*.map'
+    - '!**/.git/**'
+    - '!**/test/**'
+    - '!**/scripts/**'
+
+resources:
+  Resources:
+    OcrQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: namecard-ocr-queue-${self:custom.stage}
+        VisibilityTimeout: 300
+    EnrichmentQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: namecard-enrichment-queue-${self:custom.stage}
+        VisibilityTimeout: 300

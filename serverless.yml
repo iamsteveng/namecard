@@ -4,7 +4,7 @@ frameworkVersion: '3'
 useDotenv: true
 
 plugins:
-  - serverless-offline
+  - ./serverless-offline.cjs
   - serverless-webpack
 
 provider:
@@ -22,8 +22,6 @@ provider:
     COGNITO_USER_POOL_ID: ${env:COGNITO_USER_POOL_ID, 'dummy-pool-id'}
     COGNITO_CLIENT_ID: ${env:COGNITO_CLIENT_ID, 'dummy-client-id'}
     COGNITO_REGION: ${env:COGNITO_REGION, 'ap-southeast-1'}
-    AWS_ACCESS_KEY_ID: ${env:AWS_ACCESS_KEY_ID, 'dummy'}
-    AWS_SECRET_ACCESS_KEY: ${env:AWS_SECRET_ACCESS_KEY, 'dummy'}
     S3_BUCKET_NAME: ${env:S3_BUCKET_NAME, 'dummy-bucket'}
     CLOUDFRONT_DOMAIN: ${env:CLOUDFRONT_DOMAIN, 'dummy-domain.cloudfront.net'}
     PERPLEXITY_API_KEY: ${env:PERPLEXITY_API_KEY, 'dummy-perplexity-key'}

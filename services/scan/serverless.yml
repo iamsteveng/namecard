@@ -1,0 +1,164 @@
+# Scan Service Configuration
+service: namecard-scan-${self:custom.stage}
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: ap-southeast-1
+  stage: ${opt:stage, 'staging'}
+  profile: namecard-staging
+  timeout: 60
+  memorySize: 1024
+  apiGateway:
+    binaryMediaTypes:
+      - 'multipart/form-data'
+      - 'application/octet-stream'
+  logRetentionInDays: ${self:custom.logRetention.${self:custom.stage}, 7}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - secretsmanager:GetSecretValue
+          Resource:
+            - arn:aws:secretsmanager:${self:provider.region}:${aws:accountId}:secret:namecard/database/${self:custom.stage}-*
+            - arn:aws:secretsmanager:${self:provider.region}:${aws:accountId}:secret:namecard/api/${self:custom.stage}-*
+
+        - Effect: Allow
+          Action:
+            - textract:DetectDocumentText
+            - textract:AnalyzeDocument
+            - textract:StartDocumentTextDetection
+            - textract:GetDocumentTextDetection
+          Resource: '*'
+
+        - Effect: Allow
+          Action:
+            - ssm:GetParameter
+            - ssm:GetParameters
+          Resource:
+            - arn:aws:ssm:${self:provider.region}:${aws:accountId}:parameter/namecard/${self:custom.stage}/*
+  environment:
+    NODE_ENV: production
+    STAGE: ${self:custom.stage}
+    LOG_LEVEL: ${self:custom.logLevel.${self:custom.stage}, 'debug'}
+    AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1'
+
+    DATABASE_SECRET_ARN: namecard/database/${self:custom.stage}
+    API_SECRET_ARN: namecard/api/${self:custom.stage}
+
+    MAX_FILE_SIZE: ${ssm:/namecard/${self:custom.stage}/max-file-size, '10485760'}
+    ALLOWED_FILE_TYPES: ${ssm:/namecard/${self:custom.stage}/allowed-file-types, 'image/jpeg,image/png,image/heic,image/webp'}
+
+    COGNITO_USER_POOL_ID: ap-southeast-1_bOA22s0Op
+    COGNITO_CLIENT_ID: 5s54d0ifpt3frtvut325uglrjp
+    COGNITO_REGION: ${self:provider.region}
+
+custom:
+  stage: ${opt:stage, 'staging'}
+  logLevel:
+    production: info
+    staging: debug
+    development: debug
+    local: debug
+  logRetention:
+    production: 30
+    staging: 7
+    development: 7
+    local: 7
+  esbuild:
+    bundle: true
+    minify: true
+    sourcemap: false
+    target: node18
+    platform: node
+    external:
+      - aws-sdk
+      - sharp
+    keepOutputDirectory: false
+    packager: npm
+    concurrency: 3
+    define:
+      'process.env.NODE_ENV': '"production"'
+
+functions:
+  health:
+    handler: health.handler
+    description: Scan service health check
+    events:
+      - http:
+          path: health
+          method: get
+          cors: true
+
+  info:
+    handler: info.handler
+    description: Retrieve scan service capabilities and limits
+    events:
+      - http:
+          path: info
+          method: get
+          cors: true
+
+  text:
+    handler: text.handler
+    description: Perform lightweight OCR text extraction
+    timeout: 90
+    memorySize: 1536
+    events:
+      - http:
+          path: text
+          method: post
+          cors: true
+
+  analyze:
+    handler: analyze.handler
+    description: Run detailed Textract document analysis
+    timeout: 120
+    memorySize: 2048
+    events:
+      - http:
+          path: analyze
+          method: post
+          cors: true
+
+  businessCard:
+    handler: business-card.handler
+    description: Extract structured data from business cards
+    timeout: 120
+    memorySize: 2048
+    events:
+      - http:
+          path: business-card
+          method: post
+          cors: true
+
+plugins:
+  - serverless-esbuild
+  - ../../serverless-offline.cjs
+
+resources:
+  Resources:
+    ScanLogGroup:
+      Type: AWS::Logs::LogGroup
+      Properties:
+        LogGroupName: /aws/lambda/namecard-scan-${self:custom.stage}
+        RetentionInDays: ${self:custom.logRetention.${self:custom.stage}, 7}
+
+  Outputs:
+    ScanServiceName:
+      Description: Scan service name
+      Value: ${self:service}
+      Export:
+        Name: ${self:service}-name
+
+package:
+  individually: true
+  patterns:
+    - 'node_modules/sharp/**'
+    - '!**/*.ts'
+    - '!**/*.map'
+    - '!**/.git/**'
+    - '!**/test/**'
+    - '!**/scripts/**'

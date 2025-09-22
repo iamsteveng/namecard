@@ -202,7 +202,7 @@ functions:
 
 plugins:
   - serverless-esbuild
-  - serverless-offline
+  - ../../serverless-offline.cjs
 
 # CloudFormation resources
 resources:

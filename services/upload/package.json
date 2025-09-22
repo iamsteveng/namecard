@@ -14,13 +14,16 @@
     "invoke": "sls invoke -f uploadSingle",
     "test": "jest",
     "lint": "eslint *.ts handlers/*.ts",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "prisma:generate": "node ./scripts/generate-prisma-client.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.423.0",
+    "@aws-sdk/client-sqs": "^3.665.0",
     "@aws-sdk/s3-request-presigner": "^3.423.0",
     "@namecard/serverless-shared": "file:../shared",
     "@namecard/shared": "file:../../packages/shared",
+    "@prisma/client": "^6.15.0",
     "aws-lambda": "^1.0.7",
     "aws-xray-sdk-core": "^3.9.0",
     "sharp": "^0.32.6",
@@ -33,7 +36,8 @@
     "copy-webpack-plugin": "^13.0.1",
     "jest": "^30.0.4",
     "serverless": "^3.38.0",
-    "serverless-offline": "^14.4.0",
+    "serverless-esbuild": "1.54.4",
+    "serverless-offline": "13.3.0",
     "serverless-webpack": "^5.15.3",
     "typescript": "^5.3.3",
     "webpack": "^5.101.3"

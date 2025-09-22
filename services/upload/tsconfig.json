@@ -23,7 +23,8 @@
   },
   "include": [
     "handlers/**/*",
-    "*.ts"
+    "*.ts",
+    "lib/**/*.ts"
   ],
   "exclude": [
     "node_modules",

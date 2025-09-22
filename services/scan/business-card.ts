@@ -1,6 +1,11 @@
 import type { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
 
-import { logger, textractService } from '@namecard/serverless-shared';
+import {
+  logger,
+  textractService,
+  parseMultipartFormData,
+  findFile,
+} from '@namecard/serverless-shared';
 
 // OCR Processing Options interface
 interface OCRProcessingOptions {
@@ -49,7 +54,7 @@ export const handler = async (
     }
 
     // Parse file data and options from Lambda event body
-    if (!event.body || !event.headers['content-type']?.includes('multipart/form-data')) {
+    if (!event.body) {
       return {
         statusCode: 400,
         headers: { 'Content-Type': 'application/json' },
@@ -61,32 +66,99 @@ export const handler = async (
       };
     }
 
-    let fileBuffer: Buffer;
-    let fileName: string;
-    let mimeType: string;
-    let options: OCRProcessingOptions = {};
+    let fileBuffer: Buffer | undefined;
+    let fileName = 'business-card.jpg';
+    let mimeType = 'image/jpeg';
+    let options: OCRProcessingOptions = {
+      useAnalyzeDocument: true,
+      enhanceImage: true,
+      minConfidence: 50,
+      extractStructuredData: true,
+    };
 
-    try {
-      // This is a simplified implementation for Lambda
-      const body = JSON.parse(event.body);
-      fileBuffer = Buffer.from(body.file, 'base64');
-      fileName = body.fileName || 'business-card.jpg';
-      mimeType = body.mimeType || 'image/jpeg';
-      
-      // Parse processing options
-      options = {
-        useAnalyzeDocument: body.useAnalyzeDocument !== 'false', // Default to true
-        enhanceImage: body.enhanceImage !== 'false', // Default to true
-        minConfidence: parseInt(body.minConfidence) || 50,
-        extractStructuredData: body.extractStructuredData !== 'false', // Default to true
-      };
-    } catch (error) {
+    if (event.headers['content-type']?.includes('multipart/form-data')) {
+      try {
+        const formData = parseMultipartFormData(event);
+        const filePart = findFile(formData, 'image') || formData.files[0];
+        if (!filePart) {
+          return {
+            statusCode: 400,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              success: false,
+              error: 'No image file provided',
+              timestamp: new Date().toISOString(),
+            }),
+          };
+        }
+
+        fileBuffer = filePart.content;
+        fileName = filePart.filename || fileName;
+        mimeType = filePart.contentType || mimeType;
+
+        // Optional fields in multipart (treated as text fields)
+        if (formData.fields['useAnalyzeDocument']) {
+          options.useAnalyzeDocument = formData.fields['useAnalyzeDocument'] !== 'false';
+        }
+        if (formData.fields['enhanceImage']) {
+          options.enhanceImage = formData.fields['enhanceImage'] !== 'false';
+        }
+        if (formData.fields['minConfidence']) {
+          const parsed = parseInt(formData.fields['minConfidence'], 10);
+          if (!Number.isNaN(parsed)) {
+            options.minConfidence = parsed;
+          }
+        }
+        if (formData.fields['extractStructuredData']) {
+          options.extractStructuredData = formData.fields['extractStructuredData'] !== 'false';
+        }
+      } catch (parseError) {
+        logger.warn('Scan business-card multipart parse failed', {
+          error: parseError instanceof Error ? parseError.message : String(parseError),
+        });
+        return {
+          statusCode: 400,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            success: false,
+            error: 'Invalid multipart form data',
+            timestamp: new Date().toISOString(),
+          }),
+        };
+      }
+    } else {
+      try {
+        const body = JSON.parse(event.body);
+        fileBuffer = Buffer.from(body.file, 'base64');
+        fileName = body.fileName || fileName;
+        mimeType = body.mimeType || mimeType;
+        const parsedConfidence = parseInt(body.minConfidence ?? '', 10);
+        options = {
+          useAnalyzeDocument: body.useAnalyzeDocument !== 'false',
+          enhanceImage: body.enhanceImage !== 'false',
+          minConfidence: Number.isNaN(parsedConfidence) ? options.minConfidence ?? 50 : parsedConfidence,
+          extractStructuredData: body.extractStructuredData !== 'false',
+        };
+      } catch (error) {
+        return {
+          statusCode: 400,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            success: false,
+            error: 'Invalid file data format',
+            timestamp: new Date().toISOString(),
+          }),
+        };
+      }
+    }
+
+    if (!fileBuffer) {
       return {
         statusCode: 400,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           success: false,
-          error: 'Invalid file data format',
+          error: 'No image file provided',
           timestamp: new Date().toISOString(),
         }),
       };

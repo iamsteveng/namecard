@@ -1,6 +1,11 @@
 import type { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
 
-import { logger, textractService } from '@namecard/serverless-shared';
+import {
+  logger,
+  textractService,
+  parseMultipartFormData,
+  findFile,
+} from '@namecard/serverless-shared';
 
 export const handler = async (
   event: APIGatewayProxyEvent,
@@ -28,8 +33,7 @@ export const handler = async (
       };
     }
 
-    // Parse file data from Lambda event body
-    if (!event.body || !event.headers['content-type']?.includes('multipart/form-data')) {
+    if (!event.body) {
       return {
         statusCode: 400,
         headers: { 'Content-Type': 'application/json' },
@@ -41,23 +45,68 @@ export const handler = async (
       };
     }
 
-    let fileBuffer: Buffer;
-    let fileName: string;
-    let mimeType: string;
+    let fileBuffer: Buffer | undefined;
+    let fileName = 'scan.jpg';
+    let mimeType = 'image/jpeg';
 
-    try {
-      // This is a simplified implementation for Lambda
-      const body = JSON.parse(event.body);
-      fileBuffer = Buffer.from(body.file, 'base64');
-      fileName = body.fileName || 'scan.jpg';
-      mimeType = body.mimeType || 'image/jpeg';
-    } catch (error) {
+    if (event.headers['content-type']?.includes('multipart/form-data')) {
+      try {
+        const formData = parseMultipartFormData(event);
+        const filePart = findFile(formData, 'image') || formData.files[0];
+        if (!filePart) {
+          return {
+            statusCode: 400,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              success: false,
+              error: 'No image file provided',
+              timestamp: new Date().toISOString(),
+            }),
+          };
+        }
+        fileBuffer = filePart.content;
+        fileName = filePart.filename || fileName;
+        mimeType = filePart.contentType || mimeType;
+      } catch (parseError) {
+        logger.warn('Scan text multipart parse failed', {
+          error: parseError instanceof Error ? parseError.message : String(parseError),
+        });
+        return {
+          statusCode: 400,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            success: false,
+            error: 'Invalid multipart form data',
+            timestamp: new Date().toISOString(),
+          }),
+        };
+      }
+    } else {
+      try {
+        const body = JSON.parse(event.body);
+        fileBuffer = Buffer.from(body.file, 'base64');
+        fileName = body.fileName || fileName;
+        mimeType = body.mimeType || mimeType;
+      } catch (error) {
+        return {
+          statusCode: 400,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            success: false,
+            error: 'Invalid file data format',
+            timestamp: new Date().toISOString(),
+          }),
+        };
+      }
+    }
+
+    if (!fileBuffer) {
       return {
         statusCode: 400,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           success: false,
-          error: 'Invalid file data format',
+          error: 'No image file provided',
           timestamp: new Date().toISOString(),
         }),
       };

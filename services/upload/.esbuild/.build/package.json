@@ -1,0 +1,13 @@
+{
+  "name": "namecard-upload-staging",
+  "version": "1.0.0",
+  "description": "Packaged externals for namecard-upload-staging",
+  "private": true,
+  "scripts": {
+    "script0": "npm run prisma:generate"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.15.0",
+    "sharp": "^0.32.6"
+  }
+}

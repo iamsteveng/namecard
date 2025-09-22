@@ -1,63 +1,121 @@
 # Upload Service Configuration
-service: namecard-upload
+service: namecard-upload-${self:custom.stage}
 frameworkVersion: '3'
 
 provider:
   name: aws
   runtime: nodejs18.x
   region: ap-southeast-1
-  stage: ${opt:stage, 'dev'}
+  stage: ${opt:stage, 'staging'}
+  profile: namecard-staging
   timeout: 30
-  environment:
-    NODE_ENV: ${self:provider.stage}
-    STAGE: ${self:provider.stage}
-    
-    # Database
-    DATABASE_URL: ${ssm:/namecard/${self:provider.stage}/database-url}
-    
-    # S3 Configuration
-    S3_BUCKET_NAME: ${ssm:/namecard/${self:provider.stage}/s3-bucket-name}
-    S3_REGION: ${self:provider.region}
-    S3_CDN_DOMAIN: ${ssm:/namecard/${self:provider.stage}/s3-cdn-domain}
-    
-    # Upload Configuration
-    MAX_FILE_SIZE: ${ssm:/namecard/${self:provider.stage}/max-file-size, '10485760'}
-    ALLOWED_FILE_TYPES: ${ssm:/namecard/${self:provider.stage}/allowed-file-types, 'image/jpeg,image/png,image/heic,image/webp'}
+  memorySize: 1024
+  apiGateway:
+    binaryMediaTypes:
+      - 'multipart/form-data'
+      - 'application/octet-stream'
+  logRetentionInDays: ${self:custom.logRetention.${self:custom.stage}, 7}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - secretsmanager:GetSecretValue
+          Resource:
+            - arn:aws:secretsmanager:${self:provider.region}:${aws:accountId}:secret:namecard/database/${self:custom.stage}-*
+            - arn:aws:secretsmanager:${self:provider.region}:${aws:accountId}:secret:namecard/api/${self:custom.stage}-*
 
-  iamRoleStatements:
-    # S3 permissions
-    - Effect: Allow
-      Action:
-        - s3:GetObject
-        - s3:PutObject
-        - s3:DeleteObject
-        - s3:ListBucket
-        - s3:GetBucketLocation
-        - s3:PutObjectAcl
-      Resource:
-        - arn:aws:s3:::${ssm:/namecard/${self:provider.stage}/s3-bucket-name}
-        - arn:aws:s3:::${ssm:/namecard/${self:provider.stage}/s3-bucket-name}/*
-    
-    # SQS permissions for async processing
-    - Effect: Allow
-      Action:
-        - sqs:SendMessage
-        - sqs:GetQueueUrl
-      Resource:
-        - arn:aws:sqs:${self:provider.region}:${aws:accountId}:namecard-ocr-queue-${self:provider.stage}
-    
-    # SSM Parameter Store permissions
-    - Effect: Allow
-      Action:
-        - ssm:GetParameter
-        - ssm:GetParameters
-      Resource:
-        - arn:aws:ssm:${self:provider.region}:${aws:accountId}:parameter/namecard/${self:provider.stage}/*
+        - Effect: Allow
+          Action:
+            - s3:GetObject
+            - s3:PutObject
+            - s3:DeleteObject
+            - s3:ListBucket
+            - s3:GetBucketLocation
+            - s3:PutObjectAcl
+          Resource:
+            - arn:aws:s3:::${ssm:/namecard/${self:custom.stage}/s3-bucket-name}
+            - arn:aws:s3:::${ssm:/namecard/${self:custom.stage}/s3-bucket-name}/*
+
+        - Effect: Allow
+          Action:
+            - sqs:SendMessage
+            - sqs:GetQueueUrl
+          Resource:
+            - arn:aws:sqs:${self:provider.region}:${aws:accountId}:namecard-ocr-queue-${self:custom.stage}
+
+        - Effect: Allow
+          Action:
+            - ssm:GetParameter
+            - ssm:GetParameters
+          Resource:
+            - arn:aws:ssm:${self:provider.region}:${aws:accountId}:parameter/namecard/${self:custom.stage}/*
+  environment:
+    NODE_ENV: production
+    STAGE: ${self:custom.stage}
+    LOG_LEVEL: ${self:custom.logLevel.${self:custom.stage}, 'debug'}
+    AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1'
+
+    DATABASE_SECRET_ARN: namecard/database/${self:custom.stage}
+    API_SECRET_ARN: namecard/api/${self:custom.stage}
+
+    S3_BUCKET_NAME: ${ssm:/namecard/${self:custom.stage}/s3-bucket-name}
+    S3_REGION: ${self:provider.region}
+    S3_CDN_DOMAIN: ${ssm:/namecard/${self:custom.stage}/s3-cdn-domain}
+
+    MAX_FILE_SIZE: ${ssm:/namecard/${self:custom.stage}/max-file-size, '10485760'}
+    ALLOWED_FILE_TYPES: ${ssm:/namecard/${self:custom.stage}/allowed-file-types, 'image/jpeg,image/png,image/heic,image/webp'}
+
+    COGNITO_USER_POOL_ID: ap-southeast-1_bOA22s0Op
+    COGNITO_CLIENT_ID: 5s54d0ifpt3frtvut325uglrjp
+    COGNITO_REGION: ${self:provider.region}
+
+    OCR_QUEUE_URL:
+      Fn::Sub: https://sqs.${self:provider.region}.amazonaws.com/${aws:accountId}/namecard-ocr-queue-${self:custom.stage}
+    OCR_QUEUE_NAME: namecard-ocr-queue-${self:custom.stage}
+
+
+custom:
+  stage: ${opt:stage, 'staging'}
+  logLevel:
+    production: info
+    staging: debug
+    development: debug
+    local: debug
+  logRetention:
+    production: 30
+    staging: 7
+    development: 7
+    local: 7
+  provisionedConcurrency:
+    production: 1
+    staging: 0
+    development: 0
+    local: 0
+  esbuild:
+    bundle: true
+    minify: true
+    sourcemap: false
+    target: node18
+    platform: node
+    external:
+      - aws-sdk
+      - '@prisma/client'
+      - '.prisma/client'
+      - sharp
+    keepOutputDirectory: false
+    packager: npm
+    concurrency: 3
+    define:
+      'process.env.NODE_ENV': '"production"'
+    packagerOptions:
+      scripts:
+        - npm run prisma:generate
 
 functions:
   health:
-    handler: handlers/health.handler
-    description: Health check endpoint
+    handler: health.handler
+    description: Upload service health check
     events:
       - http:
           path: health
@@ -65,29 +123,51 @@ functions:
           cors: true
 
   single:
-    handler: handlers/single.handler
-    description: Upload a single image file
+    handler: upload-single.handler
+    description: Upload a single image file with validation and processing
+    timeout: 30
+    memorySize: 1024
+    vpc:
+      securityGroupIds:
+        - sg-0af0106683e7a0f5f
+      subnetIds:
+        - subnet-0403b9e9f399616f7
+        - subnet-04b6efe73095e9358
     events:
       - http:
           path: single
           method: post
           cors: true
-    memorySize: 1024
+    provisionedConcurrency: ${self:custom.provisionedConcurrency.${self:custom.stage}, 0}
 
   batch:
-    handler: handlers/batch.handler  
-    description: Upload multiple image files
+    handler: upload-multiple.handler
+    description: Upload multiple images with batch validation
+    timeout: 60
+    memorySize: 1536
+    vpc:
+      securityGroupIds:
+        - sg-0af0106683e7a0f5f
+      subnetIds:
+        - subnet-0403b9e9f399616f7
+        - subnet-04b6efe73095e9358
     events:
       - http:
           path: batch
           method: post
           cors: true
-    memorySize: 1024
-    timeout: 60
 
-  presigned-url:
-    handler: handlers/presigned-url.handler
-    description: Generate presigned URL for direct S3 upload
+  presignedUrl:
+    handler: upload-single.handler
+    description: Generate presigned URL for direct S3 uploads
+    timeout: 15
+    memorySize: 512
+    vpc:
+      securityGroupIds:
+        - sg-0af0106683e7a0f5f
+      subnetIds:
+        - subnet-0403b9e9f399616f7
+        - subnet-04b6efe73095e9358
     events:
       - http:
           path: presigned-url
@@ -95,8 +175,16 @@ functions:
           cors: true
 
   validate:
-    handler: handlers/validate.handler
-    description: Validate uploaded file
+    handler: upload-single.handler
+    description: Validate uploaded file without storing
+    timeout: 15
+    memorySize: 512
+    vpc:
+      securityGroupIds:
+        - sg-0af0106683e7a0f5f
+      subnetIds:
+        - subnet-0403b9e9f399616f7
+        - subnet-04b6efe73095e9358
     events:
       - http:
           path: validate
@@ -104,6 +192,32 @@ functions:
           cors: true
 
 plugins:
-  - serverless-webpack
-  
-custom:
+  - serverless-esbuild
+  - ../../serverless-offline.cjs
+
+resources:
+  Resources:
+    UploadLogGroup:
+      Type: AWS::Logs::LogGroup
+      Properties:
+        LogGroupName: /aws/lambda/namecard-upload-${self:custom.stage}
+        RetentionInDays: ${self:custom.logRetention.${self:custom.stage}, 7}
+
+  Outputs:
+    UploadServiceName:
+      Description: Upload service name
+      Value: ${self:service}
+      Export:
+        Name: ${self:service}-name
+
+package:
+  individually: true
+  patterns:
+    - 'node_modules/@prisma/client/**'
+    - 'node_modules/.prisma/**'
+    - 'node_modules/sharp/**'
+    - '!**/*.ts'
+    - '!**/*.map'
+    - '!**/.git/**'
+    - '!**/test/**'
+    - '!**/scripts/**'

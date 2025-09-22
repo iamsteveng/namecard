@@ -1,16 +1,20 @@
 import type { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
-
 import {
   logger,
   ImageValidationService,
-  ImagePreprocessingService,
   AppError,
   createErrorResponse,
   getRequestId,
-  verifyAuthTokenSimple,
+  verifyAuthToken,
+  parseMultipartFormData,
+  findFile,
 } from '@namecard/serverless-shared';
-
-// Note: MIME type and size validation handled by ImageValidationService
+import {
+  processImageBuffer,
+  buildUploadResponse,
+  buildOcrQueuePayload,
+  enqueueOcrJob,
+} from './lib/shared';
 
 export const handler = async (
   event: APIGatewayProxyEvent,
@@ -18,23 +22,40 @@ export const handler = async (
 ): Promise<APIGatewayProxyResult> => {
   const startTime = Date.now();
   const requestId = getRequestId(event);
-  
+
   logger.logRequest('POST', '/upload/single', {
     requestId,
     functionName: context.functionName,
   });
 
   try {
-    // Verify authentication
     const authHeader = event.headers?.['authorization'] || event.headers?.['Authorization'];
-    const user = await verifyAuthTokenSimple(authHeader);
-    
+    const user = await verifyAuthToken(authHeader);
+
     if (!user) {
       return createErrorResponse('User not authenticated', 401, requestId);
     }
 
-    // Parse multipart form data from Lambda event
-    if (!event.body || !event.headers['content-type']?.includes('multipart/form-data')) {
+    let formData;
+    try {
+      formData = parseMultipartFormData(event);
+    } catch (parseError) {
+      logger.warn('Failed to parse multipart form data', {
+        requestId,
+        error: parseError instanceof Error ? parseError.message : String(parseError),
+      });
+      return {
+        statusCode: 400,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          success: false,
+          message: 'Invalid multipart form data',
+        }),
+      };
+    }
+    const filePart = findFile(formData, 'image') || formData.files[0];
+
+    if (!filePart) {
       return {
         statusCode: 400,
         headers: { 'Content-Type': 'application/json' },
@@ -45,30 +66,9 @@ export const handler = async (
       };
     }
 
-    // For Lambda, we need to handle multipart parsing differently
-    // In a real implementation, you'd use a library like busboy or lambda-multipart-parser
-    // For this example, let's assume the file buffer is passed in the body
-    let fileBuffer: Buffer;
-    let fileName: string;
-    let mimeType: string;
-
-    try {
-      // This is a simplified implementation
-      // In practice, you'd need proper multipart parsing
-      const body = JSON.parse(event.body);
-      fileBuffer = Buffer.from(body.file, 'base64');
-      fileName = body.fileName || 'upload.jpg';
-      mimeType = body.mimeType || 'image/jpeg';
-    } catch (error) {
-      return {
-        statusCode: 400,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          success: false,
-          message: 'Invalid file data format',
-        }),
-      };
-    }
+    const fileBuffer = filePart.content;
+    const fileName = filePart.filename || 'upload.jpg';
+    const mimeType = filePart.contentType || 'application/octet-stream';
 
     logger.info('Image upload received', {
       userId: user.id,
@@ -77,7 +77,6 @@ export const handler = async (
       mimeType,
     });
 
-    // Comprehensive image validation
     const validationConfig = ImageValidationService.getConfigForUseCase('business-card');
     const validationResult = await ImageValidationService.validateImage(
       fileBuffer,
@@ -85,7 +84,6 @@ export const handler = async (
       validationConfig
     );
 
-    // Return validation errors if image is invalid
     if (!validationResult.isValid) {
       return {
         statusCode: 400,
@@ -93,69 +91,25 @@ export const handler = async (
         body: JSON.stringify({
           success: false,
           message: `Image validation failed: ${validationResult.errors.join(', ')}`,
+          details: validationResult.errors,
         }),
       };
     }
 
-    // Apply image preprocessing for business card optimization
-    const preprocessingOptions = ImagePreprocessingService.getOptionsForUseCase('storage');
-    const preprocessingResult = await ImagePreprocessingService.processImage(
-      fileBuffer,
-      preprocessingOptions
-    );
+    const processed = await processImageBuffer({
+      buffer: fileBuffer,
+      fileName,
+      mimeType,
+      userId: user.id,
+      validationResult,
+    });
 
-    // Create variants for different use cases
-    const variants = await ImagePreprocessingService.createVariants(fileBuffer, [
-      { name: 'original', options: { purpose: 'storage' } },
-      { name: 'ocr', options: { purpose: 'ocr' } },
-      { name: 'thumbnail', options: { purpose: 'thumbnail' } },
-      { name: 'web', options: { purpose: 'web-display' } },
-    ]);
-
-    // Build response with validation and preprocessing metadata
-    const response = {
+    const responsePayload = {
       success: true,
       message: 'Image uploaded, validated, and processed successfully',
-      data: {
-        id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        originalName: fileName,
-        size: fileBuffer.length,
-        mimeType,
-        uploadedAt: new Date().toISOString(),
-        uploadedBy: user.id,
-        status: 'processed',
-        validation: {
-          isValid: validationResult.isValid,
-          warnings: validationResult.warnings,
-          metadata: validationResult.metadata,
-        },
-        processing: {
-          primaryResult: {
-            size: preprocessingResult.metadata.processedSize,
-            format: preprocessingResult.metadata.outputFormat,
-            dimensions: preprocessingResult.metadata.processedDimensions,
-            compressionRatio: preprocessingResult.metadata.compressionRatio,
-            processingTime: preprocessingResult.metadata.processingTime,
-            optimizations: preprocessingResult.optimizations,
-            warnings: preprocessingResult.warnings,
-          },
-          variants: Object.keys(variants).reduce((acc, key) => {
-            const v = variants[key];
-            if (!v) return acc;
-            acc[key] = {
-              size: v.metadata.processedSize,
-              format: v.metadata.outputFormat,
-              dimensions: v.metadata.processedDimensions,
-              compressionRatio: v.metadata.compressionRatio,
-              optimizations: v.optimizations,
-            };
-            return acc;
-          }, {} as Record<string, any>),
-        },
-      },
+      data: buildUploadResponse(processed),
     };
 
-    // Log warnings if any
     if (validationResult.warnings.length > 0) {
       logger.warn('Image validation warnings', {
         userId: user.id,
@@ -164,17 +118,15 @@ export const handler = async (
       });
     }
 
+    await enqueueOcrJob(buildOcrQueuePayload(processed, requestId));
+
     logger.info('Image upload completed', {
       userId: user.id,
-      fileId: response.data.id,
+      imageId: processed.imageId,
       fileName,
-      validation: {
-        isValid: validationResult.isValid,
-        warnings: validationResult.warnings.length,
-        dimensions: validationResult.metadata
-          ? `${validationResult.metadata.width}x${validationResult.metadata.height}`
-          : 'unknown',
-      },
+      storageKey: processed.storageUpload.key,
+      originalKey: processed.originalUpload.key,
+      variants: Object.keys(processed.variantUploads),
     });
 
     const duration = Date.now() - startTime;
@@ -186,18 +138,14 @@ export const handler = async (
     return {
       statusCode: 201,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(response),
+      body: JSON.stringify(responsePayload),
     };
   } catch (error) {
     const duration = Date.now() - startTime;
 
-    logger.error(
-      'Image upload failed',
-      error instanceof Error ? error : undefined,
-      {
-        requestId: context.awsRequestId,
-      }
-    );
+    logger.error('Image upload failed', error instanceof Error ? error : undefined, {
+      requestId: context.awsRequestId,
+    });
 
     logger.logResponse(500, duration, {
       requestId: context.awsRequestId,

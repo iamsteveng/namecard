@@ -29,3 +29,7 @@ export { ImagePreprocessingService } from './services/image-preprocessing.servic
 export { ImageValidationService, AppError } from './services/image-validation.service.js';
 export { textractService } from './services/textract.service.js';
 export type { OCRResult, BusinessCardData, TextractBlock } from './services/textract.service.js';
+export { s3Service, S3Service } from './services/s3.service.js';
+export type { S3UploadResult, S3UploadOptions } from './services/s3.service.js';
+export { parseMultipartFormData, findFile } from './utils/multipart.js';
+export type { MultipartFile, MultipartFormData } from './utils/multipart.js';

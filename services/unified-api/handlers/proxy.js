@@ -1,11 +1,31 @@
 const https = require('https');
 const http = require('http');
 
-// Service endpoint mappings
+// Default service endpoints (staging) used when env vars are missing
+const DEFAULT_ENDPOINTS = {
+  auth: 'https://rai2raecji.execute-api.ap-southeast-1.amazonaws.com/staging',
+  cards: 'https://v7h0gz3ozi.execute-api.ap-southeast-1.amazonaws.com/staging',
+  upload: 'https://gk5ezv6x2j.execute-api.ap-southeast-1.amazonaws.com/staging',
+};
+
+function resolveEndpoint(service) {
+  const envKey = `${service.toUpperCase()}_SERVICE_URL`;
+  const raw = process.env[envKey] || DEFAULT_ENDPOINTS[service];
+
+  if (!raw) {
+    console.warn(`Unified API proxy missing endpoint for ${service}. Set ${envKey}.`);
+    return undefined;
+  }
+
+  // Remove trailing slashes to avoid double slash when concatenating with path
+  return raw.replace(/\/+$/, '');
+}
+
+// Service endpoint mappings resolved at runtime
 const SERVICE_ENDPOINTS = {
-  'auth': 'https://rai2raecji.execute-api.ap-southeast-1.amazonaws.com/staging',
-  'cards': 'https://v7h0gz3ozi.execute-api.ap-southeast-1.amazonaws.com/staging',
-  'upload': 'https://gk5ezv6x2j.execute-api.ap-southeast-1.amazonaws.com/staging',
+  auth: resolveEndpoint('auth'),
+  cards: resolveEndpoint('cards'),
+  upload: resolveEndpoint('upload'),
 };
 
 /**
@@ -37,17 +57,39 @@ function createProxyHandler(service, path = '') {
       // Construct target URL
       const targetUrl = `${baseUrl}${path}`;
       const url = new URL(targetUrl);
-      
+
+      const incomingHeaders = event.headers || {};
+      const requestHeaders = {};
+
+      for (const [key, value] of Object.entries(incomingHeaders)) {
+        if (!value) continue;
+        if (key.toLowerCase() === 'host') continue;
+        requestHeaders[key] = value;
+      }
+
+      const body = event.body
+        ? event.isBase64Encoded
+          ? Buffer.from(event.body, 'base64')
+          : event.body
+        : undefined;
+
+      requestHeaders['User-Agent'] = requestHeaders['User-Agent'] || requestHeaders['user-agent'] || 'NameCard-Unified-API/1.0.0';
+      if (body) {
+        requestHeaders['Content-Length'] = Buffer.isBuffer(body)
+          ? body.length
+          : Buffer.byteLength(body);
+      }
+      if (!requestHeaders['Content-Type'] && !requestHeaders['content-type']) {
+        requestHeaders['Content-Type'] = 'application/json';
+      }
+
       // Prepare request options
       const options = {
         hostname: url.hostname,
         port: url.port || (url.protocol === 'https:' ? 443 : 80),
         path: url.pathname + url.search,
         method: event.httpMethod || 'GET',
-        headers: {
-          'Content-Type': event.headers['Content-Type'] || event.headers['content-type'] || 'application/json',
-          'User-Agent': 'NameCard-Unified-API/1.0.0',
-        }
+        headers: requestHeaders,
       };
 
       // Forward authorization headers if present
@@ -56,7 +98,7 @@ function createProxyHandler(service, path = '') {
       }
 
       // Make the HTTP request
-      const response = await makeHttpRequest(options, event.body);
+      const response = await makeHttpRequest(options, body);
       
       return {
         statusCode: response.statusCode,
@@ -118,9 +160,13 @@ function makeHttpRequest(options, body) {
     
     // Write body if present
     if (body) {
-      req.write(body);
+      if (Buffer.isBuffer(body)) {
+        req.write(body);
+      } else {
+        req.write(body);
+      }
     }
-    
+
     req.end();
   });
 }
