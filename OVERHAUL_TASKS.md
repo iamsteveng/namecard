@@ -1,12 +1,12 @@
 # Overhaul Task Plan
 
 ## Task 1 — Confirm Service Scope & Architecture
-- [ ] done — Produce an architecture brief that maps each domain (auth, cards, OCR/Textract, enrichment, uploads, search) to discrete Lambda-based services, documents shared utility strategy (extract vs duplicate), environment topology (dev/stage/prod, regional footprint, tenant isolation), and readiness checkpoints for production launch, alongside a signed shared schema/interface blueprint covering core data models and API/event contracts.
+- [x] done — Produce an architecture brief that maps each domain (auth, cards, OCR/Textract, enrichment, uploads, search) to discrete Lambda-based services, documents shared utility strategy (extract vs duplicate), environment topology (dev/stage/prod, regional footprint, tenant isolation), and readiness checkpoints for production launch, alongside a signed shared schema/interface blueprint covering core data models and API/event contracts.
 
 **Test Cases**
-- [ ] verified — Architecture brief reviewed and signed off by engineering + product stakeholders.
-- [ ] verified — Service boundary matrix cross-checked against the target flows in `OVERHAUL_PLAN.md` and the API inventory in `CLAUDE.md`.
-- [ ] verified — Shared schema/interface blueprint (ERDs, OpenAPI/AsyncAPI specs, integration patterns) approved and versioned in repo docs.
+- [x] verified — Architecture brief reviewed and signed off by engineering + product stakeholders.
+- [x] verified — Service boundary matrix cross-checked against the target flows in `OVERHAUL_PLAN.md` and the API inventory in `CLAUDE.md`.
+- [x] verified — Shared schema/interface blueprint (ERDs, OpenAPI/AsyncAPI specs, integration patterns) approved and versioned in repo docs.
 
 ## Task 2 — Establish Monorepo Skeleton & Workspace Tooling (pnpm)
 - [ ] done — Restructure the repository into the `infra/` and `services/` layout, remove Turborepo configuration, and migrate to pnpm workspaces with temporary npm bridge scripts so linting, testing, and builds stay green during the transition, culminating in full removal of legacy tooling.
