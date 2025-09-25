@@ -4,12 +4,19 @@
 Version: 1.0 (2025-09-25)  
 Prepared by: Senior Developer (Codex CLI)
 
+### Repository Structure for Overhaul
+- **Monolith sunset** — `packages/api/**` (Express + Prisma) and its `prisma/` directory are retired in this overhaul. Treat them as read-only references until the new services compile end-to-end; no fresh code lands there.
+- **Service directories** — Create a top-level `services/` directory with one folder per bounded context: `services/auth`, `services/cards`, `services/ocr`, `services/enrichment`, `services/uploads`, `services/search`. Each folder must contain `handler.ts`, optional sub-handlers under `consumers/`, configuration (`config/`), helpers (`lib/`), tests (`tests/`), and SQL migrations (`migrations/`).
+- **Deployable handlers** — API Gateway routes target `services/<domain>/handler.ts`. EventBridge and SQS consumers live alongside (e.g., `services/cards/consumers/card-updated.ts`). Remove legacy Express routing once the new handler is wired.
+- **Migrations** — Per-service SQL resides in `services/<domain>/migrations/*.sql`. The central migrator Lambda walks these folders in lexicographical order; adopt the unified naming scheme `YYYYMMDDHHMM__<domain>__<description>.sql`.
+- **Deletion sequencing** — When Cards and Auth pass integration tests on the new handlers, delete `packages/api/` within the same change to block regressions. Bring the remaining services across by repeating the pattern: scaffold folder, port logic, add tests, hook events, then drop any straggling legacy code.
+
 ### Domain Mapping & Service Boundaries
 - **Auth Service (`services/auth/handler.ts`)**
   - Responsibilities: Cognito user pool integration, JWT issuance/refresh, profile bootstrap, tenant-aware authorization policies.
   - Data Ownership: `auth.users`, `auth.identities`, `auth.refresh_tokens`, `auth.audit_logs` (logical Postgres schema); owns Cognito app clients & secrets in AWS Secrets Manager.
   - Sync Interfaces: `POST /v1/auth/login`, `POST /v1/auth/refresh`, `POST /v1/auth/logout`, `GET /v1/auth/profile`.
-  - Async Contracts: Emits `auth.user.created` when first-party accounts are provisioned; future roadmap includes a dedicated `auth.user.deactivated` event for downstream clean-up rather than consuming card-originated events.
+  - Async Contracts: Emits `auth.user.created` when first-party accounts are provisioned; future roadmap includes a dedicated `auth.user.deactivated` event for downstream clean-up rather than consuming card-originated events. Both events remain roadmap-only until contracts are finalized.
   - Dependencies: AWS Cognito, SES (future), shared config/util packages, RDS Proxy connection with max pool 3.
 
 - **Cards Service (`services/cards/handler.ts`)**
@@ -30,14 +37,14 @@ Prepared by: Senior Developer (Codex CLI)
   - Responsibilities: External enrichment orchestration (Perplexity, Clearbit, etc.), company profile aggregation, deduplication, scoring.
   - Data Ownership: `enrichment.requests`, `enrichment.company_profiles`, `enrichment.company_enrichments`, `enrichment.card_enrichments`, `enrichment.news_articles`.
   - Sync Interfaces: `POST /v1/enrichment/cards/{cardId}`, `GET /v1/enrichment/cards/{cardId}`, `GET /v1/enrichment/company/{companyId}`.
-  - Async Contracts: Consumes `ocr.ocr.completed` to auto-trigger, emits `enrichment.card.completed` / `enrichment.card.failed`, publishes `enrichment.company.updated` for search cache warming.
+  - Async Contracts: Consumes `ocr.ocr.completed` to auto-trigger, emits `enrichment.card.completed` / `enrichment.card.failed`; `enrichment.company.updated` is a roadmap event for future search cache warming.
   - Dependencies: Secrets for third-party APIs (Secrets Manager), throttling via SQS queue (`enrichment-requests-<env>`), shared http client libs.
 
 - **Uploads Service (`services/uploads/handler.ts`)**
   - Responsibilities: Presigned URL issuance, upload policy enforcement (size, mime), lifecycle + virus scanning hooks (future), asset metadata ledger.
   - Data Ownership: `uploads.assets`, `uploads.upload_audit`, S3 customer bucket `namecard-uploads-<env>` with prefix isolation per tenant.
   - Sync Interfaces: `POST /v1/uploads/presign`, `POST /v1/uploads/complete`, `DELETE /v1/uploads/{assetId}`.
-  - Async Contracts: Emits `uploads.asset.created` when upload completes (initially consumed by OCR to begin document processing; Cards will subscribe once event-driven asset hydration ships); listens for `uploads.asset.expired` scheduled events to purge stale assets.
+  - Async Contracts: Emits `uploads.asset.created` when upload completes (initially consumed by OCR to begin document processing; Cards will subscribe once event-driven asset hydration ships); `uploads.asset.expired` is scoped as a roadmap scheduled event to purge stale assets.
   - Dependencies: S3, CloudFront invalidation queue, shared security utilities for checksum verification.
 
 - **Search Service (`services/search/handler.ts`)**
@@ -45,16 +52,16 @@ Prepared by: Senior Developer (Codex CLI)
   - Data Ownership: `search.documents`, `search.synonyms`, `search.query_logs`, `search.sync_state` (all Postgres-backed full-text search tables).
   - Sync Interfaces: `POST /v1/search/query`, `GET /v1/search/cards`, `GET /v1/search/companies`.
   - Async Contracts: Consumes `cards.card.updated`, `enrichment.company.updated` to refresh projections stored in Postgres FTS tables; emits `search.index.sync.failed` for ops alerting.
-  - Dependencies: EventBridge bus feed, Postgres full-text search, shared telemetry libraries. Future consideration: optional OpenSearch tier when query volume or relevance demands it.
+  - Dependencies: EventBridge bus feed, Postgres full-text search, observability helpers exported from `packages/shared/runtime`. Future consideration: optional OpenSearch tier when query volume or relevance demands it.
 
 > Alignment: Interfaces above align with the user flows in `OVERHAUL_PLAN.md` (card capture → OCR → enrichment → search) and the API inventory enumerated in `CLAUDE.md`.
 
 ### Shared Utility Strategy (Extract vs Duplicate)
-- **`packages/shared/runtime`** (existing repo) will host cross-cutting utilities: logging, metrics, config loaders, error envelopes, HTTP client with retry/backoff, and Secrets Manager caching. These remain shared because behavior must stay identical across services.
-- **`packages/contracts`** (new) will declare TypeScript types + JSON Schema/OpenAPI fragments for DTOs/events. Each service imports contracts rather than redefining payloads.
-- **Service-specific helpers** (e.g., card normalization, enrichment scoring) stay inside each `services/<domain>` directory to avoid accidental coupling. Duplication is permitted for trivial validators (<20 LOC) to keep boundaries clean.
-- Shared database concerns (connection pooling, migrations) are extracted into `packages/shared/data` with lightweight wrappers that respect service-specific schemas. No shared repositories for domain logic.
-- Utility changes require RFC via ADR and version bump; shared packages publish semver tags consumed via pnpm workspaces to force explicit adoption.
+- **`packages/shared/runtime`** — Split the current `packages/shared/src` into a new `runtime/` subpackage exposing logging, metrics, config loaders, error envelopes, HTTP client with retry/backoff, and Secrets Manager caching. Update workspace exports accordingly (`packages/shared/runtime/src/index.ts`).
+- **`packages/shared/data`** — Stand up a sibling package housing database helpers (pg client factory, RDS Proxy config, migration runner). Move any existing data utilities from `packages/shared` here during the overhaul.
+- **`packages/contracts`** — Create a new workspace package with `openapi/` and `events/` source folders plus `generated/` output. Add `pnpm run contracts:generate` to run the generator (`ts-node scripts/generate-contracts.ts`) and publish TypeScript clients consumed by each service.
+- **Service-specific helpers** — Keep domain logic inside `services/<domain>/lib`. Duplication is acceptable for validators under ~20 lines to preserve boundaries.
+- **Governance** — All shared packages adopt semver tagging via pnpm workspaces. Any change requires an ADR update, version bump, and explicit service opt-in through dependency updates.
 
 ### Environment Topology & Tenant Isolation
 | Environment | AWS Account | Primary Region(s) | Database Tier | Notes |
@@ -88,7 +95,7 @@ Blueprint Version: 1.0 (2025-09-25)
 | Search | `search` | `documents`, `synonyms`, `query_logs`, `sync_state` | `documents` stores Postgres tsvector columns with JSON payload for future external index; `sync_state` ensures idempotent projection updates. |
 | Shared | `public` | `schema_migrations`, `service_versions` | `service_versions` logs deployed commit + migration hash per service for traceability. |
 
-Entity relationships align with existing Prisma models (see `packages/api/prisma/schema.prisma`) but redistributed into service-owned schemas. Foreign keys cross schemas only via `tenant_id` and stable identifiers (`card_id`, `company_id`).
+These entities supersede the legacy Prisma models in `packages/api/prisma/schema.prisma`. As each service lands its SQL migrations the corresponding Prisma definitions are removed; the final cleanup step deletes the entire `packages/api/prisma/` tree. Foreign keys cross schemas only via `tenant_id` and stable identifiers (`card_id`, `company_id`).
 
 ### Core API Contracts (REST via API Gateway `/v1`)
 - **Auth**
@@ -136,6 +143,10 @@ All APIs will be codified in OpenAPI 3.1 specs under `docs/contracts/openapi/*.y
 | `enrichment.card.completed` | `com.namecard.enrichment` | `{ cardId, tenantId, enrichmentId, score, companies[], rawDataRef }` | Enrichment Service | Cards, Search |
 | `uploads.asset.created` | `com.namecard.uploads` | `{ assetId, tenantId, objectKey, checksum, expiresAt }` | Uploads Service | OCR (Cards will subscribe once event-driven asset hydration ships) |
 | `search.index.sync.failed` | `com.namecard.search` | `{ scope, entityId, reason, retryAfter? }` | Search Service | Ops notifications (SNS), Observability stack |
+| _Roadmap — `auth.user.created`_ | `com.namecard.auth` | `{ userId, tenantId, email, createdAt }` | Auth Service | Downstream services needing bootstrap |
+| _Roadmap — `auth.user.deactivated`_ | `com.namecard.auth` | `{ userId, tenantId, deactivatedAt, reason? }` | Auth Service | Cards, Search, future services |
+| _Roadmap — `enrichment.company.updated`_ | `com.namecard.enrichment` | `{ companyId, tenantId, enrichmentId, score, summary }` | Enrichment Service | Search |
+| _Roadmap — `uploads.asset.expired`_ | `com.namecard.uploads` | `{ assetId, tenantId, expiredAt }` | Uploads Service | Cards, OCR |
 
 Event payloads validated via JSON Schema (stored alongside OpenAPI specs). Changes require versioned detail-types (e.g., `*.v2`) to guarantee consumer compatibility.
 
