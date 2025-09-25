@@ -13,9 +13,9 @@ Prepared by: Senior Developer (Codex CLI)
   - Dependencies: AWS Cognito, SES (future), shared config/util packages, RDS Proxy connection with max pool 3.
 
 - **Cards Service (`services/cards/handler.ts`)**
-  - Responsibilities: CRUD for business cards, contact metadata, tag management, ownership enforcement, triggers OCR/enrichment workflows.
-  - Data Ownership: `cards.cards`, `cards.card_tags`, `cards.card_activity`, `cards.calendar_events`.
-  - Sync Interfaces: `GET|POST /v1/cards`, `GET /v1/cards/{cardId}`, `PATCH /v1/cards/{cardId}`, `DELETE /v1/cards/{cardId}`, `POST /v1/cards/{cardId}/tag`.
+  - Responsibilities: CRUD for business cards, contact metadata, tag management, ownership enforcement, triggers OCR/enrichment workflows, manages scan ingestion, and exposes card analytics.
+  - Data Ownership: `cards.cards`, `cards.card_tags`, `cards.card_activity`.
+  - Sync Interfaces: `GET|POST /v1/cards`, `GET /v1/cards/{cardId}`, `PATCH /v1/cards/{cardId}`, `DELETE /v1/cards/{cardId}`, `POST /v1/cards/{cardId}/tag`, `POST /v1/cards/scan`, `GET /v1/cards/stats`.
   - Async Contracts: Emits `cards.card.captured` after image + metadata saved; consumes `ocr.ocr.completed` and `enrichment.card.completed` to update card state; future roadmap includes subscribing to `uploads.asset.created` once that event is introduced—today the service calls Uploads synchronously when resolving `uploadId` references; publishes `cards.card.updated` for search projections.
   - Dependencies: Uploads service presigned URLs, Auth claims, RDS Proxy, shared validation helpers.
 
@@ -81,7 +81,7 @@ Blueprint Version: 1.0 (2025-09-25)
 | Domain | Logical Schema | Authoritative Tables | Key Notes |
 |--------|----------------|----------------------|-----------|
 | Auth | `auth` | `users`, `identities`, `refresh_tokens`, `audit_logs` | `users` retains Cognito IDs; `refresh_tokens` hashed; `audit_logs` append-only with JSON payload. |
-| Cards | `cards` | `cards`, `card_tags`, `card_activity`, `calendar_events` | `cards` includes OCR/enrichment state columns; activity table captures lifecycle events for auditing. |
+| Cards | `cards` | `cards`, `card_tags`, `card_activity` | `cards` includes OCR/enrichment state columns; activity table captures lifecycle events for auditing. |
 | OCR/Textract | `ocr` | `jobs`, `pages`, `raw_artifacts` | `jobs.status` enum (`queued|running|completed|failed`); stores Textract job IDs & S3 artifact references. |
 | Enrichment | `enrichment` | `requests`, `company_profiles`, `company_enrichments`, `card_enrichments`, `news_articles` | `company_profiles` supersedes legacy `companies` table; dedupe by domain + normalized name. |
 | Uploads | `uploads` | `assets`, `upload_audit`, `virus_scan_results` (future) | `assets` tracks presigned URL issuance + storage class; TTL enforced via scheduled job. |
@@ -92,36 +92,38 @@ Entity relationships align with existing Prisma models (see `packages/api/prisma
 
 ### Core API Contracts (REST via API Gateway `/v1`)
 - **Auth**
-  - `POST /auth/login` — Request `{ email, password }`; Response `{ accessToken, refreshToken, expiresIn, user }`
-  - `POST /auth/refresh` — Request `{ refreshToken }`; Response `{ accessToken, expiresIn }`
-  - `GET /auth/profile` — Authenticated; returns `{ userId, email, name, roles, tenantId }`
-  - `POST /auth/logout` — Revokes refresh token; returns `{ success: true }`
+  - `POST /v1/auth/login` — Request `{ email, password }`; Response `{ accessToken, refreshToken, expiresIn, user }`
+  - `POST /v1/auth/refresh` — Request `{ refreshToken }`; Response `{ accessToken, expiresIn }`
+  - `GET /v1/auth/profile` — Authenticated; returns `{ userId, email, name, roles, tenantId }`
+  - `POST /v1/auth/logout` — Revokes refresh token; returns `{ success: true }`
 
 - **Cards**
-  - `GET /cards` — Query params: `search`, `tag`, `page`, `pageSize`; returns paginated list with summary OCR/enrichment status.
-  - `POST /cards` — Request includes `{ uploadId, notes?, tags? }`; triggers `cards.card.captured` event.
-  - `GET /cards/{cardId}` — Returns full card + linked enrichment + timeline.
-  - `PATCH /cards/{cardId}` — Partial updates allowed on notes, tags, ownership.
-  - `POST /cards/{cardId}/tag` — Adds or removes tags (idempotent operations).
+  - `GET /v1/cards` — Query params: `search`, `tag`, `page`, `pageSize`; returns paginated list with summary OCR/enrichment status.
+  - `POST /v1/cards` — Request includes `{ uploadId, notes?, tags? }`; triggers `cards.card.captured` event.
+  - `POST /v1/cards/scan` — Accepts `{ source, assetId?, image? }`; orchestrates immediate scan workflow for camera uploads.
+  - `GET /v1/cards/{cardId}` — Returns full card + linked enrichment + timeline.
+  - `PATCH /v1/cards/{cardId}` — Partial updates allowed on notes, tags, ownership.
+  - `POST /v1/cards/{cardId}/tag` — Adds or removes tags (idempotent operations).
+  - `GET /v1/cards/stats` — Returns aggregate metrics for recent captures, enrichment completion, and team usage.
 
 - **OCR/Textract**
-  - `POST /ocr/jobs` — Request `{ cardId, assetId, force?: boolean }`; response `{ jobId, status, submittedAt }`.
-  - `GET /ocr/jobs/{jobId}` — Returns job status, progress, extracted text chunk summary.
+  - `POST /v1/ocr/jobs` — Request `{ cardId, assetId, force?: boolean }`; response `{ jobId, status, submittedAt }`.
+  - `GET /v1/ocr/jobs/{jobId}` — Returns job status, progress, extracted text chunk summary.
 
 - **Enrichment**
-  - `POST /enrichment/cards/{cardId}` — Manual trigger; body `{ providers?: string[], priority?: 'standard'|'rush' }`.
-  - `GET /enrichment/cards/{cardId}` — Aggregated enrichment payload including `companyProfiles`, `status`, `metrics`.
-  - `GET /enrichment/company/{companyId}` — Returns canonical company profile & news feed references.
+  - `POST /v1/enrichment/cards/{cardId}` — Manual trigger; body `{ providers?: string[], priority?: 'standard'|'rush' }`.
+  - `GET /v1/enrichment/cards/{cardId}` — Aggregated enrichment payload including `companyProfiles`, `status`, `metrics`.
+  - `GET /v1/enrichment/company/{companyId}` — Returns canonical company profile & news feed references.
 
 - **Uploads**
-  - `POST /uploads/presign` — Request `{ mimeType, sizeBytes, purpose }`; response `{ uploadId, url, fields, expiresAt }`.
-  - `POST /uploads/complete` — Request `{ uploadId, checksum }`; response `{ assetId, objectKey }`.
-  - `DELETE /uploads/{assetId}` — Soft-delete asset & revoke tokens.
+  - `POST /v1/uploads/presign` — Request `{ mimeType, sizeBytes, purpose }`; response `{ uploadId, url, fields, expiresAt }`.
+  - `POST /v1/uploads/complete` — Request `{ uploadId, checksum }`; response `{ assetId, objectKey }`.
+  - `DELETE /v1/uploads/{assetId}` — Soft-delete asset & revoke tokens.
 
 - **Search**
-  - `POST /search/query` — Request `{ query, filters?, pagination?, rankingProfile? }`; response includes aggregated cards + companies with highlights.
-  - `GET /search/cards` — Query param `q`; returns card matches.
-  - `GET /search/companies` — Query param `q`; returns company matches + enrichment score.
+  - `POST /v1/search/query` — Request `{ query, filters?, pagination?, rankingProfile? }`; response includes aggregated cards + companies with highlights.
+  - `GET /v1/search/cards` — Query param `q`; returns card matches.
+  - `GET /v1/search/companies` — Query param `q`; returns company matches + enrichment score.
 
 All APIs will be codified in OpenAPI 3.1 specs under `docs/contracts/openapi/*.yaml`, referenced by CI to guarantee forward compatibility. Auth endpoints require Cognito JWT; other services require `tenant_id` claim for scoping.
 
@@ -129,6 +131,7 @@ All APIs will be codified in OpenAPI 3.1 specs under `docs/contracts/openapi/*.y
 | Event (detail-type) | Source | Detail Schema (JSON) | Producers | Consumers |
 |---------------------|--------|----------------------|-----------|-----------|
 | `cards.card.captured` | `com.namecard.cards` | `{ cardId, tenantId, userId, assetId, capturedAt }` | Cards Service | OCR, Enrichment (conditional), Search |
+| `cards.card.updated` | `com.namecard.cards` | `{ cardId, tenantId, updatedFields[], updatedAt }` | Cards Service | Search |
 | `ocr.ocr.completed` | `com.namecard.ocr` | `{ cardId, tenantId, jobId, text, confidence, fields[] }` | OCR Service | Cards, Enrichment, Search |
 | `enrichment.card.completed` | `com.namecard.enrichment` | `{ cardId, tenantId, enrichmentId, score, companies[], rawDataRef }` | Enrichment Service | Cards, Search |
 | `uploads.asset.created` | `com.namecard.uploads` | `{ assetId, tenantId, objectKey, checksum, expiresAt }` | Uploads Service | OCR (Cards will subscribe once event-driven asset hydration ships) |
