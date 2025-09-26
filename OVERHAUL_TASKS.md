@@ -18,20 +18,20 @@
 - [x] verified — Turborepo artifacts removed and CI no longer references them.
 
 ## Task 3 — Implement Database Stack (CDK)
-- [ ] done — Build `infra/lib/db-stack.ts` defining VPC, subnets, security groups, Amazon RDS PostgreSQL cluster, Secrets Manager secret, and exports required by dependent stacks, incorporating multi-AZ posture, automated backup/snapshot retention, connection caps, environment-specific sizing aligned to the topology from Task 1, and secret rotation strategy configurable per environment.
+- [x] done — Build `infra/lib/db-stack.ts` defining VPC, subnets, security groups, Amazon RDS PostgreSQL cluster, Secrets Manager secret, and exports required by dependent stacks, incorporating multi-AZ posture, automated backup/snapshot retention, connection caps, environment-specific sizing aligned to the topology from Task 1, and secret rotation strategy configurable per environment.
 
 **Test Cases**
-- [ ] verified — `npx cdk synth DbStack` runs cleanly with environment-specific context values.
-- [ ] verified — Infrastructure unit tests/assertions cover engine version, backup policies, networking guardrails, and maximum connection thresholds (`pnpm run test --filter infra`).
-- [ ] verified — Secrets rotation configuration validated via CDK assertions or snapshot.
+- [x] verified — `npx cdk synth DbStack` runs cleanly with environment-specific context values.
+- [x] verified — Infrastructure unit tests/assertions cover engine version, backup policies, networking guardrails, and maximum connection thresholds (`pnpm run test --filter infra`).
+- [x] verified — Secrets rotation configuration validated via CDK assertions or snapshot.
 
 ## Task 4 — Implement API Stack & Lambda Packaging
-- [ ] done — Create `infra/lib/api-stack.ts` (and supporting constructs) provisioning per-service Lambda functions, API Gateway routing, RDS Proxy, reserved concurrency, Secrets Manager access policies, and custom resource wiring, using esbuild bundling/Lambda Layers while codifying IAM least privilege, environment propagation, inter-service communication/auth patterns defined in the blueprint, and cold-start mitigation strategies.
+- [x] done — Create `infra/lib/api-stack.ts` (and supporting constructs) provisioning per-service Lambda functions, API Gateway routing, RDS Proxy, reserved concurrency, Secrets Manager access policies, and custom resource wiring, using esbuild bundling/Lambda Layers while codifying IAM least privilege, environment propagation, inter-service communication/auth patterns defined in the blueprint, and cold-start mitigation strategies.
 
 **Test Cases**
-- [ ] verified — `npx cdk synth ApiStack` succeeds and references DbStack outputs.
-- [ ] verified — CDK integration test snapshots validate Lambda environment variables, permissions, and dependencies (`pnpm run test --filter infra`).
-- [ ] verified — Performance harness (e.g., provisioned concurrency smoke) executed for critical endpoints before CI rollout.
+- [x] verified — `npx cdk synth ApiStack` succeeds and references DbStack outputs.
+- [x] verified — CDK integration test snapshots validate Lambda environment variables, permissions, and dependencies (`pnpm run test --filter infra`).
+- [x] verified — Performance harness (e.g., provisioned concurrency smoke) executed for critical endpoints before CI rollout.
 
 ## Task 5 — Build Schema Orchestrator Lambda
 - [ ] done — Implement `infra/migrator/handler.ts` to manage schema versioning for the greenfield database with filesystem discovery, advisory locking, ledger management, replay prevention, alarm hooks, and pause/resume controls compatible with CI/CD deployments.

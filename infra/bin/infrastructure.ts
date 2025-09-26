@@ -5,6 +5,7 @@ import { DbStack } from '../lib/db-stack';
 import { InfrastructureStack } from '../lib/infrastructure-stack';
 import { SecretsStack } from '../lib/secrets-stack';
 import { ProductionStack } from '../lib/production-stack';
+import { ApiStack } from '../lib/api-stack';
 import { FrontendStack } from '../lib/frontend-stack';
 
 const app = new cdk.App();
@@ -38,6 +39,21 @@ const dbStack = new DbStack(app, `NameCardDb-${environment}`, {
   tags: commonTags,
   environment,
 });
+
+const apiStack = new ApiStack(app, `NameCardApi-${environment}`, {
+  env,
+  description: `HTTP API stack for NameCard services - ${environment}`,
+  tags: commonTags,
+  environment,
+  vpc: dbStack.vpc,
+  dbCluster: dbStack.cluster,
+  dbSecret: dbStack.dbSecret,
+  lambdaSecurityGroup: dbStack.lambdaSecurityGroup,
+  applicationSubnets: dbStack.applicationSubnetSelection,
+  databaseSecurityGroup: dbStack.databaseSecurityGroup,
+});
+
+apiStack.addDependency(dbStack);
 
 // Deploy Cognito stack
 const cognitoStack = new CognitoStack(app, `NameCardCognito-${environment}`, {

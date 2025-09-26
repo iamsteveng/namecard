@@ -27,15 +27,17 @@
     "diff:dev": "cdk diff --context environment=development",
     "diff:staging": "cdk diff --context environment=staging",
     "diff:prod": "cdk diff --context environment=production",
-    
+
     "destroy:dev": "cdk destroy --context environment=development --all",
     "destroy:staging": "cdk destroy --context environment=staging --all",
-    "destroy:prod": "cdk destroy --context environment=production --all"
+    "destroy:prod": "cdk destroy --context environment=production --all",
+    "perf:harness": "ts-node scripts/perf-harness.ts"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",
     "@types/node": "22.7.9",
     "aws-cdk": "2.1023.0",
+    "esbuild": "^0.24.0",
     "jest": "^29.7.0",
     "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2",
