@@ -6,8 +6,8 @@ This project uses a unified environment configuration - the same `.env` file wor
 
 1. **Configure environment variables:**
    ```bash
-   # Edit packages/api/.env with your AWS credentials
-   cd packages/api
+   # Edit services/api/.env with your AWS credentials
+   cd services/api
    nano .env  # or use your preferred editor
    ```
 
@@ -16,11 +16,11 @@ This project uses a unified environment configuration - the same `.env` file wor
    docker-compose up -d
    ```
 
-The Docker container automatically uses `packages/api/.env` and overrides only the networking-specific variables (database and Redis URLs).
+The Docker container automatically uses `services/api/.env` and overrides only the networking-specific variables (database and Redis URLs).
 
 ## Unified Configuration
 
-Both local development and Docker use the same `packages/api/.env` file:
+Both local development and Docker use the same `services/api/.env` file:
 
 ### Automatic Docker Overrides
 Docker Compose automatically overrides these variables for container networking:
@@ -36,7 +36,7 @@ All other variables are shared between local and Docker:
 
 ## Security Notes
 
-- The `packages/api/.env` file is already in `.gitignore`
+- The `services/api/.env` file is already in `.gitignore`
 - Use different AWS credentials for development/staging/production
 - Rotate AWS credentials regularly
 

@@ -51,9 +51,9 @@ The secret management workflow automatically runs in these scenarios:
 
 #### 1. **Infrastructure Changes** (Push/PR)
 - **Files monitored**:
-  - `infrastructure/lib/secrets-stack.ts`
-  - `infrastructure/lib/production-stack.ts` 
-  - `infrastructure/config/**`
+  - `infra/lib/secrets-stack.ts`
+  - `infra/lib/production-stack.ts` 
+  - `infra/config/**`
   - `.github/workflows/secret-management.yml`
   - `.github/workflows/deploy-staging.yml`
 - **Actions**: Detects new secrets, validates configuration, auto-deploys on main branch
@@ -63,12 +63,12 @@ The secret management workflow automatically runs in these scenarios:
 - **Actions**: Validates all secrets, checks for aging secrets (>90 days), generates health reports
 
 #### 3. **Called by Other Workflows**  
-- **Deploy staging workflow**: Calls secret validation before infrastructure deployment
+- **Deploy staging workflow**: Calls secret validation before infra deployment
 - **Deploy production workflow**: Validates secrets before production deployment
 - **Custom workflows**: Can call using `workflow_call` trigger
 
 #### 4. **New Secret Detection**
-When new secrets are added to the infrastructure:
+When new secrets are added to the infra:
 1. **Detection**: CDK synthesis detects new `AWS::SecretsManager::Secret` resources
 2. **Validation**: Checks if secrets already exist in AWS
 3. **Deployment**: Automatically deploys new secrets if they don't exist
@@ -101,7 +101,7 @@ gh workflow run secret-management.yml \
 
 1. **validate-secrets**: Comprehensive validation of all secrets
 2. **health-check**: Monitor secret health and age
-3. **update-secrets**: Deploy secret infrastructure updates  
+3. **update-secrets**: Deploy secret infra updates  
 4. **rotate-api-keys**: Rotate JWT and API keys
 5. **backup-secrets**: Backup secret metadata (not values)
 
@@ -120,7 +120,7 @@ gh workflow run secret-management.yml \
 - Generates health reports
 
 #### 3. Secret Updates
-- Deploys infrastructure changes to secrets
+- Deploys infra changes to secrets
 - Supports dry-run mode for testing
 - Validates updates after deployment
 - Environment-specific deployment
@@ -187,7 +187,7 @@ export PATH="$PATH:$(pwd)/scripts"
 | `rotate-jwt <env>` | Rotate JWT secret | `--dry-run` |
 | `backup <env>` | Backup metadata | None |
 | `test-connectivity <env>` | Test secret access | None |
-| `deploy-stack <env>` | Deploy infrastructure | `--dry-run` |
+| `deploy-stack <env>` | Deploy infra | `--dry-run` |
 | `generate-secret <type>` | Generate new values | Types: jwt, password, api-key, uuid |
 
 ### Environment Variables
@@ -232,7 +232,7 @@ export VERBOSE=true
 The `SecretsStack` defines all secret resources:
 
 ```typescript
-// infrastructure/lib/secrets-stack.ts
+// infra/lib/secrets-stack.ts
 export class SecretsStack extends Stack {
   constructor(scope: Construct, id: string, props: SecretsStackProps) {
     // Database secrets
@@ -264,10 +264,10 @@ export class SecretsStack extends Stack {
 
 ### Deployment
 
-Deploy secrets infrastructure:
+Deploy secrets infra:
 
 ```bash
-cd infrastructure
+cd infra
 
 # Deploy to staging
 npx cdk deploy NameCardSecrets-staging --context environment=staging
@@ -371,7 +371,7 @@ If a secret is compromised:
 2. **Store backup securely** (metadata only, not secret values)
 
 3. **Recovery process**:
-   - Redeploy secrets infrastructure
+   - Redeploy secrets infra
    - Restore from backup metadata
    - Generate new secret values
    - Update applications
@@ -414,7 +414,7 @@ When you need to add a new third-party API integration:
 
 1. **Update Infrastructure Code**:
    ```typescript
-   // infrastructure/lib/secrets-stack.ts
+   // infra/lib/secrets-stack.ts
    const newApiSecret = new secretsmanager.Secret(this, 'NewAPISecret', {
      secretName: `namecard/new-api/${environment}`,
      description: `New API credentials for ${environment}`,
@@ -427,8 +427,8 @@ When you need to add a new third-party API integration:
 
 2. **Push to Feature Branch**:
    ```bash
-   git add infrastructure/lib/secrets-stack.ts
-   git commit -m "feat: Add new API secret infrastructure"
+   git add infra/lib/secrets-stack.ts
+   git commit -m "feat: Add new API secret infra"
    git push origin feature/new-api-integration
    ```
 
@@ -507,7 +507,7 @@ aws secretsmanager get-secret-value --secret-id namecard/database/development --
 The secret management system integrates with existing CI/CD workflows:
 
 1. **Pre-deployment validation**: Secrets are validated before deployments
-2. **Post-deployment verification**: Health checks after infrastructure updates
+2. **Post-deployment verification**: Health checks after infra updates
 3. **Automated rotation**: Regular rotation through scheduled workflows
 4. **Emergency response**: Manual workflows for incident response
 

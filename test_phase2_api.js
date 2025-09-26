@@ -16,7 +16,7 @@
  * ===================
  * 
  * 1. ENVIRONMENT SETUP:
- *    - Ensure your API server is running: cd packages/api && npm run dev
+ *    - Ensure your API server is running: cd services/api && pnpm run dev
  *    - Ensure your PostgreSQL database is running with test data
  * 
  * 2. USER ID CONFIGURATION (Optional):
@@ -384,7 +384,7 @@ async function testPhase2API() {
     }
 
     console.log('\n🔧 To start testing:');
-    console.log('1. Make sure API server is running: cd packages/api && npm run dev');
+    console.log('1. Make sure API server is running: cd services/api && pnpm run dev');
     console.log('2. Ensure database is running with test data');
     console.log('3. Run this script: node test_phase2_api.js');
 

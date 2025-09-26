@@ -4,17 +4,24 @@
   "private": true,
   "description": "Business name card scanner and enrichment application",
   "scripts": {
-    "build": "turbo build",
-    "dev": "turbo dev",
-    "lint": "turbo lint",
-    "test": "turbo test",
-    "test:watch": "turbo test:watch",
-    "test:coverage": "turbo test:coverage",
-    "test:e2e": "cypress run",
-    "test:e2e:open": "cypress open",
-    "test:e2e:dev": "start-server-and-test \"npm run dev\" http://localhost:5173 \"npm run test:e2e\"",
-    "type-check": "turbo type-check",
-    "clean": "turbo clean && rm -rf node_modules",
+    "build:all": "pnpm -r run build",
+    "dev": "pnpm --filter @namecard/web run dev",
+    "dev:api": "pnpm --filter @namecard/api run dev",
+    "dev:web": "pnpm --filter @namecard/web run dev",
+    "dev:workers": "pnpm --filter @namecard/workers run dev",
+    "lint:all": "pnpm -r run lint",
+    "test:all": "pnpm -r run test",
+    "test:watch": "pnpm -r run test:watch",
+    "test:coverage": "pnpm -r run test:coverage",
+    "test:e2e": "pnpm exec cypress run",
+    "test:e2e:open": "pnpm exec cypress open",
+    "test:e2e:dev": "start-server-and-test \"pnpm run dev\" http://localhost:5173 \"pnpm run test:e2e\"",
+    "type-check:all": "pnpm --filter @namecard/shared run build && pnpm -r run type-check",
+    "clean": "pnpm -r exec rimraf dist build .next && rm -rf node_modules",
+    "build": "pnpm run build:all",
+    "lint": "pnpm run lint:all",
+    "test": "pnpm run test:all",
+    "type-check": "pnpm run type-check:all",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "docker:up": "docker-compose up -d",
@@ -33,7 +40,8 @@
     "prepare": "husky install || echo 'Husky install failed, continuing...'"
   },
   "workspaces": [
-    "packages/*"
+    "infra",
+    "services/*"
   ],
   "devDependencies": {
     "@cypress/webpack-preprocessor": "^6.0.4",
@@ -52,13 +60,13 @@
     "jest": "^30.0.4",
     "jest-environment-jsdom": "^30.0.4",
     "prettier": "^3.2.4",
+    "rimraf": "^5.0.5",
     "start-server-and-test": "^2.0.12",
-    "turbo": "^1.12.4",
     "typescript": "^5.3.3"
   },
   "engines": {
     "node": ">=18.0.0",
-    "npm": ">=9.0.0"
+    "pnpm": ">=8.0.0"
   },
-  "packageManager": "npm@10.0.0"
+  "packageManager": "pnpm@8.15.4"
 }

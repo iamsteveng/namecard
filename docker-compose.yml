@@ -61,15 +61,15 @@ services:
   api:
     build:
       context: .
-      dockerfile: packages/api/Dockerfile
+      dockerfile: services/api/Dockerfile
     container_name: namecard-api
     restart: unless-stopped
     ports:
       - "3001:3001"
     command: >
-      sh -c "node packages/api/dist/server.js"
+      sh -c "node services/api/dist/server.js"
     env_file:
-      - packages/api/.env
+      - services/api/.env
     environment:
       # Override specific values for Docker container networking
       - DATABASE_URL=postgresql://namecard_user:namecard_password@postgres:5432/namecard_dev
@@ -90,7 +90,7 @@ services:
   frontend:
     build:
       context: .
-      dockerfile: packages/web/Dockerfile
+      dockerfile: services/web/Dockerfile
     container_name: namecard-frontend
     restart: unless-stopped
     ports:

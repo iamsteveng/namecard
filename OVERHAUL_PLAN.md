@@ -28,7 +28,7 @@ root/
 ```
 
 - Each service is self-contained (handler + migrations).
-- No shared `packages/*` unless absolutely necessary (keeps services loosely coupled).
+- No shared `services/*` unless absolutely necessary (keeps services loosely coupled).
 - Database migrations are **owned by each service** but **executed centrally** by a migrator Lambda at deploy time.
 
 ---
@@ -419,4 +419,3 @@ export const handler = async () => {
 - **Rollback:** expand→deploy→contract; code waits for schema.
 - **Coupling:** per-service ownership; optional per-service DB schemas.
 - **Testing:** migrations & integration tests in CI; preview stacks.
-

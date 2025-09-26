@@ -13,16 +13,16 @@ echo "🔄 Running database migration for $ENVIRONMENT environment..."
 if [ "$ENVIRONMENT" = "local" ]; then
     # Local development migration
     echo "📍 Local development migration"
-    cd packages/api
+    cd services/api
     
     if [ "$MIGRATION_TYPE" = "dev" ]; then
         # Create new migration (interactive)
         echo "Creating new migration..."
-        npx prisma migrate dev
+        pnpm exec prisma migrate dev
     else
         # Deploy existing migrations
         echo "Deploying migrations..."
-        npx prisma migrate deploy
+        pnpm exec prisma migrate deploy
     fi
     
 elif [ "$ENVIRONMENT" = "staging" ] || [ "$ENVIRONMENT" = "production" ]; then
@@ -55,7 +55,7 @@ elif [ "$ENVIRONMENT" = "staging" ] || [ "$ENVIRONMENT" = "production" ]; then
         --task-definition "NameCardProd${ENVIRONMENT}APIServiceTaskDef909B2074" \
         --launch-type FARGATE \
         --network-configuration 'awsvpcConfiguration={subnets=["subnet-08cef10adb4cf31e6","subnet-00ca2562f3fabffaf"],securityGroups=["sg-0aa8f05b02d726a66"],assignPublicIp=ENABLED}' \
-        --overrides "{\"containerOverrides\":[{\"name\":\"namecard-api\",\"command\":[\"sh\",\"-c\",\"cd /app/packages/api && npx prisma migrate deploy\"],\"environment\":[{\"name\":\"DATABASE_URL\",\"value\":\"$DATABASE_URL\"}]}]}" \
+        --overrides "{\"containerOverrides\":[{\"name\":\"namecard-api\",\"command\":[\"sh\",\"-c\",\"cd /app/services/api && pnpm exec prisma migrate deploy\"],\"environment\":[{\"name\":\"DATABASE_URL\",\"value\":\"$DATABASE_URL\"}]}]}" \
         --region ap-southeast-1 \
         --profile "$AWS_PROFILE" \
         --query 'tasks[0].taskArn' --output text)

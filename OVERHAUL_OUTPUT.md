@@ -5,11 +5,11 @@ Version: 1.0 (2025-09-25)
 Prepared by: Senior Developer (Codex CLI)
 
 ### Repository Structure for Overhaul
-- **Monolith sunset** — `packages/api/**` (Express + Prisma) and its `prisma/` directory are retired in this overhaul. Treat them as read-only references until the new services compile end-to-end; no fresh code lands there.
+- **Monolith sunset** — `services/api/**` (Express + Prisma) and its `prisma/` directory are retired in this overhaul. Treat them as read-only references until the new services compile end-to-end; no fresh code lands there.
 - **Service directories** — Create a top-level `services/` directory with one folder per bounded context: `services/auth`, `services/cards`, `services/ocr`, `services/enrichment`, `services/uploads`, `services/search`. Each folder must contain `handler.ts`, optional sub-handlers under `consumers/`, configuration (`config/`), helpers (`lib/`), tests (`tests/`), and SQL migrations (`migrations/`).
 - **Deployable handlers** — API Gateway routes target `services/<domain>/handler.ts`. EventBridge and SQS consumers live alongside (e.g., `services/cards/consumers/card-updated.ts`). Remove legacy Express routing once the new handler is wired.
 - **Migrations** — Per-service SQL resides in `services/<domain>/migrations/*.sql`. The central migrator Lambda walks these folders in lexicographical order; adopt the unified naming scheme `YYYYMMDDHHMM__<domain>__<description>.sql`.
-- **Deletion sequencing** — When Cards and Auth pass integration tests on the new handlers, delete `packages/api/` within the same change to block regressions. Bring the remaining services across by repeating the pattern: scaffold folder, port logic, add tests, hook events, then drop any straggling legacy code.
+- **Deletion sequencing** — When Cards and Auth pass integration tests on the new handlers, delete `services/api/` within the same change to block regressions. Bring the remaining services across by repeating the pattern: scaffold folder, port logic, add tests, hook events, then drop any straggling legacy code.
 
 ### Domain Mapping & Service Boundaries
 - **Auth Service (`services/auth/handler.ts`)**
@@ -31,7 +31,7 @@ Prepared by: Senior Developer (Codex CLI)
   - Data Ownership: `ocr.jobs`, `ocr.pages`, `ocr.raw_artifacts`, S3 staging bucket `namecard-ocr-artifacts-<env>` for intermediate files.
   - Sync Interfaces: `POST /v1/ocr/jobs` (submits card asset), `GET /v1/ocr/jobs/{jobId}` (polling/status).
   - Async Contracts: Consumes `cards.card.captured`; emits `ocr.ocr.completed` and `ocr.ocr.failed`; publishes enriched payload to EventBridge detail with normalized fields.
-  - Dependencies: AWS Textract (asynchronous API), Step Functions express workflow for retries, shared `packages/shared/textract` utilities.
+  - Dependencies: AWS Textract (asynchronous API), Step Functions express workflow for retries, shared `services/shared/textract` utilities.
 
 - **Enrichment Service (`services/enrichment/handler.ts`)**
   - Responsibilities: External enrichment orchestration (Perplexity, Clearbit, etc.), company profile aggregation, deduplication, scoring.
@@ -52,14 +52,14 @@ Prepared by: Senior Developer (Codex CLI)
   - Data Ownership: `search.documents`, `search.synonyms`, `search.query_logs`, `search.sync_state` (all Postgres-backed full-text search tables).
   - Sync Interfaces: `POST /v1/search/query`, `GET /v1/search/cards`, `GET /v1/search/companies`.
   - Async Contracts: Consumes `cards.card.updated`, `enrichment.company.updated` to refresh projections stored in Postgres FTS tables; emits `search.index.sync.failed` for ops alerting.
-  - Dependencies: EventBridge bus feed, Postgres full-text search, observability helpers exported from `packages/shared/runtime`. Future consideration: optional OpenSearch tier when query volume or relevance demands it.
+  - Dependencies: EventBridge bus feed, Postgres full-text search, observability helpers exported from `services/shared/runtime`. Future consideration: optional OpenSearch tier when query volume or relevance demands it.
 
 > Alignment: Interfaces above align with the user flows in `OVERHAUL_PLAN.md` (card capture → OCR → enrichment → search) and the API inventory enumerated in `CLAUDE.md`.
 
 ### Shared Utility Strategy (Extract vs Duplicate)
-- **`packages/shared/runtime`** — Split the current `packages/shared/src` into a new `runtime/` subpackage exposing logging, metrics, config loaders, error envelopes, HTTP client with retry/backoff, and Secrets Manager caching. Update workspace exports accordingly (`packages/shared/runtime/src/index.ts`).
-- **`packages/shared/data`** — Stand up a sibling package housing database helpers (pg client factory, RDS Proxy config, migration runner). Move any existing data utilities from `packages/shared` here during the overhaul.
-- **`packages/contracts`** — Create a new workspace package with `openapi/` and `events/` source folders plus `generated/` output. Add `pnpm run contracts:generate` to run the generator (`ts-node scripts/generate-contracts.ts`) and publish TypeScript clients consumed by each service.
+- **`services/shared/runtime`** — Split the current `services/shared/src` into a new `runtime/` subpackage exposing logging, metrics, config loaders, error envelopes, HTTP client with retry/backoff, and Secrets Manager caching. Update workspace exports accordingly (`services/shared/runtime/src/index.ts`).
+- **`services/shared/data`** — Stand up a sibling package housing database helpers (pg client factory, RDS Proxy config, migration runner). Move any existing data utilities from `services/shared` here during the overhaul.
+- **`services/contracts`** — Create a new workspace package with `openapi/` and `events/` source folders plus `generated/` output. Add `pnpm run contracts:generate` to run the generator (`ts-node scripts/generate-contracts.ts`) and publish TypeScript clients consumed by each service.
 - **Service-specific helpers** — Keep domain logic inside `services/<domain>/lib`. Duplication is acceptable for validators under ~20 lines to preserve boundaries.
 - **Governance** — All shared packages adopt semver tagging via pnpm workspaces. Any change requires an ADR update, version bump, and explicit service opt-in through dependency updates.
 
@@ -95,7 +95,7 @@ Blueprint Version: 1.0 (2025-09-25)
 | Search | `search` | `documents`, `synonyms`, `query_logs`, `sync_state` | `documents` stores Postgres tsvector columns with JSON payload for future external index; `sync_state` ensures idempotent projection updates. |
 | Shared | `public` | `schema_migrations`, `service_versions` | `service_versions` logs deployed commit + migration hash per service for traceability. |
 
-These entities supersede the legacy Prisma models in `packages/api/prisma/schema.prisma`. As each service lands its SQL migrations the corresponding Prisma definitions are removed; the final cleanup step deletes the entire `packages/api/prisma/` tree. Foreign keys cross schemas only via `tenant_id` and stable identifiers (`card_id`, `company_id`).
+These entities supersede the legacy Prisma models in `services/api/prisma/schema.prisma`. As each service lands its SQL migrations the corresponding Prisma definitions are removed; the final cleanup step deletes the entire `services/api/prisma/` tree. Foreign keys cross schemas only via `tenant_id` and stable identifiers (`card_id`, `company_id`).
 
 ### Core API Contracts (REST via API Gateway `/v1`)
 - **Auth**
@@ -151,7 +151,7 @@ All APIs will be codified in OpenAPI 3.1 specs under `docs/contracts/openapi/*.y
 Event payloads validated via JSON Schema (stored alongside OpenAPI specs). Changes require versioned detail-types (e.g., `*.v2`) to guarantee consumer compatibility.
 
 ### Shared Types, Validation & Governance
-- Type definitions generated from OpenAPI/JSON Schema using `pnpm run contracts:generate`, producing TypeScript clients in `packages/contracts/generated`.
+- Type definitions generated from OpenAPI/JSON Schema using `pnpm run contracts:generate`, producing TypeScript clients in `services/contracts/generated`.
 - Zod validators accompany DTOs to ensure runtime validation inside Lambdas.
 - Schema migrations versioned per service under `services/<domain>/migrations`. The migrator Lambda stitches them into deployment artifact; ledger table `public.schema_migrations` tracks applied files.
 - ADR `docs/adr/0001-architecture-boundaries.md` (to be created) will capture these decisions. Subsequent changes must update ADR + bump blueprint version.

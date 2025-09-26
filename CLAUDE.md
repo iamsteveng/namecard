@@ -64,16 +64,16 @@ Frontend (React) → CloudFront → S3
 ### Local Development
 ```bash
 # Start database
-npm run db:up
+pnpm run db:up
 
 # Start API server
-cd packages/api && npm run dev
+cd services/api && pnpm run dev
 
 # Start frontend
-cd packages/web && npm run dev
+cd services/web && pnpm run dev
 
 # Full stack with Docker
-npm run fullstack:up
+pnpm run fullstack:up
 ```
 
 ### Database Connections
@@ -88,7 +88,7 @@ npm run fullstack:up
   - **Root Cause**: Extra whitespace on lines 72, 128, 205 in `perplexity-enrichment.service.ts`  
   - **Solution**: Applied `npm run lint:fix` to automatically remove extra spaces
   - **Result**: All 4 packages now pass lint with 0 errors, CI/CD pipeline unblocked
-  - **Files Modified**: `packages/api/src/services/enrichment/perplexity-enrichment.service.ts`
+  - **Files Modified**: `services/api/src/services/enrichment/perplexity-enrichment.service.ts`
   - **Impact**: GitHub Actions deployment workflow now fully operational
 
 ## Optional Future Enhancements
@@ -101,12 +101,12 @@ npm run fullstack:up
 ## Project Structure
 ```
 namecard/
-├── packages/
+├── services/
 │   ├── web/          # React frontend (COMPLETE)
 │   ├── api/          # Express backend (COMPLETE)  
 │   ├── shared/       # Common utilities (COMPLETE)
 │   └── workers/      # Lambda functions (BASIC)
-├── infrastructure/   # CDK deployment (COMPLETE)
+├── infra/            # CDK deployment (COMPLETE)
 ├── .github/workflows/# CI/CD pipelines (COMPLETE)
 └── CLAUDE.md         # This progress file
 ```

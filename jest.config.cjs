@@ -1,20 +1,20 @@
 module.exports = {
   projects: [
-    '<rootDir>/packages/shared',
-    '<rootDir>/packages/api',
-    '<rootDir>/packages/workers',
+    '<rootDir>/services/shared',
+    '<rootDir>/services/api',
+    '<rootDir>/services/workers',
   ],
   collectCoverageFrom: [
-    'packages/*/src/**/*.{ts,tsx}',
-    '!packages/*/src/**/*.d.ts',
-    '!packages/*/src/**/*.test.{ts,tsx}',
-    '!packages/*/src/**/*.spec.{ts,tsx}',
+    'services/*/src/**/*.{ts,tsx}',
+    '!services/*/src/**/*.d.ts',
+    '!services/*/src/**/*.test.{ts,tsx}',
+    '!services/*/src/**/*.spec.{ts,tsx}',
   ],
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],
   testMatch: [
-    '<rootDir>/packages/*/src/**/__tests__/**/*.{ts,tsx}',
-    '<rootDir>/packages/*/src/**/*.{test,spec}.{ts,tsx}',
+    '<rootDir>/services/*/src/**/__tests__/**/*.{ts,tsx}',
+    '<rootDir>/services/*/src/**/*.{test,spec}.{ts,tsx}',
   ],
   testPathIgnorePatterns: [
     '/node_modules/',

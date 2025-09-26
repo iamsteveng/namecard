@@ -22,12 +22,12 @@ Schema Change → Git Commit → GitHub Actions → Schema Detection → ECS Mig
 
 ### 1. Schema Change Detection
 GitHub Actions automatically detects changes in:
-- `packages/api/prisma/schema.prisma`
-- `packages/api/prisma/migrations/` directory
+- `services/api/prisma/schema.prisma`
+- `services/api/prisma/migrations/` directory
 
 ```yaml
 # Detects schema changes
-SCHEMA_CHANGED=$(git diff --name-only HEAD^ HEAD | grep -E "(packages/api/prisma/|\.prisma$)")
+SCHEMA_CHANGED=$(git diff --name-only HEAD^ HEAD | grep -E "(services/api/prisma/|\.prisma$)")
 ```
 
 ### 2. Migration Execution
@@ -47,7 +47,7 @@ When changes are detected, the system:
 
 1. **Modify the schema**:
    ```prisma
-   // packages/api/prisma/schema.prisma
+   // services/api/prisma/schema.prisma
    model User {
      id        String @id @default(uuid())
      email     String @unique
@@ -58,8 +58,8 @@ When changes are detected, the system:
 
 2. **Generate migration locally**:
    ```bash
-   cd packages/api
-   npx prisma migrate dev --name add_new_field
+cd services/api
+pnpm exec prisma migrate dev --name add_new_field
    ```
 
 3. **Commit and push**:
@@ -88,19 +88,19 @@ When changes are detected, the system:
 **Direct commands**:
 ```bash
 # Local development
-cd packages/api && npx prisma migrate deploy
+cd services/api && pnpm exec prisma migrate deploy
 
 # Production via ECS task (manual)
 aws ecs run-task \
   --cluster namecard-cluster-staging \
   --task-definition NameCardProdstagingAPIServiceTaskDef909B2074 \
-  --overrides '{"containerOverrides":[{"name":"namecard-api","command":["sh","-c","cd /app/packages/api && npx prisma migrate deploy"],"environment":[{"name":"DATABASE_URL","value":"postgresql://..."}]}]}'
+  --overrides '{"containerOverrides":[{"name":"namecard-api","command":["sh","-c","cd /app/services/api && pnpm exec prisma migrate deploy"],"environment":[{"name":"DATABASE_URL","value":"postgresql://..."}]}]}'
 ```
 
 ## File Structure
 
 ```
-packages/api/prisma/
+services/api/prisma/
 ├── schema.prisma                      # Database schema definition
 ├── migrations/
 │   ├── migration_lock.toml           # Provider lock file
@@ -166,15 +166,15 @@ Migration logs are available in:
    - **Solution**: Verify AWS Secrets Manager access and ECS task environment
 
 3. **"Prisma Schema that is required for this command"**: Working directory issue
-   - **Solution**: Ensure command runs from `/app/packages/api` in container
+   - **Solution**: Ensure command runs from `/app/services/api` in container
 
 ### Verification Commands
 ```bash
 # Check migration status locally
-cd packages/api && npx prisma migrate status
+cd services/api && pnpm exec prisma migrate status
 
 # Test database connection
-cd packages/api && npx prisma db push --preview-feature
+cd services/api && pnpm exec prisma db push --preview-feature
 
 # View recent migrations
 aws logs get-log-events --log-group-name "/namecard/api-service/staging" --log-stream-name "[stream-name]"

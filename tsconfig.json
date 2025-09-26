@@ -30,16 +30,16 @@
     "verbatimModuleSyntax": true,
     "baseUrl": ".",
     "paths": {
-      "@namecard/shared": ["packages/shared/src"],
-      "@namecard/shared/*": ["packages/shared/src/*"]
+      "@namecard/shared": ["services/shared/src"],
+      "@namecard/shared/*": ["services/shared/src/*"]
     }
   },
   "include": [],
   "exclude": ["node_modules", "dist", "build", ".next", "coverage"],
   "references": [
-    { "path": "./packages/shared" },
-    { "path": "./packages/web" },
-    { "path": "./packages/api" },
-    { "path": "./packages/workers" }
+    { "path": "./services/shared" },
+    { "path": "./services/web" },
+    { "path": "./services/api" },
+    { "path": "./services/workers" }
   ]
 }

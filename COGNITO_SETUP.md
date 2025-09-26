@@ -27,7 +27,7 @@
 
 ## 🔐 Environment Variables
 
-Add these to your `packages/api/.env` file:
+Add these to your `services/api/.env` file:
 
 ```env
 # AWS Configuration
@@ -49,15 +49,15 @@ JWT_SECRET=your-super-secret-jwt-key-change-this
 ### 1. Test API Connection
 ```bash
 # From your project root
-cd packages/api
-npm run dev
+cd services/api
+pnpm run dev
 ```
 
 ### 2. Test Web Application
 ```bash
 # From your project root  
-cd packages/web
-npm run dev
+cd services/web
+pnpm run dev
 ```
 
 ### 3. Access Authentication Pages
@@ -75,8 +75,8 @@ npm run dev
 ## 🏗️ CDK Infrastructure
 
 ### Files Created
-- `infrastructure/lib/cognito-stack.ts` - Main Cognito stack definition
-- `infrastructure/bin/infrastructure.ts` - CDK app configuration
+- `infra/lib/cognito-stack.ts` - Main Cognito stack definition
+- `infra/bin/infrastructure.ts` - CDK app configuration
 
 ### CDK Commands
 ```bash

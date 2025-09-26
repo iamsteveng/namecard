@@ -14,7 +14,7 @@
 - [x] **Monitoring Strategy** - CloudWatch integration and alerting design
 
 ### ✅ Phase 2: Backend Containerization (COMPLETE)
-- [x] **Dockerfile Creation** - `packages/api/Dockerfile`
+- [x] **Dockerfile Creation** - `services/api/Dockerfile`
 - [x] **Multi-stage Build** - Builder stage + production stage optimization
 - [x] **Security Implementation** - Non-root user (nodejs:1001), Alpine Linux base
 - [x] **Health Checks** - HTTP endpoint monitoring with timeout handling
@@ -23,13 +23,13 @@
 - [x] **Dependency Management** - Production-only install with Husky bypass
 
 **Files Created:**
-- `packages/api/Dockerfile` (Multi-stage production build)
-- `packages/api/.dockerignore` (Build optimization)
+- `services/api/Dockerfile` (Multi-stage production build)
+- `services/api/.dockerignore` (Build optimization)
 
 **Testing Results:**
 ```bash
 # Build Command
-docker build -f packages/api/Dockerfile -t namecard-api:latest .
+docker build -f services/api/Dockerfile -t namecard-api:latest .
 
 # Test Results
 ✅ Server started successfully on port 3001
@@ -40,7 +40,7 @@ docker build -f packages/api/Dockerfile -t namecard-api:latest .
 ```
 
 ### 🔄 Phase 3: Frontend Containerization (IN PROGRESS)
-- [ ] **Dockerfile Creation** - `packages/web/Dockerfile`
+- [ ] **Dockerfile Creation** - `services/web/Dockerfile`
 - [ ] **Multi-stage Build** - Node.js build + Nginx serving stages
 - [ ] **Nginx Configuration** - SPA routing, caching headers
 - [ ] **Environment Variables** - API endpoint injection
@@ -48,7 +48,7 @@ docker build -f packages/api/Dockerfile -t namecard-api:latest .
 - [ ] **Production Optimization** - Asset compression, caching
 
 **Next Implementation Steps:**
-1. Create `packages/web/Dockerfile` with Vite build + Nginx
+1. Create `services/web/Dockerfile` with Vite build + Nginx
 2. Configure `nginx.conf` for SPA routing
 3. Handle environment variable injection for API URLs
 4. Test container locally with backend connectivity
@@ -104,14 +104,14 @@ git status  # Should show clean working tree
 **Frontend Docker Container** - Create production-ready React application with Nginx
 
 ### Required Files
-1. `packages/web/Dockerfile` - Multi-stage build configuration
-2. `packages/web/.dockerignore` - Build optimization
-3. `packages/web/nginx.conf` - Nginx server configuration
+1. `services/web/Dockerfile` - Multi-stage build configuration
+2. `services/web/.dockerignore` - Build optimization
+3. `services/web/nginx.conf` - Nginx server configuration
 
 ### Testing Commands
 ```bash
 # Build frontend container
-docker build -f packages/web/Dockerfile -t namecard-frontend:latest .
+docker build -f services/web/Dockerfile -t namecard-frontend:latest .
 
 # Test frontend container
 docker run -d --name namecard-frontend-test -p 3000:80 namecard-frontend:latest

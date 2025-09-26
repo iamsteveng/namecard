@@ -54,7 +54,7 @@ Frontend (React) → API Gateway → ECS Fargate (Node.js API)
 
 ```
 namecard-app/
-├── packages/
+├── services/
 │   ├── web/                          # Frontend React Application
 │   │   ├── public/
 │   │   │   ├── icons/
@@ -190,7 +190,7 @@ namecard-app/
 │           ├── package.json
 │           └── serverless.yml
 │
-├── infrastructure/                   # Infrastructure as Code
+├── infra/                   # Infrastructure as Code
 │   ├── terraform/
 │   │   ├── environments/
 │   │   │   ├── dev/
@@ -253,7 +253,7 @@ namecard-app/
 │   ├── setup-dev.sh
 │   └── migrate.sh
 ├── package.json                     # Root package.json for workspace
-├── turbo.json                       # Turborepo configuration
+├── pnpm-workspace.yaml                       # Turborepo configuration
 ├── .gitignore
 ├── .env.example
 └── README.md
