@@ -93,7 +93,8 @@ export class EnrichmentService {
     try {
       // Get available sources that are enabled and configured
       const availableSources = requestedSources.filter(
-        (source: EnrichmentSource) => this.sources.has(source) && this.sources.get(source)!.isEnabled()
+        (source: EnrichmentSource) =>
+          this.sources.has(source) && this.sources.get(source)!.isEnabled()
       );
 
       if (availableSources.length === 0) {
@@ -375,8 +376,8 @@ export class EnrichmentService {
    * Get available enrichment sources
    */
   getAvailableSources(): EnrichmentSource[] {
-    return Array.from(this.sources.keys()).filter(
-      (source: EnrichmentSource) => this.sources.get(source)!.isEnabled()
+    return Array.from(this.sources.keys()).filter((source: EnrichmentSource) =>
+      this.sources.get(source)!.isEnabled()
     );
   }
 
