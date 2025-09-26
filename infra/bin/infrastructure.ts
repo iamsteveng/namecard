@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import * as cdk from 'aws-cdk-lib';
 import { CognitoStack } from '../lib/cognito-stack';
+import { DbStack } from '../lib/db-stack';
 import { InfrastructureStack } from '../lib/infrastructure-stack';
 import { SecretsStack } from '../lib/secrets-stack';
 import { ProductionStack } from '../lib/production-stack';
@@ -29,6 +30,14 @@ const commonTags = {
   Environment: environment,
   ManagedBy: 'CDK',
 };
+
+// Deploy database stack (Aurora + network primitives)
+const dbStack = new DbStack(app, `NameCardDb-${environment}`, {
+  env,
+  description: `Aurora PostgreSQL cluster for NameCard Application - ${environment}`,
+  tags: commonTags,
+  environment,
+});
 
 // Deploy Cognito stack
 const cognitoStack = new CognitoStack(app, `NameCardCognito-${environment}`, {
@@ -60,7 +69,7 @@ if (environment === 'staging' || environment === 'production') {
     env,
     description: `Production infrastructure for NameCard Application - ${environment}`,
     tags: commonTags,
-    
+
     // Optional domain configuration
     domainName,
     certificateArn,
@@ -76,6 +85,7 @@ if (environment === 'staging' || environment === 'production') {
   });
 
   // Add dependencies
+  productionStack.addDependency(dbStack);
   productionStack.addDependency(cognitoStack);
   productionStack.addDependency(infraStack);
   productionStack.addDependency(secretsStack);
