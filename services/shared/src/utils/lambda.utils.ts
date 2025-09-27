@@ -95,11 +95,15 @@ export const createSuccessResponse = <T = unknown>(
   const statusCode = options?.statusCode ?? 200;
   const headers = options?.headers ? { ...JSON_HEADERS, ...options.headers } : JSON_HEADERS;
 
-  return createResponse(statusCode, {
-    success: true,
-    data,
-    message: options?.message,
-  }, headers);
+  return createResponse(
+    statusCode,
+    {
+      success: true,
+      data,
+      message: options?.message,
+    },
+    headers
+  );
 };
 
 export const createErrorResponse = (
@@ -108,14 +112,18 @@ export const createErrorResponse = (
   options?: { code?: string; details?: unknown; headers?: Record<string, string> }
 ): LambdaResponse => {
   const headers = options?.headers ? { ...JSON_HEADERS, ...options.headers } : JSON_HEADERS;
-  return createResponse(statusCode, {
-    success: false,
-    error: {
-      message,
-      code: options?.code,
-      details: options?.details,
+  return createResponse(
+    statusCode,
+    {
+      success: false,
+      error: {
+        message,
+        code: options?.code,
+        details: options?.details,
+      },
     },
-  }, headers);
+    headers
+  );
 };
 
 export const extractBearerToken = (event: LambdaHttpEvent | undefined): string | undefined => {

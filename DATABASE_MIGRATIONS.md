@@ -1,208 +1,133 @@
-# Database Migration System
+# Database Migrations
 
-## Overview
+The overhauled platform uses a single migrator Lambda that stitches together service-owned SQL files into a deterministic deployment bundle. Each service owns its schema changes, while the migrator guarantees ordering, ledger tracking, and concurrency safety across environments.
 
-The NameCard application uses an automated database migration system built on **ECS container tasks** with **GitHub Actions automation**. This system provides production-ready, version-controlled database schema management.
+## Directory Layout
 
-## Architecture
-
-### Components
-- **Prisma ORM**: Schema definition and migration generation
-- **ECS Tasks**: Production migration execution using the same container as the API
-- **GitHub Actions**: Automated schema change detection and deployment
-- **AWS Secrets Manager**: Secure database credential management
-- **CloudWatch Logs**: Migration execution logging
-
-### Migration Flow
 ```
-Schema Change → Git Commit → GitHub Actions → Schema Detection → ECS Migration Task → Success/Failure
-```
-
-## Automated Migration Process
-
-### 1. Schema Change Detection
-GitHub Actions automatically detects changes in:
-- `services/api/prisma/schema.prisma`
-- `services/api/prisma/migrations/` directory
-
-```yaml
-# Detects schema changes
-SCHEMA_CHANGED=$(git diff --name-only HEAD^ HEAD | grep -E "(services/api/prisma/|\.prisma$)")
+services/
+  auth/
+    handler.ts
+    migrations/
+      YYYY-MM-DDThhmm__auth__description.sql
+  cards/
+    handler.ts
+    migrations/
+      YYYY-MM-DDThhmm__cards__description.sql
+  ...
 ```
 
-### 2. Migration Execution
-When changes are detected, the system:
-1. Retrieves database credentials from AWS Secrets Manager
-2. Launches an ECS Fargate task using the production API container
-3. Executes `npx prisma migrate deploy` in the container
-4. Monitors task completion and logs results
+- Every service folder may contain a `migrations/` directory with timestamped SQL files.
+- Files are copied into the migrator bundle during `cdk synth/deploy` (see `infra/lib/api-stack.ts`).
+- Migration names must be globally unique; the timestamp prefix plus service name enforces deterministic ordering and avoids collisions across teams.
 
-### 3. Error Handling
-- **Exit Code 0**: Migration successful, deployment continues
-- **Exit Code ≠ 0**: Migration failed, deployment stops with error logs
+## Naming Convention
 
-## Development Workflow
+```
+YYYY-MM-DDThhmm__service__short-description.sql
+```
 
-### Creating New Migrations
+- `YYYY-MM-DDThhmm` → 24-hour UTC timestamp (no seconds). Example: `2025-03-17T0930`.
+- `service` → matches the owning service directory (`auth`, `cards`, `search`, etc.).
+- `short-description` → lower-case letters, numbers, or dashes describing the change (e.g. `add-email-index`).
 
-1. **Modify the schema**:
-   ```prisma
-   // services/api/prisma/schema.prisma
-   model User {
-     id        String @id @default(uuid())
-     email     String @unique
-     newField  String? // <- Add new field
-     createdAt DateTime @default(now())
-   }
-   ```
+The migrator rejects any filename that does not follow this template.
 
-2. **Generate migration locally**:
+## Tooling & Guardrails
+
+### 1. SQL Linting (CI Gate)
+
+`pnpm run lint:migrations`
+
+- Executed automatically as part of `pnpm run lint:all`.
+- Validates naming rules, checks for duplicate filenames, and blocks unsafe SQL patterns:
+  - `DROP TABLE`, `TRUNCATE TABLE`, `ALTER TABLE ... DROP COLUMN/CONSTRAINT`
+  - `UPDATE`/`DELETE` without a `WHERE` clause
+  - `CREATE INDEX` without `CONCURRENTLY`
+- Fails fast with actionable error messages pointing to the offending file.
+
+### 2. Local Execution
+
+`pnpm run db:up` → start Postgres container  
+`pnpm run migrate:local` → apply migrations to the local instance (uses the migrator Lambda handler).
+
+### 3. Drift Detection
+
+`pnpm run migrate:validate`
+
+- Stages migrations into a temp directory (same logic as the deploy bundle).
+- Connects to the configured database (defaults to the local Docker instance) and acquires the advisory lock.
+- Compares the `public.schema_migrations` ledger against local files, checking for:
+  - Missing migrations (present locally, absent in DB)
+  - Checksum mismatches (file changed after apply)
+  - Unexpected migrations (ledger entries with no local file)
+- Raises a detailed `MigrationDriftError` when differences exist; otherwise prints `✅ Schema drift check passed.`
+
+### 4. Ledger Table
+
+`infra/migrator/handler.ts` ensures a single table exists in every environment:
+
+```sql
+create table if not exists public.schema_migrations (
+  name text primary key,
+  checksum text not null,
+  applied_at timestamptz not null default now(),
+  execution_ms integer not null,
+  batch_id text,
+  app_version text
+);
+```
+
+All migration runs update this ledger, enabling deterministic replay and drift detection.
+
+## Adding a Migration
+
+1. Ensure you are in the repository root and have Postgres running (`pnpm run db:up`).
+2. Create a new SQL file under the owning service:
    ```bash
-cd services/api
-pnpm exec prisma migrate dev --name add_new_field
+   touch services/cards/migrations/2025-03-17T0930__cards__add-company-reference.sql
    ```
+3. Populate the file with **online-safe** SQL (transactional DDL, no blocking statements).
+4. Run the linter: `pnpm run lint:migrations`.
+5. Apply locally: `pnpm run migrate:local`.
+6. Validate drift: `pnpm run migrate:validate` (should report success against your local DB).
+7. Commit the SQL file alongside code changes that rely on the new schema.
 
-3. **Commit and push**:
-   ```bash
-   git add .
-   git commit -m "feat: add newField to User model"
-   git push origin main
-   ```
+## Deployment Flow
 
-4. **Automatic deployment**: GitHub Actions detects changes and runs migration automatically!
+1. CI runs workspace linting/tests plus the migration linter.
+2. CDK synth bundles service migrations into the migrator Lambda asset (`api-stack.ts` command hook).
+3. During deploy, the migrator Lambda:
+   - Discovers staged SQL files
+   - Acquires an advisory lock (`pg_advisory_lock`)
+   - Applies pending migrations in lexicographical order
+   - Inserts ledger rows with checksums/batch IDs
+4. Application Lambdas depend on the `RunMigrations` custom resource, ensuring new code does not ship until migrations complete.
 
-### Manual Migration Commands
+## Safety Guidelines
 
-**Using the migration script**:
-```bash
-# Local development
-./scripts/migrate.sh local deploy
+- Treat migration files as immutable once merged; never edit an applied SQL file. Add a new file to roll forward.
+- Large/backfill operations should run outside the migrator (Fargate job, Step Functions) to avoid timeouts.
+- Coordinate cross-service schema changes with feature flags or expand/contract patterns.
+- Always include `CONCURRENTLY` for index creation and avoid long-lived locks in schema migrations.
 
-# Staging environment  
-./scripts/migrate.sh staging deploy
+## Pull Request Checklist
 
-# Production environment
-./scripts/migrate.sh production deploy
-```
+Include this checklist (copy/paste) in any PR that ships schema changes:
 
-**Direct commands**:
-```bash
-# Local development
-cd services/api && pnpm exec prisma migrate deploy
+- [ ] Migration filename follows `YYYY-MM-DDThhmm__service__description.sql` and lives under the correct service.
+- [ ] `pnpm run lint:migrations` passes locally.
+- [ ] `pnpm run migrate:local` applied cleanly against a fresh database.
+- [ ] `pnpm run migrate:validate` reports no drift.
+- [ ] Application code that depends on the schema change is included or guarded by a feature flag.
 
-# Production via ECS task (manual)
-aws ecs run-task \
-  --cluster namecard-cluster-staging \
-  --task-definition NameCardProdstagingAPIServiceTaskDef909B2074 \
-  --overrides '{"containerOverrides":[{"name":"namecard-api","command":["sh","-c","cd /app/services/api && pnpm exec prisma migrate deploy"],"environment":[{"name":"DATABASE_URL","value":"postgresql://..."}]}]}'
-```
+## Troubleshooting
 
-## File Structure
+| Symptom | Likely Cause | Resolution |
+| --- | --- | --- |
+| `Invalid migration filename` error | Naming pattern violated | Rename file to match `YYYY-MM-DDThhmm__service__desc.sql`. |
+| `Checksum mismatch` during validation | Edited an applied migration | Revert the change and ship a new forward migration. |
+| `Unable to acquire advisory lock` | Concurrent migration run | Wait/retry; ensure another deploy is not in progress. |
+| Local validation cannot connect | Postgres not running or credentials differ | `pnpm run db:up` and confirm environment variables (`DB_HOST`, etc.). |
 
-```
-services/api/prisma/
-├── schema.prisma                      # Database schema definition
-├── migrations/
-│   ├── migration_lock.toml           # Provider lock file
-│   ├── 20250812000000_initial_migration/
-│   │   └── migration.sql             # Initial schema SQL
-│   └── [timestamp]_[description]/     # Future migrations
-│       └── migration.sql
-```
-
-## Implementation Details
-
-### GitHub Actions Workflow
-**File**: `.github/workflows/deploy-staging.yml`
-
-**Key Features**:
-- Schema change detection using git diff
-- ECS task-based migration execution  
-- Proper error handling and logging
-- Integration with deployment pipeline
-
-### ECS Migration Task
-**Approach**: Uses the production API container to ensure environment consistency
-
-**Benefits**:
-- ✅ Same container environment as production API
-- ✅ All dependencies and tools available
-- ✅ Proper VPC and security group access
-- ✅ Consistent with production runtime
-
-**Configuration**:
-- **Cluster**: `namecard-cluster-staging`
-- **Task Definition**: `NameCardProdstagingAPIServiceTaskDef909B2074`
-- **Network**: Private subnets with NAT gateway access
-- **Security**: Database security group allows ECS task access
-
-### IAM Permissions
-The ECS task role includes:
-- Database access through VPC security groups
-- CloudWatch Logs write permissions
-- AWS Secrets Manager read permissions
-
-## Migration History
-
-### Initial Migration (20250812000000_initial_migration)
-- Created all core tables: users, cards, companies, calendar_events
-- Added enrichment tables: company_enrichments, card_enrichments  
-- Established indexes and foreign key relationships
-- Set up UUID primary keys with PostgreSQL uuid-ossp extension
-
-## Monitoring and Troubleshooting
-
-### CloudWatch Logs
-Migration logs are available in:
-- **Log Group**: `/namecard/api-service/staging`
-- **Log Stream**: `namecard-api/namecard-api/[task-id]`
-
-### Common Issues
-
-1. **"Table does not exist"**: Schema not applied to database
-   - **Solution**: Run migration manually or check deployment logs
-
-2. **"Environment variable not found: DATABASE_URL"**: Missing database connection
-   - **Solution**: Verify AWS Secrets Manager access and ECS task environment
-
-3. **"Prisma Schema that is required for this command"**: Working directory issue
-   - **Solution**: Ensure command runs from `/app/services/api` in container
-
-### Verification Commands
-```bash
-# Check migration status locally
-cd services/api && pnpm exec prisma migrate status
-
-# Test database connection
-cd services/api && pnpm exec prisma db push --preview-feature
-
-# View recent migrations
-aws logs get-log-events --log-group-name "/namecard/api-service/staging" --log-stream-name "[stream-name]"
-```
-
-## Production Considerations
-
-### Safety Features
-- **Atomic migrations**: Each migration runs in a transaction
-- **Rollback capability**: Prisma maintains migration history
-- **Pre-deployment validation**: Schema validation before applying
-- **Failure isolation**: Migration failure prevents application deployment
-
-### Performance
-- **Execution time**: ~373ms for typical schema changes
-- **Downtime**: Zero-downtime for additive changes
-- **Resource usage**: 512 CPU, 1024MB memory (ECS Fargate)
-
-### Security
-- **Credential management**: Database passwords stored in AWS Secrets Manager
-- **Network isolation**: Migrations run in private VPC subnets
-- **Access control**: IAM policies restrict migration execution to authorized tasks
-- **Audit logging**: All migration activities logged to CloudWatch
-
-## Future Enhancements
-
-1. **Migration Rollback**: Implement automated rollback on deployment failure
-2. **Pre-deployment Testing**: Run migrations against staging data copy
-3. **Performance Monitoring**: Track migration execution times and resource usage
-4. **Slack Notifications**: Real-time alerts for migration status
-5. **Blue-Green Database**: Zero-downtime migrations for breaking changes
+This workflow keeps migrations auditable, per-service owned, and tightly integrated with infrastructure automation.

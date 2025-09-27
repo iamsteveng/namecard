@@ -82,9 +82,7 @@ describe('Lambda service handlers', () => {
       })
     );
     expect(listResponse.statusCode).toBe(200);
-    const listPayload = parseBody<{ data: { cards: Array<{ id: string }> } }>(
-      listResponse.body
-    );
+    const listPayload = parseBody<{ data: { cards: Array<{ id: string }> } }>(listResponse.body);
     expect(listPayload.data.cards.some(item => item.id === card.id)).toBe(true);
 
     const ocrJobsResponse = await ocrHandler(
@@ -96,7 +94,9 @@ describe('Lambda service handlers', () => {
       })
     );
     expect(ocrJobsResponse.statusCode).toBe(200);
-    const ocrJobsPayload = parseBody<{ data: { jobs: Array<{ cardId: string }> } }>(ocrJobsResponse.body);
+    const ocrJobsPayload = parseBody<{ data: { jobs: Array<{ cardId: string }> } }>(
+      ocrJobsResponse.body
+    );
     expect(ocrJobsPayload.data.jobs[0].cardId).toBe(card.id);
 
     const enrichmentResponse = await enrichmentHandler(
@@ -129,9 +129,7 @@ describe('Lambda service handlers', () => {
       })
     );
     expect(presignResponse.statusCode).toBe(201);
-    const presignPayload = parseBody<{ data: { upload: { id: string } } }>(
-      presignResponse.body
-    );
+    const presignPayload = parseBody<{ data: { upload: { id: string } } }>(presignResponse.body);
 
     const completeResponse = await uploadsHandler(
       createEvent({

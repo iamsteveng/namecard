@@ -12,9 +12,11 @@ const MIGRATIONS_DIR = (() => {
   }
   return join(process.cwd(), 'migrations');
 })();
-const DEFAULT_LOCK_PARTITION = 1867;
-const DEFAULT_LOCK_TOKEN = 2401;
-const DEFAULT_LEDGER_TABLE = 'public.schema_migrations';
+export const DEFAULT_LOCK_PARTITION = 1867;
+export const DEFAULT_LOCK_TOKEN = 2401;
+export const DEFAULT_LEDGER_TABLE = 'public.schema_migrations';
+
+export const MIGRATION_FILENAME_PATTERN = /^(?<timestamp>\d{4}-\d{2}-\d{2}T\d{4})__(?<service>[a-z0-9-]+)__(?<description>[a-z0-9-]+)\.sql$/;
 
 type QueryResultRow = Record<string, unknown>;
 
@@ -58,7 +60,7 @@ const secretsClient = new SecretsManagerClient({});
 const alarmTopicArn = process.env.MIGRATION_ALARM_TOPIC_ARN ?? process.env.ALARM_TOPIC_ARN;
 const snsClient = alarmTopicArn ? new SNSClient({}) : undefined;
 
-function normalizeLedgerTable(table: string): string {
+export function normalizeLedgerTable(table: string): string {
   const parts = table.split('.').filter(Boolean);
   if (parts.length === 1) {
     return `${quoteIdent('public')}.${quoteIdent(parts[0])}`;
@@ -67,7 +69,7 @@ function normalizeLedgerTable(table: string): string {
   return parts.map(quoteIdent).join('.');
 }
 
-function quoteIdent(identifier: string): string {
+export function quoteIdent(identifier: string): string {
   return `"${identifier.replace(/"/g, '""')}"`;
 }
 
@@ -85,6 +87,11 @@ export function discoverMigrationFiles(dir: string = MIGRATIONS_DIR): MigrationF
   const migrations: MigrationFile[] = [];
 
   for (const name of files) {
+    if (!MIGRATION_FILENAME_PATTERN.test(name)) {
+      throw new Error(
+        `Invalid migration filename: ${name}. Expected format YYYY-MM-DDThhmm__service__description.sql with lowercase service and description segments.`,
+      );
+    }
     if (seen.has(name)) {
       throw new Error(`Duplicate migration filename detected: ${name}`);
     }
@@ -195,7 +202,7 @@ function augmentError(error: unknown, message: string): Error {
   return new Error(message);
 }
 
-async function ensureLedgerTable(client: PgLikeClient, ledgerTable: string): Promise<void> {
+export async function ensureLedgerTable(client: PgLikeClient, ledgerTable: string): Promise<void> {
   await client.query(
     `create table if not exists ${ledgerTable} (
       name text primary key,
@@ -254,7 +261,7 @@ interface DbSecretPayload {
   database?: string;
 }
 
-async function resolveDatabaseConfig() {
+export async function resolveDatabaseConfig() {
   const secretArn = process.env.DB_SECRET_ARN;
   let secret: DbSecretPayload = {};
 

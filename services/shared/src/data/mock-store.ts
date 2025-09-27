@@ -267,14 +267,18 @@ const cloneEnrichmentRecord = (record: EnrichmentRecord): EnrichmentRecord => {
   }
   if (record.completedAt) {
     const completed = cloneDate(record.completedAt);
-    if (completed) clone.completedAt = completed;
+    if (completed) {
+      clone.completedAt = completed;
+    }
   }
-  if (record.error) clone.error = record.error;
+  if (record.error) {
+    clone.error = record.error;
+  }
 
   return clone;
 };
 
-const now = () => new Date();
+const now = (): Date => new Date();
 
 class MockDataStore {
   private users = new Map<string, UserRecord>();
@@ -544,7 +548,10 @@ class MockDataStore {
     return undefined;
   }
 
-  authenticate(email: string, password: string): { user: User; accessToken: string; refreshToken: string; expiresAt: Date } {
+  authenticate(
+    email: string,
+    password: string
+  ): { user: User; accessToken: string; refreshToken: string; expiresAt: Date } {
     const user = this.getUserByEmail(email);
     if (!user || user.password !== password) {
       throw new Error('Invalid credentials');
@@ -658,12 +665,17 @@ class MockDataStore {
     return user.tenantId;
   }
 
-  updateUser(userId: string, updates: Partial<Pick<UserRecord, 'name' | 'avatarUrl' | 'preferences'>>): User {
+  updateUser(
+    userId: string,
+    updates: Partial<Pick<UserRecord, 'name' | 'avatarUrl' | 'preferences'>>
+  ): User {
     const user = this.ensureUserExists(userId);
     const next: UserRecord = {
       ...user,
       ...updates,
-      preferences: updates.preferences ? { ...user.preferences, ...updates.preferences } : user.preferences,
+      preferences: updates.preferences
+        ? { ...user.preferences, ...updates.preferences }
+        : user.preferences,
       updatedAt: now(),
     };
 
@@ -700,7 +712,9 @@ class MockDataStore {
       }
 
       if (matches && params.tags && params.tags.length > 0) {
-        matches = params.tags.every(tag => card.tags.some(cardTag => cardTag.toLowerCase() === tag.toLowerCase()));
+        matches = params.tags.every(tag =>
+          card.tags.some(cardTag => cardTag.toLowerCase() === tag.toLowerCase())
+        );
       }
 
       if (matches && params.company) {
@@ -839,7 +853,10 @@ class MockDataStore {
     };
   }
 
-  createOcrJob(cardId: string, options: { requestedBy: string; payload?: Record<string, any> }): OcrJobRecord {
+  createOcrJob(
+    cardId: string,
+    options: { requestedBy: string; payload?: Record<string, any> }
+  ): OcrJobRecord {
     const card = this.cards.get(cardId);
     if (!card) {
       throw new Error('Card not found');
@@ -898,7 +915,10 @@ class MockDataStore {
     return job ? cloneOcrJob(job) : undefined;
   }
 
-  createEnrichment(cardId: string, options: { requestedBy: string; companyId?: string }): EnrichmentRecord {
+  createEnrichment(
+    cardId: string,
+    options: { requestedBy: string; companyId?: string }
+  ): EnrichmentRecord {
     const card = this.cards.get(cardId);
     if (!card) {
       throw new Error('Card not found');
@@ -1022,9 +1042,8 @@ class MockDataStore {
     const timestamp = now();
     this.analytics.totalQueries += 1;
     this.analytics.lastQueryAt = timestamp;
-    this.analytics.averageLatencyMs = Math.round(
-      (this.analytics.averageLatencyMs * 0.6 + latencyMs * 0.4) * 100
-    ) / 100;
+    this.analytics.averageLatencyMs =
+      Math.round((this.analytics.averageLatencyMs * 0.6 + latencyMs * 0.4) * 100) / 100;
 
     const normalized = query.trim().toLowerCase();
     if (!normalized) {

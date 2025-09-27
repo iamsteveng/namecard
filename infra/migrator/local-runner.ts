@@ -1,16 +1,15 @@
-import { copyFileSync, existsSync, mkdtempSync, readdirSync, rmSync } from 'fs';
-import { join, resolve, dirname } from 'path';
-import { tmpdir } from 'os';
-import { fileURLToPath } from 'url';
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { handler } from './handler.ts';
+import { stageMigrationsIntoTempRoot } from './migrations-fs.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 async function main(): Promise<void> {
-  const migrationsRoot = copyMigrationsToTemp();
-  const cleanup = () => rmSync(migrationsRoot, { recursive: true, force: true });
+  const staged = stageMigrationsIntoTempRoot();
+  const migrationsRoot = staged.path;
 
   process.env.MIGRATIONS_ROOT = migrationsRoot;
   process.env.DB_HOST ??= 'localhost';
@@ -36,38 +35,8 @@ async function main(): Promise<void> {
     console.error('❌ Local migrations failed', error);
     throw error;
   } finally {
-    cleanup();
+    staged.cleanup();
   }
-}
-
-function copyMigrationsToTemp(): string {
-  const servicesDir = resolve(__dirname, '../../services');
-  const tmpDir = mkdtempSync(join(tmpdir(), 'namecard-migrations-'));
-  const serviceEntries = readdirSync(servicesDir, { withFileTypes: true });
-
-  for (const entry of serviceEntries) {
-    if (!entry.isDirectory()) {
-      continue;
-    }
-
-    const migrationsDir = join(servicesDir, entry.name, 'migrations');
-    if (!existsSync(migrationsDir)) {
-      continue;
-    }
-
-    const migrationFiles = readdirSync(migrationsDir, { withFileTypes: true });
-    for (const file of migrationFiles) {
-      if (!file.isFile() || !file.name.endsWith('.sql')) {
-        continue;
-      }
-
-      const source = join(migrationsDir, file.name);
-      const destination = join(tmpDir, file.name);
-      copyFileSync(source, destination);
-    }
-  }
-
-  return tmpDir;
 }
 
 void main();

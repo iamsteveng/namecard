@@ -1,7 +1,11 @@
 import { createHash } from 'crypto';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 import type { MigrationFile } from '../../migrator/handler';
 import { applyMigrations, discoverMigrationFiles } from '../../migrator/handler';
+import { FakeClient, normalize } from './fake-client';
 
 describe('migrator', () => {
   describe('applyMigrations', () => {
@@ -76,6 +80,16 @@ describe('migrator', () => {
     it('returns empty array when directory is missing', () => {
       expect(discoverMigrationFiles('/path/does/not/exist')).toEqual([]);
     });
+
+    it('throws when filenames do not follow the required pattern', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'namecard-migrations-test-'));
+      try {
+        writeFileSync(join(dir, 'bad_migration.sql'), 'select 1;');
+        expect(() => discoverMigrationFiles(dir)).toThrow(/Invalid migration filename/);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
   });
 });
 
@@ -86,83 +100,4 @@ function buildMigrations(names: string[]): MigrationFile[] {
       sql: `-- migration ${name}\nselect ${index};`,
       checksum: createHash('sha256').update(`-- migration ${name}\nselect ${index};`).digest('hex'),
     }));
-}
-
-interface QueryLogEntry {
-  text: string;
-  values?: readonly unknown[];
-}
-
-interface FakeClientOptions {
-  ledger?: Array<{ name: string; checksum?: string | null }>;
-  sqlToName: Map<string, string>;
-  failMigration?: string;
-}
-
-class FakeClient {
-  public queryLog: QueryLogEntry[] = [];
-  public executedMigrations: string[] = [];
-  public insertedMigrations: string[] = [];
-  public unlockCalls = 0;
-
-  private readonly ledger: Array<{ name: string; checksum?: string | null }>;
-  private readonly sqlToName: Map<string, string>;
-  private readonly failMigration?: string;
-
-  constructor(options: FakeClientOptions) {
-    this.ledger = options.ledger ? [...options.ledger] : [];
-    this.sqlToName = options.sqlToName;
-    this.failMigration = options.failMigration;
-  }
-
-  async query(text: string, values?: readonly unknown[]) {
-    this.queryLog.push({ text, values });
-
-    const normalized = normalize(text);
-
-    if (normalized.startsWith('create table if not exists')) {
-      return { rows: [] };
-    }
-
-    if (normalized.startsWith('select pg_advisory_lock')) {
-      return { rows: [] };
-    }
-
-    if (normalized.startsWith('select pg_advisory_unlock')) {
-      this.unlockCalls += 1;
-      return { rows: [] };
-    }
-
-    if (normalized.startsWith('select name, checksum from')) {
-      return { rows: this.ledger.map((row) => ({ ...row })) };
-    }
-
-    if (normalized === 'begin' || normalized === 'commit' || normalized === 'rollback') {
-      return { rows: [] };
-    }
-
-    if (normalized.startsWith('insert into')) {
-      const migrationName = typeof values?.[0] === 'string' ? (values[0] as string) : undefined;
-      if (migrationName) {
-        this.insertedMigrations.push(migrationName);
-        this.ledger.push({ name: migrationName, checksum: values?.[1] as string });
-      }
-      return { rows: [] };
-    }
-
-    const migrationName = this.sqlToName.get(text) ?? this.sqlToName.get(normalized);
-    if (migrationName) {
-      if (this.failMigration === migrationName) {
-        throw new Error(`intentional failure ${migrationName}`);
-      }
-      this.executedMigrations.push(migrationName);
-      return { rows: [] };
-    }
-
-    throw new Error(`Unexpected query executed in test double: ${text}`);
-  }
-}
-
-function normalize(text: string): string {
-  return text.replace(/\s+/g, ' ').trim().toLowerCase();
 }

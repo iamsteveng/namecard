@@ -50,12 +50,12 @@
 - [x] verified — Lambda-mode contract checks succeed with `USE_LAMBDA_HANDLERS=true pnpm exec node test_phase2_api.js` and `USE_LAMBDA_HANDLERS=true pnpm exec node test_search_api.js` to simulate API Gateway behaviour without the legacy Express server.
 
 ## Task 7 — Database Migration Authoring Workflow
-- [ ] done — Establish per-service migration directories, timestamped filename templates, lint/CI guards for unsafe SQL, drift detection automation, and documentation on adding migrations, ensuring migrations bundle automatically with deployments and record metadata in `schema_migrations`.
+- [x] done — Establish per-service migration directories, timestamped filename templates, lint/CI guards for unsafe SQL, drift detection automation, and documentation on adding migrations, ensuring migrations bundle automatically with deployments and record metadata in `schema_migrations`.
 
 **Test Cases**
-- [ ] verified — Automated SQL linting/guards run in CI (`pnpm run lint:all` with migration plugin) and block disallowed patterns.
-- [ ] verified — Drift detection (`pnpm run migrate:validate`) confirms advisory lock behavior and ledger updates.
-- [ ] verified — Migration PR checklist adopted and enforced in repository docs.
+- [x] verified — Automated SQL linting/guards run in CI (`pnpm run lint:all` with migration plugin) and block disallowed patterns.
+- [x] verified — Drift detection (`pnpm run migrate:validate`) confirms advisory lock behavior and ledger updates.
+- [x] verified — Migration PR checklist adopted and enforced in repository docs.
 
 ## Task 8 — Observability, Reliability & Ops Guardrails
 - [ ] done — Add shared logging utilities with structured JSON, tracing hooks (AWS X-Ray or equivalent), CloudWatch alarms (errors, throttles, latency, DB connections), DLQs, idempotency controls, curated dashboards (metrics, logs, traces), log retention policies, synthetic monitoring coverage, and an operational runbook detailing rollback procedures, failure playbooks, and chaos test cadence.
