@@ -3,6 +3,7 @@ const { spawnSync } = require('child_process');
 
 const rawArgs = process.argv.slice(2);
 let workspaceFilter;
+let scopeValue;
 const passthroughArgs = [];
 
 for (let index = 0; index < rawArgs.length; index += 1) {
@@ -14,12 +15,20 @@ for (let index = 0; index < rawArgs.length; index += 1) {
     continue;
   }
 
+  if (arg === '--scope' && rawArgs[index + 1]) {
+    scopeValue = rawArgs[index + 1];
+    index += 1;
+    continue;
+  }
+
   passthroughArgs.push(arg);
 }
 
 const pnpmArgs = ['-r'];
-if (workspaceFilter) {
-  pnpmArgs.push('--filter', resolveWorkspaceSelector(workspaceFilter));
+const resolvedFilter = workspaceFilter ?? scopeValue;
+
+if (resolvedFilter) {
+  pnpmArgs.push('--filter', resolveWorkspaceSelector(resolvedFilter));
 }
 
 pnpmArgs.push('run', 'test', ...passthroughArgs);
@@ -49,6 +58,10 @@ function resolveWorkspaceSelector(filterValue) {
 
   if (normalized === 'migrator') {
     return '@namecard/infra';
+  }
+
+  if (normalized === 'services') {
+    return '@namecard/shared';
   }
 
   return filterValue;

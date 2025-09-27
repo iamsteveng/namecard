@@ -53,6 +53,7 @@
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
     "cypress": "^14.5.1",
+    "esbuild-register": "^3.6.0",
     "eslint": "^8.56.0",
     "eslint-config-prettier": "^10.1.5",
     "eslint-plugin-import": "^2.32.0",
@@ -60,9 +61,12 @@
     "husky": "^8.0.3",
     "jest": "^30.0.4",
     "jest-environment-jsdom": "^30.0.4",
+    "module-alias": "^2.2.3",
     "prettier": "^3.2.4",
     "rimraf": "^5.0.5",
     "start-server-and-test": "^2.0.12",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5.3.3"
   },
   "engines": {

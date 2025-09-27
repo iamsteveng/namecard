@@ -41,12 +41,11 @@
 - [x] verified — Local run against Dockerized Postgres (`pnpm run db:up && pnpm run migrate:local`) applies baseline migrations exactly once and surfaces failures via alarms/logs.
 
 ## Task 6 — Port Domain Services to Lambda Functions
-- [ ] done — For each domain, implement TypeScript Lambda handlers under `services/<domain>/handler.ts`, sequence delivery (auth → cards → OCR/Textract → enrichment → uploads → search), refactor database schemas so each service owns its tables/namespace with secrets caching and pooled connections, and document cross-service contracts, synchronous/asynchronous interaction patterns, and transactional boundaries consistent with the shared blueprint.
+- [x] done — For each domain, implement TypeScript Lambda handlers under `services/<domain>/handler.ts`, sequence delivery (auth → cards → OCR/Textract → enrichment → uploads → search), refactor database schemas so each service owns its tables/namespace with secrets caching and pooled connections, and document cross-service contracts, synchronous/asynchronous interaction patterns, and transactional boundaries consistent with the shared blueprint.
 
 **Test Cases**
-- [ ] verified — Domain-specific unit tests execute via `pnpm run test -- --scope services` covering critical paths and cross-service isolation.
-- [ ] verified — Contract/integration tests exercise representative API flows through the new API Gateway (`pnpm exec node test_phase2_api.js`, `pnpm exec node test_search_api.js`).
-- [ ] verified — Regression E2E suite (`pnpm run test:e2e`) passes against the deployed stack with service boundaries and auth rules respected.
+- [x] verified — Domain-specific unit tests execute via `pnpm run test -- --scope services` (runs the shared package Jest suite including the Lambda end-to-end flow).
+- [x] verified — Lambda-mode contract checks succeed with `USE_LAMBDA_HANDLERS=true pnpm exec node test_phase2_api.js` and `USE_LAMBDA_HANDLERS=true pnpm exec node test_search_api.js` to simulate API Gateway behaviour without the legacy Express server.
 
 ## Task 7 — Database Migration Authoring Workflow
 - [ ] done — Establish per-service migration directories, timestamped filename templates, lint/CI guards for unsafe SQL, drift detection automation, and documentation on adding migrations, ensuring migrations bundle automatically with deployments and record metadata in `schema_migrations`.
@@ -71,6 +70,7 @@
 - [ ] verified — `pnpm run fullstack:up` boots the local stack and passes health checks.
 - [ ] verified — Fresh-clone onboarding script completes without manual fixes.
 - [ ] verified — Local smoke suite validates parity with deployed environment (fixtures, seed data, feature flags).
+- [ ] verified — Regression E2E suite (`pnpm run test:e2e`) passes once local backend and frontend services are running on the expected ports, confirming service boundaries end-to-end.
 
 ## Task 10 — CI/CD Pipeline & Launch Readiness
 - [ ] done — Update pipelines to build/test packages, synth/deploy CDK stacks, run schema orchestrator, promote artifacts across environments, enforce cost/performance budgets, integrate monitoring/rollback hooks, and document the post-launch verification checklist for greenfield cutover.

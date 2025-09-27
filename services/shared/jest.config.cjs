@@ -17,6 +17,8 @@ module.exports = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.cjs'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
+    '^@namecard/shared$': '<rootDir>/src/index.ts',
+    '^@namecard/shared/(.*)$': '<rootDir>/src/$1',
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
   extensionsToTreatAsEsm: ['.ts'],
