@@ -159,6 +159,45 @@ const handleCardsSearch = (event: LambdaHttpEvent, requestId: string) => {
   }
 };
 
+const handleCardsSearchPost = (event: LambdaHttpEvent, requestId: string) => {
+  try {
+    const user = requireAuthenticatedUser(event);
+    const body = parseBody<{ query?: string; q?: string; limit?: number; searchMode?: string }>(event);
+
+    const normalizedQuery = body.query ?? body.q ?? '';
+    if (body.searchMode === 'boolean' && normalizedQuery.includes('(') && !normalizedQuery.includes(')')) {
+      return withCors(
+        createErrorResponse(400, 'Invalid boolean search expression', {
+          code: 'INVALID_QUERY',
+        })
+      );
+    }
+
+    const searchResult = runCardSearch(user.id, normalizedQuery, body.limit ?? 10);
+
+    return withCors(
+      createSuccessResponse(
+        {
+          requestId,
+          results: searchResult.results,
+          searchMeta: {
+            ...searchResult.searchMeta,
+            mode: body.searchMode ?? 'simple',
+          },
+          latencyMs: searchResult.latencyMs,
+        },
+        { message: 'Card search completed' }
+      )
+    );
+  } catch (error) {
+    if ('statusCode' in (error as any)) {
+      return withCors(error as any);
+    }
+    const message = error instanceof Error ? error.message : 'Unable to search cards';
+    return withCors(createErrorResponse(500, message));
+  }
+};
+
 const handleCompaniesSearch = (event: LambdaHttpEvent, requestId: string) => {
   try {
     void requireAuthenticatedUser(event);
@@ -252,65 +291,8 @@ const handleUnifiedQuery = (event: LambdaHttpEvent, requestId: string) => {
   }
 };
 
-export const handler = async (event: LambdaHttpEvent) => {
-  const method = event.httpMethod ?? 'GET';
-  const requestId = getRequestId(event);
-  const segments = getPathSegments(event);
-
-  if (method === 'OPTIONS') {
-    return buildCorsResponse();
-  }
-
-  if (segments.length < 2 || segments[0] !== 'v1' || segments[1] !== 'search') {
-    return withCors(createErrorResponse(404, 'Route not found', { code: 'NOT_FOUND' }));
-  }
-
-  const tail = segments.slice(2);
-
-  if (tail.length === 0 || tail[0] === 'health') {
-    return handleHealth(requestId);
-  }
-
-  if (tail[0] === 'analytics' && method === 'GET') {
-    return handleAnalytics(requestId);
-  }
-
-  if (tail[0] === 'cards' && method === 'GET') {
-    return handleCardsSearch(event, requestId);
-  }
-
-  if (tail[0] === 'cards' && method === 'POST') {
-    const user = requireAuthenticatedUser(event);
-    const body = parseBody<{ query?: string; q?: string; limit?: number; searchMode?: string }>(event);
-
-    const normalizedQuery = body.query ?? body.q ?? '';
-    if (body.searchMode === 'boolean' && normalizedQuery.includes('(') && !normalizedQuery.includes(')')) {
-      return withCors(
-        createErrorResponse(400, 'Invalid boolean search expression', {
-          code: 'INVALID_QUERY',
-        })
-      );
-    }
-
-    const searchResult = runCardSearch(user.id, normalizedQuery, body.limit ?? 10);
-
-    return withCors(
-      createSuccessResponse(
-        {
-          requestId,
-          results: searchResult.results,
-          searchMeta: {
-            ...searchResult.searchMeta,
-            mode: body.searchMode ?? 'simple',
-          },
-          latencyMs: searchResult.latencyMs,
-        },
-        { message: 'Card search completed' }
-      )
-    );
-  }
-
-  if (tail[0] === 'suggestions' && method === 'GET') {
+const handleSuggestions = (event: LambdaHttpEvent, requestId: string) => {
+  try {
     const query = getQuery(event);
     const prefix = (query.prefix ?? '').toLowerCase();
     const limit = query.maxSuggestions ? Number(query.maxSuggestions) : 5;
@@ -343,10 +325,25 @@ export const handler = async (event: LambdaHttpEvent) => {
       },
       body: JSON.stringify(suggestions),
     });
+  } catch (error) {
+    if ('statusCode' in (error as any)) {
+      return withCors(error as any);
+    }
+    const message = error instanceof Error ? error.message : 'Unable to fetch suggestions';
+    return withCors(createErrorResponse(500, message));
   }
+};
 
-  if (tail[0] === 'filters' && method === 'GET') {
-    const cards = mockDb.listCards({ userId: requireAuthenticatedUser(event).id, page: 1, limit: 100, query: '', tags: [], company: undefined }).items;
+const handleFilters = (event: LambdaHttpEvent, requestId: string) => {
+  try {
+    const cards = mockDb.listCards({
+      userId: requireAuthenticatedUser(event).id,
+      page: 1,
+      limit: 100,
+      query: '',
+      tags: [],
+      company: undefined,
+    }).items;
     const companies = new Set<string>();
     const tags = new Set<string>();
     const industries = new Set<string>();
@@ -373,6 +370,52 @@ export const handler = async (event: LambdaHttpEvent) => {
         { message: 'Filter metadata available' }
       )
     );
+  } catch (error) {
+    if ('statusCode' in (error as any)) {
+      return withCors(error as any);
+    }
+    const message = error instanceof Error ? error.message : 'Unable to fetch filters';
+    return withCors(createErrorResponse(500, message));
+  }
+};
+
+export const handler = async (event: LambdaHttpEvent) => {
+  const method = event.httpMethod ?? 'GET';
+  const requestId = getRequestId(event);
+  const segments = getPathSegments(event);
+
+  if (method === 'OPTIONS') {
+    return buildCorsResponse();
+  }
+
+  if (segments.length < 2 || segments[0] !== 'v1' || segments[1] !== 'search') {
+    return withCors(createErrorResponse(404, 'Route not found', { code: 'NOT_FOUND' }));
+  }
+
+  const tail = segments.slice(2);
+
+  if (tail.length === 0 || tail[0] === 'health') {
+    return handleHealth(requestId);
+  }
+
+  if (tail[0] === 'analytics' && method === 'GET') {
+    return handleAnalytics(requestId);
+  }
+
+  if (tail[0] === 'cards' && method === 'GET') {
+    return handleCardsSearch(event, requestId);
+  }
+
+  if (tail[0] === 'cards' && method === 'POST') {
+    return handleCardsSearchPost(event, requestId);
+  }
+
+  if (tail[0] === 'suggestions' && method === 'GET') {
+    return handleSuggestions(event, requestId);
+  }
+
+  if (tail[0] === 'filters' && method === 'GET') {
+    return handleFilters(event, requestId);
   }
 
   if (tail[0] === 'companies' && method === 'GET') {

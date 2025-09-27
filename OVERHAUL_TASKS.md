@@ -43,6 +43,8 @@
 ## Task 6 — Port Domain Services to Lambda Functions
 - [x] done — For each domain, implement TypeScript Lambda handlers under `services/<domain>/handler.ts`, sequence delivery (auth → cards → OCR/Textract → enrichment → uploads → search), refactor database schemas so each service owns its tables/namespace with secrets caching and pooled connections, and document cross-service contracts, synchronous/asynchronous interaction patterns, and transactional boundaries consistent with the shared blueprint.
 
+  > Temporary note: handlers currently exercise the shared in-memory mock store to keep contract tests green. Replacing this with the real per-service data layers (RDS schemas, pooled connections, secrets caching) is deferred to the follow-up task that enables local E2E execution.
+
 **Test Cases**
 - [x] verified — Domain-specific unit tests execute via `pnpm run test -- --scope services` (runs the shared package Jest suite including the Lambda end-to-end flow).
 - [x] verified — Lambda-mode contract checks succeed with `USE_LAMBDA_HANDLERS=true pnpm exec node test_phase2_api.js` and `USE_LAMBDA_HANDLERS=true pnpm exec node test_search_api.js` to simulate API Gateway behaviour without the legacy Express server.
@@ -70,7 +72,7 @@
 - [ ] verified — `pnpm run fullstack:up` boots the local stack and passes health checks.
 - [ ] verified — Fresh-clone onboarding script completes without manual fixes.
 - [ ] verified — Local smoke suite validates parity with deployed environment (fixtures, seed data, feature flags).
-- [ ] verified — Regression E2E suite (`pnpm run test:e2e`) passes once local backend and frontend services are running on the expected ports, confirming service boundaries end-to-end.
+- [ ] pending — Regression E2E suite (`pnpm run test:e2e`) passes against the local stack once real per-service data layers replace the mock store and services run on the expected ports, confirming service boundaries end-to-end.
 
 ## Task 10 — CI/CD Pipeline & Launch Readiness
 - [ ] done — Update pipelines to build/test packages, synth/deploy CDK stacks, run schema orchestrator, promote artifacts across environments, enforce cost/performance budgets, integrate monitoring/rollback hooks, and document the post-launch verification checklist for greenfield cutover.
