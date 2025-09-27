@@ -1,4 +1,4 @@
-import { mockDb } from '@namecard/shared';
+import { mockDb, getLogger, withHttpObservability } from '@namecard/shared';
 import {
   createErrorResponse,
   createSuccessResponse,
@@ -52,6 +52,8 @@ const parseBody = <T>(event: LambdaHttpEvent) => {
 };
 
 const handleHealth = (requestId: string) => {
+  const logger = getLogger();
+  logger.debug('auth.health.check', { requestId });
   const response = createSuccessResponse({
     service: 'auth',
     status: 'ok',
@@ -74,8 +76,10 @@ const handleHealth = (requestId: string) => {
 
 const handleLogin = (event: LambdaHttpEvent, requestId: string) => {
   const body = parseBody<{ email?: string; password?: string }>(event);
+  const logger = getLogger();
 
   if (!body.email || !body.password) {
+    logger.warn('auth.login.invalidInput', { requestId });
     return withCors(
       createErrorResponse(400, 'Email and password are required', {
         code: 'INVALID_INPUT',
@@ -84,10 +88,14 @@ const handleLogin = (event: LambdaHttpEvent, requestId: string) => {
   }
 
   try {
+    logger.info('auth.login.attempt', { email: body.email, requestId });
+
     const { user, accessToken, refreshToken, expiresAt } = mockDb.authenticate(
       body.email,
       body.password
     );
+
+    logger.info('auth.login.success', { userId: user.id, requestId });
 
     return withCors(
       createSuccessResponse(
@@ -105,6 +113,7 @@ const handleLogin = (event: LambdaHttpEvent, requestId: string) => {
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Authentication failed';
+    logger.warn('auth.login.failure', { message, requestId });
     return withCors(
       createErrorResponse(401, message, {
         code: 'INVALID_CREDENTIALS',
@@ -115,8 +124,10 @@ const handleLogin = (event: LambdaHttpEvent, requestId: string) => {
 
 const handleRegister = (event: LambdaHttpEvent, requestId: string) => {
   const body = parseBody<{ email?: string; password?: string; name?: string }>(event);
+  const logger = getLogger();
 
   if (!body.email || !body.password || !body.name) {
+    logger.warn('auth.register.invalidInput', { requestId });
     return withCors(
       createErrorResponse(400, 'Name, email, and password are required', {
         code: 'INVALID_INPUT',
@@ -125,11 +136,15 @@ const handleRegister = (event: LambdaHttpEvent, requestId: string) => {
   }
 
   try {
+    logger.info('auth.register.attempt', { email: body.email, requestId });
+
     const { user, accessToken, refreshToken, expiresAt } = mockDb.register({
       email: body.email,
       password: body.password,
       name: body.name,
     });
+
+    logger.info('auth.register.success', { userId: user.id, requestId });
 
     return withCors(
       createSuccessResponse(
@@ -150,6 +165,7 @@ const handleRegister = (event: LambdaHttpEvent, requestId: string) => {
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Registration failed';
+    logger.warn('auth.register.failure', { message, requestId });
     return withCors(
       createErrorResponse(409, message, {
         code: 'DUPLICATE_EMAIL',
@@ -161,6 +177,7 @@ const handleRegister = (event: LambdaHttpEvent, requestId: string) => {
 const handleProfile = (event: LambdaHttpEvent, requestId: string) => {
   try {
     const { user } = requireAuthenticatedUser(event);
+    getLogger().info('auth.profile.lookup', { userId: user.id, requestId });
     const profile = mockDb.getUserProfile(user.id);
     const stats = mockDb.getCardStats(user.id);
 
@@ -176,16 +193,20 @@ const handleProfile = (event: LambdaHttpEvent, requestId: string) => {
     );
   } catch (error) {
     if ('statusCode' in (error as any)) {
+      getLogger().warn('auth.profile.errorResponse', { requestId });
       return withCors(error as any);
     }
     const message = error instanceof Error ? error.message : 'Unable to fetch profile';
+    getLogger().error('auth.profile.failure', error, { requestId });
     return withCors(createErrorResponse(500, message));
   }
 };
 
 const handleRefresh = (event: LambdaHttpEvent, requestId: string) => {
   const body = parseBody<{ refreshToken?: string }>(event);
+  const logger = getLogger();
   if (!body.refreshToken) {
+    logger.warn('auth.refresh.missingToken', { requestId });
     return withCors(
       createErrorResponse(400, 'Refresh token is required', {
         code: 'INVALID_INPUT',
@@ -194,7 +215,9 @@ const handleRefresh = (event: LambdaHttpEvent, requestId: string) => {
   }
 
   try {
+    logger.debug('auth.refresh.attempt', { requestId });
     const refreshed = mockDb.refresh(body.refreshToken);
+    logger.info('auth.refresh.success', { requestId });
     return withCors(
       createSuccessResponse(
         {
@@ -210,6 +233,7 @@ const handleRefresh = (event: LambdaHttpEvent, requestId: string) => {
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to refresh session';
+    logger.warn('auth.refresh.failure', { message, requestId });
     return withCors(
       createErrorResponse(401, message, {
         code: 'TOKEN_INVALID',
@@ -221,7 +245,10 @@ const handleRefresh = (event: LambdaHttpEvent, requestId: string) => {
 const handleLogout = (event: LambdaHttpEvent, requestId: string) => {
   try {
     const { token } = requireAuthenticatedUser(event);
+    const logger = getLogger();
+    logger.debug('auth.logout.attempt', { requestId });
     mockDb.revoke(token);
+    logger.info('auth.logout.success', { requestId });
     return withCors(
       createSuccessResponse(
         { requestId },
@@ -232,9 +259,11 @@ const handleLogout = (event: LambdaHttpEvent, requestId: string) => {
     );
   } catch (error) {
     if ('statusCode' in (error as any)) {
+      getLogger().warn('auth.logout.errorResponse', { requestId });
       return withCors(error as any);
     }
     const message = error instanceof Error ? error.message : 'Unable to logout';
+    getLogger().error('auth.logout.failure', error, { requestId });
     return withCors(createErrorResponse(500, message));
   }
 };
@@ -258,10 +287,17 @@ const handleRoutesCatalog = (requestId: string) => {
   );
 };
 
-export const handler = async (event: LambdaHttpEvent) => {
+const handleRequest = async (event: LambdaHttpEvent) => {
   const method = event.httpMethod ?? 'GET';
   const requestId = getRequestId(event);
   const segments = getPathSegments(event);
+  const logger = getLogger();
+
+  logger.debug('auth.router.received', {
+    method,
+    path: event.rawPath,
+    requestId,
+  });
 
   if (method === 'OPTIONS') {
     return buildCorsResponse();
@@ -305,5 +341,11 @@ export const handler = async (event: LambdaHttpEvent) => {
     return handleLogout(event, requestId);
   }
 
+  logger.warn('auth.router.unhandled', {
+    method,
+    path: event.rawPath,
+  });
   return withCors(createErrorResponse(405, 'Method not allowed', { code: 'METHOD_NOT_ALLOWED' }));
 };
+
+export const handler = withHttpObservability(handleRequest, { serviceName: 'auth' });

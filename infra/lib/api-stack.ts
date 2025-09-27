@@ -13,6 +13,8 @@ import * as apigwv2 from 'aws-cdk-lib/aws-apigatewayv2';
 import * as apigwv2Integrations from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import { AccessLogFormat } from 'aws-cdk-lib/aws-apigateway';
 import * as cr from 'aws-cdk-lib/custom-resources';
+import * as cw from 'aws-cdk-lib/aws-cloudwatch';
+import * as sqs from 'aws-cdk-lib/aws-sqs';
 
 export type EnvironmentKey = 'dev' | 'staging' | 'prod';
 
@@ -300,6 +302,13 @@ export class ApiStack extends cdk.Stack {
 
     stage.node.addDependency(accessLogGroup);
 
+    const deadLetterQueue = new sqs.Queue(this, 'LambdaDeadLetterQueue', {
+      queueName: `namecard-${envKey}-lambda-dlq`,
+      retentionPeriod: envKey === 'prod' ? Duration.days(14) : Duration.days(7),
+      encryption: sqs.QueueEncryption.KMS_MANAGED,
+      visibilityTimeout: Duration.minutes(5),
+    });
+
     const migrationLambda = new NodejsFunction(this, 'SchemaMigrator', {
       entry: path.join(__dirname, '../migrator/handler.ts'),
       runtime: lambda.Runtime.NODEJS_20_X,
@@ -366,6 +375,7 @@ export class ApiStack extends cdk.Stack {
     });
 
     const serviceIntegrations: Record<string, apigwv2Integrations.HttpLambdaIntegration> = {};
+    const functionRecords: Array<{ definition: ServiceDefinition; fn: NodejsFunction }> = [];
 
     SERVICE_DEFINITIONS.forEach((service) => {
       const functionEnv = {
@@ -391,6 +401,8 @@ export class ApiStack extends cdk.Stack {
         tracing: lambda.Tracing.ACTIVE,
         environment: functionEnv,
         layers: [lambdaLayer],
+        deadLetterQueue,
+        deadLetterQueueEnabled: true,
       });
 
       props.dbSecret.grantRead(fn);
@@ -402,6 +414,8 @@ export class ApiStack extends cdk.Stack {
       }));
 
       fn.node.addDependency(runMigrations);
+
+      functionRecords.push({ definition: service, fn });
 
       const provisionedValue = service.scaling.provisionedConcurrency?.[envKey];
       const integrationTarget: lambda.IFunction = (() => {
@@ -447,6 +461,161 @@ export class ApiStack extends cdk.Stack {
       description: 'RDS Proxy endpoint for Lambda connections',
       exportName: `namecard-${envKey}-rds-proxy-endpoint`,
     });
+
+    functionRecords.forEach(({ definition, fn }) => {
+      const durationThreshold = Math.max(200, Math.round(definition.timeout.toMilliseconds() * 0.8));
+
+      new cw.Alarm(this, `${definition.id}ErrorsAlarm`, {
+        alarmDescription: `${definition.domain} Lambda error rate exceeds threshold`,
+        metric: fn.metricErrors({
+          period: Duration.minutes(5),
+          statistic: 'Sum',
+        }),
+        comparisonOperator: cw.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+        threshold: envKey === 'prod' ? 1 : 3,
+        evaluationPeriods: 1,
+        datapointsToAlarm: 1,
+        treatMissingData: cw.TreatMissingData.NOT_BREACHING,
+      });
+
+      new cw.Alarm(this, `${definition.id}ThrottlesAlarm`, {
+        alarmDescription: `${definition.domain} Lambda throttles detected`,
+        metric: fn.metricThrottles({
+          period: Duration.minutes(5),
+          statistic: 'Sum',
+        }),
+        comparisonOperator: cw.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+        threshold: 1,
+        evaluationPeriods: 1,
+        datapointsToAlarm: 1,
+        treatMissingData: cw.TreatMissingData.NOT_BREACHING,
+      });
+
+      new cw.Alarm(this, `${definition.id}LatencyAlarm`, {
+        alarmDescription: `${definition.domain} Lambda latency p95 saturation`,
+        metric: fn.metricDuration({
+          period: Duration.minutes(5),
+          statistic: 'p95',
+        }),
+        comparisonOperator: cw.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+        threshold: durationThreshold,
+        evaluationPeriods: 1,
+        datapointsToAlarm: 1,
+        treatMissingData: cw.TreatMissingData.NOT_BREACHING,
+      });
+    });
+
+    new cw.Alarm(this, 'LambdaDeadLetterQueueAlarm', {
+      alarmDescription: 'Lambda DLQ has messages pending investigation',
+      metric: deadLetterQueue.metricApproximateNumberOfMessagesVisible({
+        period: Duration.minutes(5),
+        statistic: 'Average',
+      }),
+      comparisonOperator: cw.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      threshold: envKey === 'prod' ? 1 : 5,
+      evaluationPeriods: 1,
+      datapointsToAlarm: 1,
+      treatMissingData: cw.TreatMissingData.NOT_BREACHING,
+    });
+
+    const apiLatencyMetric = new cw.Metric({
+      namespace: 'AWS/ApiGateway',
+      metricName: 'Latency',
+      statistic: 'p95',
+      period: Duration.minutes(5),
+      dimensionsMap: {
+        ApiId: this.httpApi.apiId,
+        Stage: stageName,
+      },
+    });
+
+    new cw.Alarm(this, 'HttpApiLatencyAlarm', {
+      alarmDescription: 'HTTP API latency exceeding target p95 threshold',
+      metric: apiLatencyMetric,
+      comparisonOperator: cw.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      threshold: envKey === 'prod' ? 750 : 1200,
+      evaluationPeriods: 1,
+      datapointsToAlarm: 1,
+      treatMissingData: cw.TreatMissingData.NOT_BREACHING,
+    });
+
+    const dbConnectionsMetric = new cw.Metric({
+      namespace: 'AWS/RDS',
+      metricName: 'DatabaseConnections',
+      statistic: 'Average',
+      period: Duration.minutes(5),
+      dimensionsMap: {
+        DBClusterIdentifier: props.dbCluster.clusterIdentifier,
+      },
+    });
+
+    new cw.Alarm(this, 'DbConnectionsAlarm', {
+      alarmDescription: 'Aurora database connections nearing capacity',
+      metric: dbConnectionsMetric,
+      comparisonOperator: cw.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      threshold: envKey === 'prod' ? 450 : envKey === 'staging' ? 180 : 60,
+      evaluationPeriods: 1,
+      datapointsToAlarm: 1,
+      treatMissingData: cw.TreatMissingData.NOT_BREACHING,
+    });
+
+    const proxyConnectionsMetric = new cw.Metric({
+      namespace: 'AWS/RDS',
+      metricName: 'DatabaseConnections',
+      statistic: 'Average',
+      period: Duration.minutes(5),
+      dimensionsMap: {
+        DBProxyName: this.rdsProxy.dbProxyName,
+      },
+    });
+
+    new cw.Alarm(this, 'RdsProxyConnectionsAlarm', {
+      alarmDescription: 'RDS Proxy connection pool saturation detected',
+      metric: proxyConnectionsMetric,
+      comparisonOperator: cw.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      threshold: envKey === 'prod' ? 350 : 120,
+      evaluationPeriods: 1,
+      datapointsToAlarm: 1,
+      treatMissingData: cw.TreatMissingData.NOT_BREACHING,
+    });
+
+    const dashboard = new cw.Dashboard(this, 'ObservabilityDashboard', {
+      dashboardName: `namecard-${envKey}-observability`,
+      start: '-PT12H',
+    });
+
+    dashboard.addWidgets(
+      new cw.GraphWidget({
+        title: 'Lambda Errors (5m)',
+        left: functionRecords.map(({ definition, fn }) =>
+          fn.metricErrors({ period: Duration.minutes(5), statistic: 'Sum', label: definition.domain }),
+        ),
+      }),
+      new cw.GraphWidget({
+        title: 'Lambda Duration p95 (5m)',
+        left: functionRecords.map(({ definition, fn }) =>
+          fn.metricDuration({ period: Duration.minutes(5), statistic: 'p95', label: definition.domain }),
+        ),
+      }),
+    );
+
+    dashboard.addWidgets(
+      new cw.GraphWidget({
+        title: 'DLQ Depth',
+        left: [deadLetterQueue.metricApproximateNumberOfMessagesVisible({ period: Duration.minutes(5) })],
+      }),
+      new cw.GraphWidget({
+        title: 'API Latency p95',
+        left: [apiLatencyMetric],
+      }),
+    );
+
+    dashboard.addWidgets(
+      new cw.GraphWidget({
+        title: 'Database Connections',
+        left: [dbConnectionsMetric, proxyConnectionsMetric],
+      }),
+    );
 
     cdk.Tags.of(this).add('Environment', envKey);
     cdk.Tags.of(this).add('Application', 'NameCard');

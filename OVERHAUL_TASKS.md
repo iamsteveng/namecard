@@ -58,12 +58,12 @@
 - [x] verified — Migration PR checklist adopted and enforced in repository docs.
 
 ## Task 8 — Observability, Reliability & Ops Guardrails
-- [ ] done — Add shared logging utilities with structured JSON, tracing hooks (AWS X-Ray or equivalent), CloudWatch alarms (errors, throttles, latency, DB connections), DLQs, idempotency controls, curated dashboards (metrics, logs, traces), log retention policies, synthetic monitoring coverage, and an operational runbook detailing rollback procedures, failure playbooks, and chaos test cadence.
+- [x] done — Add shared logging utilities with structured JSON, tracing hooks (AWS X-Ray or equivalent), CloudWatch alarms (errors, throttles, latency, DB connections), DLQs, idempotency controls, curated dashboards (metrics, logs, traces), log retention policies, synthetic monitoring coverage, and an operational runbook detailing rollback procedures, failure playbooks, and chaos test cadence.
 
 **Test Cases**
-- [ ] verified — Infrastructure assertions confirm alarms, tracing resources, DLQ wiring, and dashboard/log retention definitions (`pnpm run test --filter infra-observability`).
-- [ ] verified — Load/canary script (`pnpm exec node test_monitoring.js`) captures structured logs, validates alarm thresholds, and exercises synthetic probes in a staging environment.
-- [ ] verified — Runbook reviewed during an operational readiness exercise with observability tooling sign-off.
+- [x] verified — Infrastructure assertions confirm alarms, tracing resources, DLQ wiring, and dashboard/log retention definitions (`pnpm run test --filter infra-observability`).
+- [x] verified — Load/canary script (`pnpm exec node test_monitoring.js`) captures structured logs, validates alarm thresholds, and exercises synthetic probes in a staging environment.
+- [x] verified — Runbook reviewed during an operational readiness exercise with observability tooling sign-off.
 
 ## Task 9 — Developer Tooling & Local Experience
 - [ ] done — Provide docker-compose updates (local Postgres + localstack if needed), seed scripts, sample env files, pnpm scripts for local Lambda emulation (SAM/Architect), and onboarding docs guaranteeing a parity local experience with automated smoke verification.

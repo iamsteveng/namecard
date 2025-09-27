@@ -1,4 +1,4 @@
-import { mockDb } from '@namecard/shared';
+import { mockDb, getLogger, getMetrics, withHttpObservability } from '@namecard/shared';
 import {
   createErrorResponse,
   createSuccessResponse,
@@ -51,7 +51,12 @@ const parseBody = <T>(event: LambdaHttpEvent) => {
 };
 
 const handleHealth = (requestId: string) => {
+  const logger = getLogger();
+  const metrics = getMetrics();
   const analytics = mockDb.getSearchAnalytics();
+
+  logger.debug('enrichment.health.check', { requestId });
+  metrics.gauge('enrichmentProcessedCards', analytics.cardsIndexed);
 
   return withCors(
     createSuccessResponse(
@@ -74,6 +79,9 @@ const handleHealth = (requestId: string) => {
 };
 
 const handleCreateForCard = (event: LambdaHttpEvent, requestId: string, cardId: string) => {
+  const logger = getLogger();
+  const metrics = getMetrics();
+  const startedAt = Date.now();
   try {
     const user = requireAuthenticatedUser(event);
     const body = parseBody<{ companyId?: string }>(event);
@@ -82,6 +90,10 @@ const handleCreateForCard = (event: LambdaHttpEvent, requestId: string, cardId: 
       requestedBy: user.id,
       companyId: body.companyId,
     });
+
+    metrics.count('enrichmentRequests');
+    metrics.duration('enrichmentLatencyMs', Date.now() - startedAt);
+    logger.info('enrichment.card.success', { requestId, cardId, companyId: body.companyId });
 
     return withCors(
       createSuccessResponse(
@@ -97,19 +109,23 @@ const handleCreateForCard = (event: LambdaHttpEvent, requestId: string, cardId: 
       return withCors(error as any);
     }
     const message = error instanceof Error ? error.message : 'Unable to enrich card';
+    logger.error('enrichment.card.failure', error, { requestId, cardId });
     return withCors(createErrorResponse(500, message));
   }
 };
 
 const handleGetForCard = (event: LambdaHttpEvent, requestId: string, cardId: string) => {
+  const logger = getLogger();
   try {
     void requireAuthenticatedUser(event);
     const enrichment = mockDb.getEnrichmentByCard(cardId);
 
     if (!enrichment) {
+      logger.warn('enrichment.card.notFound', { requestId, cardId });
       return withCors(createErrorResponse(404, 'Enrichment not found', { code: 'NOT_FOUND' }));
     }
 
+    logger.info('enrichment.card.retrieved', { requestId, cardId });
     return withCors(
       createSuccessResponse(
         {
@@ -124,19 +140,23 @@ const handleGetForCard = (event: LambdaHttpEvent, requestId: string, cardId: str
       return withCors(error as any);
     }
     const message = error instanceof Error ? error.message : 'Unable to fetch enrichment';
+    logger.error('enrichment.card.failure', error, { requestId, cardId });
     return withCors(createErrorResponse(500, message));
   }
 };
 
 const handleGetForCompany = (event: LambdaHttpEvent, requestId: string, companyId: string) => {
+  const logger = getLogger();
   try {
     void requireAuthenticatedUser(event);
     const enrichment = mockDb.getEnrichmentByCompany(companyId);
 
     if (!enrichment) {
+      logger.warn('enrichment.company.notFound', { requestId, companyId });
       return withCors(createErrorResponse(404, 'Company enrichment not found', { code: 'NOT_FOUND' }));
     }
 
+    logger.info('enrichment.company.retrieved', { requestId, companyId });
     return withCors(
       createSuccessResponse(
         {
@@ -151,20 +171,25 @@ const handleGetForCompany = (event: LambdaHttpEvent, requestId: string, companyI
       return withCors(error as any);
     }
     const message = error instanceof Error ? error.message : 'Unable to fetch company enrichment';
+    logger.error('enrichment.company.failure', error, { requestId, companyId });
     return withCors(createErrorResponse(500, message));
   }
 };
 
-export const handler = async (event: LambdaHttpEvent) => {
+const handleRequest = async (event: LambdaHttpEvent) => {
   const method = event.httpMethod ?? 'GET';
   const requestId = getRequestId(event);
   const segments = getPathSegments(event);
+  const logger = getLogger();
+
+  logger.debug('enrichment.router.received', { method, path: event.rawPath, requestId });
 
   if (method === 'OPTIONS') {
     return buildCorsResponse();
   }
 
   if (segments.length < 2 || segments[0] !== 'v1' || segments[1] !== 'enrichment') {
+    logger.warn('enrichment.router.notFound', { path: event.rawPath });
     return withCors(createErrorResponse(404, 'Route not found', { code: 'NOT_FOUND' }));
   }
 
@@ -188,5 +213,8 @@ export const handler = async (event: LambdaHttpEvent) => {
     return handleGetForCompany(event, requestId, tail[1]);
   }
 
+  logger.warn('enrichment.router.unhandled', { method, path: event.rawPath });
   return withCors(createErrorResponse(405, 'Method not allowed', { code: 'METHOD_NOT_ALLOWED' }));
 };
+
+export const handler = withHttpObservability(handleRequest, { serviceName: 'enrichment' });

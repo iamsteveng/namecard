@@ -1,4 +1,4 @@
-import { mockDb } from '@namecard/shared';
+import { mockDb, getLogger, getMetrics, withHttpObservability } from '@namecard/shared';
 import {
   createErrorResponse,
   createSuccessResponse,
@@ -52,6 +52,9 @@ const parseBody = <T>(event: LambdaHttpEvent) => {
 };
 
 const runCardSearch = (userId: string, searchTerm: string, limit = 10) => {
+  const metrics = getMetrics();
+  const logger = getLogger();
+  const startedAt = Date.now();
   const listResult = mockDb.listCards({
     userId,
     page: 1,
@@ -70,6 +73,17 @@ const runCardSearch = (userId: string, searchTerm: string, limit = 10) => {
 
   const latencyMs = Math.floor(Math.random() * 30) + 35;
   mockDb.recordSearch(searchTerm, latencyMs, listResult.items.length);
+
+  const totalDuration = Date.now() - startedAt;
+  metrics.duration('searchCardsLatencyMs', totalDuration, {
+    hasQuery: searchTerm ? 'true' : 'false',
+  });
+  metrics.count('searchCardsResults', listResult.items.length);
+  logger.debug('search.cards.executed', {
+    query: searchTerm,
+    results: listResult.items.length,
+    latencyMs: totalDuration,
+  });
 
   const results = listResult.items.map((card, index) => ({
     item: card,
@@ -92,7 +106,12 @@ const runCardSearch = (userId: string, searchTerm: string, limit = 10) => {
 };
 
 const handleHealth = (requestId: string) => {
+  const logger = getLogger();
+  const metrics = getMetrics();
   const analytics = mockDb.getSearchAnalytics();
+
+  logger.debug('search.health.check', { requestId });
+  metrics.gauge('searchAverageLatency', analytics.averageLatencyMs);
 
   return withCors(
     createSuccessResponse(
@@ -116,7 +135,10 @@ const handleHealth = (requestId: string) => {
 };
 
 const handleAnalytics = (requestId: string) => {
+  const logger = getLogger();
   const analytics = mockDb.getSearchAnalytics();
+
+  logger.info('search.analytics.retrieved', { requestId, averageLatencyMs: analytics.averageLatencyMs });
 
   return withCors(
     createSuccessResponse(
@@ -130,6 +152,7 @@ const handleAnalytics = (requestId: string) => {
 };
 
 const handleCardsSearch = (event: LambdaHttpEvent, requestId: string) => {
+  const logger = getLogger();
   try {
     const user = requireAuthenticatedUser(event);
     const query = getQuery(event);
@@ -137,6 +160,11 @@ const handleCardsSearch = (event: LambdaHttpEvent, requestId: string) => {
     const limit = query.limit ? Number(query.limit) : 10;
 
     const result = runCardSearch(user.id, searchTerm, limit);
+    logger.info('search.cards.get.success', {
+      requestId,
+      searchTerm,
+      returned: result.results.length,
+    });
 
     return withCors(
       createSuccessResponse(
@@ -155,17 +183,20 @@ const handleCardsSearch = (event: LambdaHttpEvent, requestId: string) => {
       return withCors(error as any);
     }
     const message = error instanceof Error ? error.message : 'Unable to search cards';
+    logger.error('search.cards.get.failure', error, { requestId });
     return withCors(createErrorResponse(500, message));
   }
 };
 
 const handleCardsSearchPost = (event: LambdaHttpEvent, requestId: string) => {
+  const logger = getLogger();
   try {
     const user = requireAuthenticatedUser(event);
     const body = parseBody<{ query?: string; q?: string; limit?: number; searchMode?: string }>(event);
 
     const normalizedQuery = body.query ?? body.q ?? '';
     if (body.searchMode === 'boolean' && normalizedQuery.includes('(') && !normalizedQuery.includes(')')) {
+      logger.warn('search.cards.post.invalidExpression', { requestId });
       return withCors(
         createErrorResponse(400, 'Invalid boolean search expression', {
           code: 'INVALID_QUERY',
@@ -174,6 +205,11 @@ const handleCardsSearchPost = (event: LambdaHttpEvent, requestId: string) => {
     }
 
     const searchResult = runCardSearch(user.id, normalizedQuery, body.limit ?? 10);
+    logger.info('search.cards.post.success', {
+      requestId,
+      searchMode: body.searchMode ?? 'simple',
+      returned: searchResult.results.length,
+    });
 
     return withCors(
       createSuccessResponse(
@@ -194,11 +230,13 @@ const handleCardsSearchPost = (event: LambdaHttpEvent, requestId: string) => {
       return withCors(error as any);
     }
     const message = error instanceof Error ? error.message : 'Unable to search cards';
+    logger.error('search.cards.post.failure', error, { requestId });
     return withCors(createErrorResponse(500, message));
   }
 };
 
 const handleCompaniesSearch = (event: LambdaHttpEvent, requestId: string) => {
+  const logger = getLogger();
   try {
     void requireAuthenticatedUser(event);
     const query = getQuery(event);
@@ -221,6 +259,11 @@ const handleCompaniesSearch = (event: LambdaHttpEvent, requestId: string) => {
       }));
 
     mockDb.recordSearch(searchTerm, 40, companies.length);
+    logger.info('search.companies.success', {
+      requestId,
+      searchTerm,
+      returned: companies.length,
+    });
 
     return withCors(
       createSuccessResponse(
@@ -237,11 +280,13 @@ const handleCompaniesSearch = (event: LambdaHttpEvent, requestId: string) => {
       return withCors(error as any);
     }
     const message = error instanceof Error ? error.message : 'Unable to search companies';
+    logger.error('search.companies.failure', error, { requestId });
     return withCors(createErrorResponse(500, message));
   }
 };
 
 const handleUnifiedQuery = (event: LambdaHttpEvent, requestId: string) => {
+  const logger = getLogger();
   try {
     const user = requireAuthenticatedUser(event);
     const body = parseBody<{
@@ -267,6 +312,13 @@ const handleUnifiedQuery = (event: LambdaHttpEvent, requestId: string) => {
           .slice(0, 5)
       : [];
 
+    logger.info('search.unified.success', {
+      requestId,
+      includeCompanies,
+      cardsReturned: cardsResult.results.length,
+      companiesReturned: companies.length,
+    });
+
     return withCors(
       createSuccessResponse(
         {
@@ -287,11 +339,13 @@ const handleUnifiedQuery = (event: LambdaHttpEvent, requestId: string) => {
       return withCors(error as any);
     }
     const message = error instanceof Error ? error.message : 'Unable to process search query';
+    logger.error('search.unified.failure', error, { requestId });
     return withCors(createErrorResponse(500, message));
   }
 };
 
 const handleSuggestions = (event: LambdaHttpEvent, requestId: string) => {
+  const logger = getLogger();
   try {
     const query = getQuery(event);
     const prefix = (query.prefix ?? '').toLowerCase();
@@ -318,6 +372,12 @@ const handleSuggestions = (event: LambdaHttpEvent, requestId: string) => {
       .slice(0, limit)
       .map(value => ({ text: value, type: 'card' }));
 
+    logger.debug('search.suggestions.success', {
+      requestId,
+      prefix,
+      returned: suggestions.length,
+    });
+
     return withCors({
       statusCode: 200,
       headers: {
@@ -330,11 +390,13 @@ const handleSuggestions = (event: LambdaHttpEvent, requestId: string) => {
       return withCors(error as any);
     }
     const message = error instanceof Error ? error.message : 'Unable to fetch suggestions';
+    logger.error('search.suggestions.failure', error, { requestId });
     return withCors(createErrorResponse(500, message));
   }
 };
 
 const handleFilters = (event: LambdaHttpEvent, requestId: string) => {
+  const logger = getLogger();
   try {
     const cards = mockDb.listCards({
       userId: requireAuthenticatedUser(event).id,
@@ -357,6 +419,13 @@ const handleFilters = (event: LambdaHttpEvent, requestId: string) => {
       industries.add(company.industry ?? 'General');
     });
 
+    logger.debug('search.filters.success', {
+      requestId,
+      companies: companies.size,
+      tags: tags.size,
+      industries: industries.size,
+    });
+
     return withCors(
       createSuccessResponse(
         {
@@ -375,20 +444,25 @@ const handleFilters = (event: LambdaHttpEvent, requestId: string) => {
       return withCors(error as any);
     }
     const message = error instanceof Error ? error.message : 'Unable to fetch filters';
+    logger.error('search.filters.failure', error, { requestId });
     return withCors(createErrorResponse(500, message));
   }
 };
 
-export const handler = async (event: LambdaHttpEvent) => {
+const handleRequest = async (event: LambdaHttpEvent) => {
   const method = event.httpMethod ?? 'GET';
   const requestId = getRequestId(event);
   const segments = getPathSegments(event);
+  const logger = getLogger();
+
+  logger.debug('search.router.received', { method, path: event.rawPath, requestId });
 
   if (method === 'OPTIONS') {
     return buildCorsResponse();
   }
 
   if (segments.length < 2 || segments[0] !== 'v1' || segments[1] !== 'search') {
+    logger.warn('search.router.notFound', { path: event.rawPath });
     return withCors(createErrorResponse(404, 'Route not found', { code: 'NOT_FOUND' }));
   }
 
@@ -426,5 +500,8 @@ export const handler = async (event: LambdaHttpEvent) => {
     return handleUnifiedQuery(event, requestId);
   }
 
+  logger.warn('search.router.unhandled', { method, path: event.rawPath });
   return withCors(createErrorResponse(405, 'Method not allowed', { code: 'METHOD_NOT_ALLOWED' }));
 };
+
+export const handler = withHttpObservability(handleRequest, { serviceName: 'search' });

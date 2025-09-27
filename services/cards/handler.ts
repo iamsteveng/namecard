@@ -3,6 +3,11 @@ import {
   normalizePaginationParams,
   calculatePaginationMeta,
   type CreateCardInput,
+  getLogger,
+  getMetrics,
+  extractIdempotencyKey,
+  withIdempotency,
+  withHttpObservability,
 } from '@namecard/shared';
 import {
   createErrorResponse,
@@ -73,8 +78,10 @@ const parseTags = (raw: string | string[] | undefined): string[] => {
     .filter(Boolean);
 };
 
-const handleHealth = (requestId: string) =>
-  withCors(
+const handleHealth = (requestId: string) => {
+  const logger = getLogger();
+  logger.debug('cards.health.check', { requestId });
+  return withCors(
     createSuccessResponse(
       {
         service: 'cards',
@@ -93,12 +100,22 @@ const handleHealth = (requestId: string) =>
       { message: 'Cards service healthy' }
     )
   );
+};
 
 const handleListCards = (event: LambdaHttpEvent, requestId: string) => {
+  const logger = getLogger();
+  const metrics = getMetrics();
+  const startedAt = Date.now();
   try {
     const user = requireAuthenticatedUser(event);
     const tenantId = mockDb.getTenantForUser(user.id);
     const query = getQuery(event);
+
+    logger.debug('cards.list.start', {
+      requestId,
+      userId: user.id,
+      hasQuery: Boolean(query.q ?? query.query),
+    });
 
     const paginationBase = normalizePaginationParams({
       page: query.page,
@@ -125,6 +142,15 @@ const handleListCards = (event: LambdaHttpEvent, requestId: string) => {
       result.total
     );
 
+    metrics.duration('cardsListLatencyMs', Date.now() - startedAt, {
+      hasQuery: searchTerm ? 'true' : 'false',
+    });
+    metrics.count('cardsListResults', result.items.length);
+    logger.info('cards.list.success', {
+      requestId,
+      returned: result.items.length,
+    });
+
     return withCors(
       createSuccessResponse(
         {
@@ -146,6 +172,7 @@ const handleListCards = (event: LambdaHttpEvent, requestId: string) => {
       return withCors(error as any);
     }
     const message = error instanceof Error ? error.message : 'Unable to list cards';
+    logger.error('cards.list.failure', error, { requestId });
     return withCors(createErrorResponse(500, message));
   }
 };
@@ -154,11 +181,15 @@ const handleGetCard = (event: LambdaHttpEvent, requestId: string, cardId: string
   try {
     const user = requireAuthenticatedUser(event);
     const card = mockDb.getCard(cardId);
+    const logger = getLogger();
+    logger.debug('cards.get.start', { requestId, cardId, userId: user.id });
 
     if (!card || card.userId !== user.id) {
+      logger.warn('cards.get.notFound', { requestId, cardId });
       return withCors(createErrorResponse(404, 'Card not found', { code: 'CARD_NOT_FOUND' }));
     }
 
+    logger.info('cards.get.success', { requestId, cardId });
     return withCors(
       createSuccessResponse(
         {
@@ -173,85 +204,103 @@ const handleGetCard = (event: LambdaHttpEvent, requestId: string, cardId: string
       return withCors(error as any);
     }
     const message = error instanceof Error ? error.message : 'Unable to fetch card';
+    getLogger().error('cards.get.failure', error, { requestId, cardId });
     return withCors(createErrorResponse(500, message));
   }
 };
 
-const handleCreateCard = (event: LambdaHttpEvent, requestId: string) => {
-  try {
-    const user = requireAuthenticatedUser(event);
-    const body = parseBody<{
-      name?: string;
-      title?: string;
-      company?: string;
-      email?: string;
-      phone?: string;
-      address?: string;
-      website?: string;
-      notes?: string;
-      tags?: string[] | string;
-      originalImageUrl?: string;
-      processedImageUrl?: string;
-    }>(event);
+const handleCreateCard = async (event: LambdaHttpEvent, requestId: string) => {
+  const logger = getLogger();
+  const metrics = getMetrics();
+  const idempotencyKey = extractIdempotencyKey(event.headers ?? {});
+  const startedAt = Date.now();
 
-    const tags = Array.isArray(body.tags)
-      ? body.tags
-      : typeof body.tags === 'string'
-        ? parseTags(body.tags)
-        : [];
-    const tenantId = mockDb.getTenantForUser(user.id);
-    const timestamp = new Date();
+  return withIdempotency(idempotencyKey, async () => {
+    try {
+      const user = requireAuthenticatedUser(event);
+      const body = parseBody<{
+        name?: string;
+        title?: string;
+        company?: string;
+        email?: string;
+        phone?: string;
+        address?: string;
+        website?: string;
+        notes?: string;
+        tags?: string[] | string;
+        originalImageUrl?: string;
+        processedImageUrl?: string;
+      }>(event);
 
-    const input: CreateCardInput = {
-      userId: user.id,
-      tenantId,
-      originalImageUrl:
-        body.originalImageUrl ?? `https://cdn.namecard.app/cards/${randomUUID()}-original.jpg`,
-      confidence: 0.88,
-      scanDate: timestamp,
-      tags,
-    };
+      const tags = Array.isArray(body.tags)
+        ? body.tags
+        : typeof body.tags === 'string'
+          ? parseTags(body.tags)
+          : [];
+      const tenantId = mockDb.getTenantForUser(user.id);
+      const timestamp = new Date();
 
-    if (body.name) input.name = body.name;
-    if (body.title) input.title = body.title;
-    if (body.company) input.company = body.company;
-    if (body.email) input.email = body.email;
-    if (body.phone) input.phone = body.phone;
-    if (body.address) input.address = body.address;
-    if (body.website) input.website = body.website;
-    if (body.notes) input.notes = body.notes;
-    if (body.processedImageUrl) input.processedImageUrl = body.processedImageUrl;
-    if (body.name) {
-      input.extractedText = `${body.name}\n${body.title ?? ''}\n${body.company ?? ''}`.trim();
+      const input: CreateCardInput = {
+        userId: user.id,
+        tenantId,
+        originalImageUrl:
+          body.originalImageUrl ?? `https://cdn.namecard.app/cards/${randomUUID()}-original.jpg`,
+        confidence: 0.88,
+        scanDate: timestamp,
+        tags,
+      };
+
+      if (body.name) input.name = body.name;
+      if (body.title) input.title = body.title;
+      if (body.company) input.company = body.company;
+      if (body.email) input.email = body.email;
+      if (body.phone) input.phone = body.phone;
+      if (body.address) input.address = body.address;
+      if (body.website) input.website = body.website;
+      if (body.notes) input.notes = body.notes;
+      if (body.processedImageUrl) input.processedImageUrl = body.processedImageUrl;
+      if (body.name) {
+        input.extractedText = `${body.name}\n${body.title ?? ''}\n${body.company ?? ''}`.trim();
+      }
+
+      const card = mockDb.createCard(input);
+
+      metrics.count('cardsCreated');
+      metrics.duration('cardCreationLatencyMs', Date.now() - startedAt);
+      logger.info('cards.create.success', { requestId, cardId: card.id });
+
+      return withCors(
+        createSuccessResponse(
+          {
+            requestId,
+            card,
+          },
+          { message: 'Card created', statusCode: 201 }
+        )
+      );
+    } catch (error) {
+      if ('statusCode' in (error as any)) {
+        logger.warn('cards.create.errorResponse', { requestId });
+        return withCors(error as any);
+      }
+      const message = error instanceof Error ? error.message : 'Unable to create card';
+      logger.error('cards.create.failure', error, { requestId });
+      return withCors(createErrorResponse(500, message));
     }
-
-    const card = mockDb.createCard(input);
-
-    return withCors(
-      createSuccessResponse(
-        {
-          requestId,
-          card,
-        },
-        { message: 'Card created', statusCode: 201 }
-      )
-    );
-  } catch (error) {
-    if ('statusCode' in (error as any)) {
-      return withCors(error as any);
-    }
-    const message = error instanceof Error ? error.message : 'Unable to create card';
-    return withCors(createErrorResponse(500, message));
-  }
+  });
 };
 
 const handleUpdateCard = (event: LambdaHttpEvent, requestId: string, cardId: string) => {
+  const logger = getLogger();
+  const metrics = getMetrics();
+  const startedAt = Date.now();
   try {
     const user = requireAuthenticatedUser(event);
     const body = parseBody<Record<string, unknown>>(event);
 
     const card = mockDb.getCard(cardId);
     if (!card || card.userId !== user.id) {
+      logger.warn('cards.update.notFound', { requestId, cardId });
       return withCors(createErrorResponse(404, 'Card not found', { code: 'CARD_NOT_FOUND' }));
     }
 
@@ -271,6 +320,10 @@ const handleUpdateCard = (event: LambdaHttpEvent, requestId: string, cardId: str
           : undefined,
     });
 
+    metrics.count('cardsUpdated');
+    metrics.duration('cardUpdateLatencyMs', Date.now() - startedAt);
+    logger.info('cards.update.success', { requestId, cardId });
+
     return withCors(
       createSuccessResponse(
         {
@@ -285,20 +338,26 @@ const handleUpdateCard = (event: LambdaHttpEvent, requestId: string, cardId: str
       return withCors(error as any);
     }
     const message = error instanceof Error ? error.message : 'Unable to update card';
+    logger.error('cards.update.failure', error, { requestId, cardId });
     return withCors(createErrorResponse(500, message));
   }
 };
 
 const handleDeleteCard = (event: LambdaHttpEvent, requestId: string, cardId: string) => {
+  const logger = getLogger();
+  const metrics = getMetrics();
   try {
     const user = requireAuthenticatedUser(event);
     const card = mockDb.getCard(cardId);
 
     if (!card || card.userId !== user.id) {
+      logger.warn('cards.delete.notFound', { requestId, cardId });
       return withCors(createErrorResponse(404, 'Card not found', { code: 'CARD_NOT_FOUND' }));
     }
 
     mockDb.deleteCard(cardId);
+    metrics.count('cardsDeleted');
+    logger.info('cards.delete.success', { requestId, cardId });
 
     return withCors(
       createSuccessResponse(
@@ -314,6 +373,7 @@ const handleDeleteCard = (event: LambdaHttpEvent, requestId: string, cardId: str
       return withCors(error as any);
     }
     const message = error instanceof Error ? error.message : 'Unable to delete card';
+    logger.error('cards.delete.failure', error, { requestId, cardId });
     return withCors(createErrorResponse(500, message));
   }
 };
@@ -321,7 +381,14 @@ const handleDeleteCard = (event: LambdaHttpEvent, requestId: string, cardId: str
 const handleStats = (event: LambdaHttpEvent, requestId: string) => {
   try {
     const user = requireAuthenticatedUser(event);
+    const logger = getLogger();
     const stats = mockDb.getCardStats(user.id);
+
+    logger.debug('cards.stats.success', {
+      requestId,
+      userId: user.id,
+      totalCards: stats.totalCards,
+    });
 
     return withCors(
       createSuccessResponse(
@@ -337,16 +404,27 @@ const handleStats = (event: LambdaHttpEvent, requestId: string) => {
       return withCors(error as any);
     }
     const message = error instanceof Error ? error.message : 'Unable to fetch stats';
+    getLogger().error('cards.stats.failure', error, { requestId });
     return withCors(createErrorResponse(500, message));
   }
 };
 
 const handleSearch = (event: LambdaHttpEvent, requestId: string) => {
+  const logger = getLogger();
+  const metrics = getMetrics();
+  const startedAt = Date.now();
   try {
     const user = requireAuthenticatedUser(event);
     const query = getQuery(event);
     const searchTerm = query.q ?? '';
     const tags = parseTags(query.tags);
+
+    logger.debug('cards.search.start', {
+      requestId,
+      userId: user.id,
+      searchTerm,
+      tagsCount: tags.length,
+    });
 
     const paginationBase = normalizePaginationParams({
       page: query.page,
@@ -367,12 +445,22 @@ const handleSearch = (event: LambdaHttpEvent, requestId: string) => {
     const highlights = result.items.map(card => ({
       cardId: card.id,
       snippet: searchTerm
-        ? `Matched on \"${searchTerm}\" in ${card.company ? card.company : 'card details'}`
+        ? `Matched on "${searchTerm}" in ${card.company ? card.company : 'card details'}`
         : 'Full card index match',
     }));
 
     const latency = Math.floor(Math.random() * 30) + 20;
     mockDb.recordSearch(searchTerm, latency, result.items.length);
+
+    metrics.duration('cardsSearchLatencyMs', Date.now() - startedAt, {
+      hasQuery: searchTerm ? 'true' : 'false',
+    });
+    metrics.count('cardsSearchResults', result.items.length);
+    logger.info('cards.search.success', {
+      requestId,
+      matches: result.items.length,
+      latencyMs: latency,
+    });
 
     return withCors(
       createSuccessResponse(
@@ -406,11 +494,15 @@ const handleSearch = (event: LambdaHttpEvent, requestId: string) => {
       return withCors(error as any);
     }
     const message = error instanceof Error ? error.message : 'Unable to search cards';
+    logger.error('cards.search.failure', error, { requestId });
     return withCors(createErrorResponse(500, message));
   }
 };
 
 const handleScan = (event: LambdaHttpEvent, requestId: string) => {
+  const logger = getLogger();
+  const metrics = getMetrics();
+  const startedAt = Date.now();
   try {
     const user = requireAuthenticatedUser(event);
     const tenantId = mockDb.getTenantForUser(user.id);
@@ -447,6 +539,10 @@ const handleScan = (event: LambdaHttpEvent, requestId: string) => {
       companyId: undefined,
     });
 
+    metrics.duration('cardsScanLatencyMs', Date.now() - startedAt);
+    metrics.count('cardsScanJobsCreated');
+    logger.info('cards.scan.success', { requestId, cardId: card.id, ocrJobId: ocrJob.id });
+
     return withCors(
       createSuccessResponse(
         {
@@ -468,25 +564,30 @@ const handleScan = (event: LambdaHttpEvent, requestId: string) => {
       return withCors(error as any);
     }
     const message = error instanceof Error ? error.message : 'Unable to scan card';
+    logger.error('cards.scan.failure', error, { requestId });
     return withCors(createErrorResponse(500, message));
   }
 };
 
 const handleTag = (event: LambdaHttpEvent, requestId: string, cardId: string) => {
+  const logger = getLogger();
   try {
     const user = requireAuthenticatedUser(event);
     const body = parseBody<{ tag?: string }>(event);
     const card = mockDb.getCard(cardId);
 
     if (!card || card.userId !== user.id) {
+      logger.warn('cards.tag.notFound', { requestId, cardId });
       return withCors(createErrorResponse(404, 'Card not found', { code: 'CARD_NOT_FOUND' }));
     }
 
     if (!body.tag) {
+      logger.warn('cards.tag.missingTag', { requestId, cardId });
       return withCors(createErrorResponse(400, 'Tag is required', { code: 'INVALID_INPUT' }));
     }
 
     const updated = mockDb.addTag(cardId, body.tag);
+    logger.info('cards.tag.success', { requestId, cardId, tag: body.tag });
 
     return withCors(
       createSuccessResponse(
@@ -502,20 +603,29 @@ const handleTag = (event: LambdaHttpEvent, requestId: string, cardId: string) =>
       return withCors(error as any);
     }
     const message = error instanceof Error ? error.message : 'Unable to tag card';
+    logger.error('cards.tag.failure', error, { requestId, cardId });
     return withCors(createErrorResponse(500, message));
   }
 };
 
-export const handler = async (event: LambdaHttpEvent) => {
+const handleRequest = async (event: LambdaHttpEvent) => {
   const method = event.httpMethod ?? 'GET';
   const requestId = getRequestId(event);
   const segments = getPathSegments(event);
+  const logger = getLogger();
+
+  logger.debug('cards.router.received', {
+    method,
+    path: event.rawPath,
+    requestId,
+  });
 
   if (method === 'OPTIONS') {
     return buildCorsResponse();
   }
 
   if (segments.length < 2 || segments[0] !== 'v1' || segments[1] !== 'cards') {
+    logger.warn('cards.router.notFound', { path: event.rawPath });
     return withCors(createErrorResponse(404, 'Route not found', { code: 'NOT_FOUND' }));
   }
 
@@ -567,5 +677,11 @@ export const handler = async (event: LambdaHttpEvent) => {
     }
   }
 
+  logger.warn('cards.router.unhandled', {
+    method,
+    path: event.rawPath,
+  });
   return withCors(createErrorResponse(405, 'Method not allowed', { code: 'METHOD_NOT_ALLOWED' }));
 };
+
+export const handler = withHttpObservability(handleRequest, { serviceName: 'cards' });

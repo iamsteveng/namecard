@@ -1,4 +1,11 @@
-import { mockDb } from '@namecard/shared';
+import {
+  mockDb,
+  getLogger,
+  getMetrics,
+  extractIdempotencyKey,
+  withIdempotency,
+  withHttpObservability,
+} from '@namecard/shared';
 import {
   createErrorResponse,
   createSuccessResponse,
@@ -52,7 +59,12 @@ const parseBody = <T>(event: LambdaHttpEvent) => {
 };
 
 const handleHealth = (requestId: string) => {
+  const logger = getLogger();
+  const metrics = getMetrics();
   const analytics = mockDb.getSearchAnalytics();
+
+  logger.debug('uploads.health.check', { requestId });
+  metrics.gauge('uploadsActiveUrls', 1);
 
   return withCors(
     createSuccessResponse(
@@ -75,60 +87,80 @@ const handleHealth = (requestId: string) => {
   );
 };
 
-const handleCreatePresign = (event: LambdaHttpEvent, requestId: string) => {
-  try {
-    const user = requireAuthenticatedUser(event);
-    const body = parseBody<{
-      fileName?: string;
-      checksum?: string;
-      contentType?: string;
-      size?: number;
-    }>(event);
+const handleCreatePresign = async (event: LambdaHttpEvent, requestId: string) => {
+  const logger = getLogger();
+  const metrics = getMetrics();
+  const idempotencyKey = extractIdempotencyKey(event.headers ?? {});
+  const startedAt = Date.now();
 
-    if (!body.fileName || !body.checksum || !body.contentType || !body.size) {
+  return withIdempotency(idempotencyKey, async () => {
+    try {
+      const user = requireAuthenticatedUser(event);
+      const body = parseBody<{
+        fileName?: string;
+        checksum?: string;
+        contentType?: string;
+        size?: number;
+      }>(event);
+
+      if (!body.fileName || !body.checksum || !body.contentType || !body.size) {
+        logger.warn('uploads.presign.invalidInput', { requestId });
+        return withCors(
+          createErrorResponse(400, 'fileName, checksum, contentType, and size are required', {
+            code: 'INVALID_INPUT',
+          })
+        );
+      }
+
+      const upload = mockDb.createUpload({
+        tenantId: mockDb.getTenantForUser(user.id),
+        fileName: body.fileName,
+        checksum: body.checksum,
+        contentType: body.contentType,
+        size: body.size,
+      });
+
+      metrics.count('uploadsPresignedCreated');
+      metrics.duration('uploadsPresignLatencyMs', Date.now() - startedAt);
+      logger.info('uploads.presign.success', { requestId, uploadId: upload.id });
+
       return withCors(
-        createErrorResponse(400, 'fileName, checksum, contentType, and size are required', {
-          code: 'INVALID_INPUT',
-        })
+        createSuccessResponse(
+          {
+            requestId,
+            upload,
+          },
+          { message: 'Presigned URL created', statusCode: 201 }
+        )
       );
+    } catch (error) {
+      if ('statusCode' in (error as any)) {
+        logger.warn('uploads.presign.errorResponse', { requestId });
+        return withCors(error as any);
+      }
+      const message = error instanceof Error ? error.message : 'Unable to create presign URL';
+      logger.error('uploads.presign.failure', error, { requestId });
+      return withCors(createErrorResponse(500, message));
     }
-
-    const upload = mockDb.createUpload({
-      tenantId: mockDb.getTenantForUser(user.id),
-      fileName: body.fileName,
-      checksum: body.checksum,
-      contentType: body.contentType,
-      size: body.size,
-    });
-
-    return withCors(
-      createSuccessResponse(
-        {
-          requestId,
-          upload,
-        },
-        { message: 'Presigned URL created', statusCode: 201 }
-      )
-    );
-  } catch (error) {
-    if ('statusCode' in (error as any)) {
-      return withCors(error as any);
-    }
-    const message = error instanceof Error ? error.message : 'Unable to create presign URL';
-    return withCors(createErrorResponse(500, message));
-  }
+  });
 };
 
 const handleCompleteUpload = (event: LambdaHttpEvent, requestId: string) => {
+  const logger = getLogger();
+  const metrics = getMetrics();
   try {
     void requireAuthenticatedUser(event);
     const body = parseBody<{ uploadId?: string }>(event);
 
     if (!body.uploadId) {
+      logger.warn('uploads.complete.missingUploadId', { requestId });
       return withCors(createErrorResponse(400, 'uploadId is required', { code: 'INVALID_INPUT' }));
     }
 
     const upload = mockDb.completeUpload(body.uploadId);
+
+    metrics.count('uploadsCompleted');
+    logger.info('uploads.complete.success', { requestId, uploadId: body.uploadId });
 
     return withCors(
       createSuccessResponse(
@@ -144,19 +176,23 @@ const handleCompleteUpload = (event: LambdaHttpEvent, requestId: string) => {
       return withCors(error as any);
     }
     const message = error instanceof Error ? error.message : 'Unable to complete upload';
+    logger.error('uploads.complete.failure', error, { requestId });
     return withCors(createErrorResponse(500, message));
   }
 };
 
 const handleGetUpload = (event: LambdaHttpEvent, requestId: string, uploadId: string) => {
+  const logger = getLogger();
   try {
     void requireAuthenticatedUser(event);
     const upload = mockDb.getUpload(uploadId);
 
     if (!upload) {
+      logger.warn('uploads.get.notFound', { requestId, uploadId });
       return withCors(createErrorResponse(404, 'Upload not found', { code: 'NOT_FOUND' }));
     }
 
+    logger.info('uploads.get.success', { requestId, uploadId });
     return withCors(
       createSuccessResponse(
         {
@@ -171,14 +207,18 @@ const handleGetUpload = (event: LambdaHttpEvent, requestId: string, uploadId: st
       return withCors(error as any);
     }
     const message = error instanceof Error ? error.message : 'Unable to fetch upload';
+    logger.error('uploads.get.failure', error, { requestId, uploadId });
     return withCors(createErrorResponse(500, message));
   }
 };
 
 const handleListUploads = (event: LambdaHttpEvent, requestId: string) => {
+  const logger = getLogger();
   try {
     void requireAuthenticatedUser(event);
     const uploads = mockDb.getUpload('upload-demo-001');
+
+    logger.debug('uploads.list.success', { requestId, count: uploads ? 1 : 0 });
 
     return withCors(
       createSuccessResponse(
@@ -194,20 +234,25 @@ const handleListUploads = (event: LambdaHttpEvent, requestId: string) => {
       return withCors(error as any);
     }
     const message = error instanceof Error ? error.message : 'Unable to list uploads';
+    logger.error('uploads.list.failure', error, { requestId });
     return withCors(createErrorResponse(500, message));
   }
 };
 
-export const handler = async (event: LambdaHttpEvent) => {
+const handleRequest = async (event: LambdaHttpEvent) => {
   const method = event.httpMethod ?? 'GET';
   const requestId = getRequestId(event);
   const segments = getPathSegments(event);
+  const logger = getLogger();
+
+  logger.debug('uploads.router.received', { method, path: event.rawPath, requestId });
 
   if (method === 'OPTIONS') {
     return buildCorsResponse();
   }
 
   if (segments.length < 2 || segments[0] !== 'v1' || segments[1] !== 'uploads') {
+    logger.warn('uploads.router.notFound', { path: event.rawPath });
     return withCors(createErrorResponse(404, 'Route not found', { code: 'NOT_FOUND' }));
   }
 
@@ -238,5 +283,8 @@ export const handler = async (event: LambdaHttpEvent) => {
     return handleGetUpload(event, requestId, tail[0]);
   }
 
+  logger.warn('uploads.router.unhandled', { method, path: event.rawPath });
   return withCors(createErrorResponse(405, 'Method not allowed', { code: 'METHOD_NOT_ALLOWED' }));
 };
+
+export const handler = withHttpObservability(handleRequest, { serviceName: 'uploads' });

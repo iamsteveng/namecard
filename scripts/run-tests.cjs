@@ -60,6 +60,10 @@ function resolveWorkspaceSelector(filterValue) {
     return '@namecard/infra';
   }
 
+  if (normalized === 'infra-observability') {
+    return '@namecard/infra';
+  }
+
   if (normalized === 'services') {
     return '@namecard/shared';
   }
