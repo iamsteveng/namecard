@@ -339,13 +339,17 @@ export class ApiStack extends cdk.Stack {
       vpc: props.vpc,
       securityGroups: [lambdaSecurityGroup],
       vpcSubnets: props.applicationSubnets,
-      logRetention: toLogRetention(envKey),
       environment: {
         ...baseLambdaEnv,
         POWERTOOLS_SERVICE_NAME: 'migrator',
         DB_PROXY_ENDPOINT: this.rdsProxy.endpoint,
       },
       tracing: lambda.Tracing.ACTIVE,
+    });
+
+    new logs.LogRetention(this, 'SchemaMigratorLogRetention', {
+      logGroupName: migrationLambda.logGroup.logGroupName,
+      retention: toLogRetention(envKey),
     });
 
     props.dbSecret.grantRead(migrationLambda);
@@ -355,7 +359,6 @@ export class ApiStack extends cdk.Stack {
 
     const migrationProvider = new cr.Provider(this, 'MigrationProvider', {
       onEventHandler: migrationLambda,
-      logRetention: toLogRetention(envKey),
     });
 
     const migrationsVersion = this.node.tryGetContext('migrationsVersion') ?? 'bootstrap';
@@ -397,12 +400,16 @@ export class ApiStack extends cdk.Stack {
         securityGroups: [lambdaSecurityGroup],
         vpcSubnets: props.applicationSubnets,
         reservedConcurrentExecutions: service.scaling.reservedConcurrency[envKey],
-        logRetention: toLogRetention(envKey),
         tracing: lambda.Tracing.ACTIVE,
         environment: functionEnv,
         layers: [lambdaLayer],
         deadLetterQueue,
         deadLetterQueueEnabled: true,
+      });
+
+      new logs.LogRetention(this, `${service.id}LogRetention`, {
+        logGroupName: fn.logGroup.logGroupName,
+        retention: toLogRetention(envKey),
       });
 
       props.dbSecret.grantRead(fn);
