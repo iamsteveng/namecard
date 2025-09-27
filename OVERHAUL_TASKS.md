@@ -34,11 +34,11 @@
 - [x] verified — Performance harness (e.g., provisioned concurrency smoke) executed for critical endpoints before CI rollout.
 
 ## Task 5 — Build Schema Orchestrator Lambda
-- [ ] done — Implement `infra/migrator/handler.ts` to manage schema versioning for the greenfield database with filesystem discovery, advisory locking, ledger management, replay prevention, alarm hooks, and pause/resume controls compatible with CI/CD deployments.
+- [x] done — Implement `infra/migrator/handler.ts` to manage schema versioning for the greenfield database with filesystem discovery, advisory locking, ledger management, replay prevention, alarm hooks, and pause/resume controls compatible with CI/CD deployments.
 
 **Test Cases**
-- [ ] verified — Unit tests cover migration ordering, ledger deduplication, and rollback-on-error paths (`pnpm run test --filter migrator`).
-- [ ] verified — Local run against Dockerized Postgres (`pnpm run db:up && pnpm run migrate:local`) applies baseline migrations exactly once and surfaces failures via alarms/logs.
+- [x] verified — Unit tests cover migration ordering, ledger deduplication, and rollback-on-error paths (`pnpm run test --filter migrator`).
+- [x] verified — Local run against Dockerized Postgres (`pnpm run db:up && pnpm run migrate:local`) applies baseline migrations exactly once and surfaces failures via alarms/logs.
 
 ## Task 6 — Port Domain Services to Lambda Functions
 - [ ] done — For each domain, implement TypeScript Lambda handlers under `services/<domain>/handler.ts`, sequence delivery (auth → cards → OCR/Textract → enrichment → uploads → search), refactor database schemas so each service owns its tables/namespace with secrets caching and pooled connections, and document cross-service contracts, synchronous/asynchronous interaction patterns, and transactional boundaries consistent with the shared blueprint.
