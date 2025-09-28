@@ -18,6 +18,12 @@ import logger from '../utils/logger.js';
 // S3 client configuration
 const s3Client = new S3Client({
   region: env.s3.region,
+  ...(env.s3.endpoint
+    ? {
+        endpoint: env.s3.endpoint,
+        forcePathStyle: env.s3.forcePathStyle ?? env.aws.useLocalstack,
+      }
+    : {}),
   ...(env.aws.accessKeyId &&
     env.aws.secretAccessKey && {
       credentials: {

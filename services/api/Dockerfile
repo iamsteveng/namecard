@@ -47,10 +47,16 @@ COPY services/shared/package.json services/shared/
 COPY services/api/package.json services/api/
 COPY --from=build /app/services/api/prisma services/api/prisma
 
-RUN pnpm install --frozen-lockfile --filter @namecard/api... --prod
+RUN pnpm install --frozen-lockfile
+RUN pnpm --filter @namecard/api exec prisma generate
+RUN pnpm prune --prod
+RUN ln -sfn ../node_modules/.pnpm/node_modules/@prisma node_modules/@prisma
 
 COPY --from=build /app/services/shared/dist services/shared/dist
 COPY --from=build /app/services/api/dist services/api/dist
+
+RUN mkdir -p node_modules/@namecard \
+  && ln -s /app/services/shared node_modules/@namecard/shared
 
 RUN chown -R nodejs:nodejs /app
 USER nodejs

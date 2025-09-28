@@ -59,6 +59,9 @@ class CognitoService {
 
     this.client = new CognitoIdentityProviderClient({
       region: env.cognito.region,
+      ...(env.cognito.endpoint || env.aws.endpoint
+        ? { endpoint: env.cognito.endpoint || env.aws.endpoint }
+        : {}),
       // Only use explicit credentials if both are provided and valid
       // Otherwise, let AWS SDK use the default credential chain (profile, IAM role, etc.)
       ...(env.aws.accessKeyId &&
@@ -82,7 +85,7 @@ class CognitoService {
    */
   private generateSecretHash(username: string): string {
     return crypto
-      .createHmac('SHA256', process.env.COGNITO_CLIENT_SECRET || '')
+      .createHmac('SHA256', env.cognito.clientSecret || '')
       .update(username + this.clientId)
       .digest('base64');
   }

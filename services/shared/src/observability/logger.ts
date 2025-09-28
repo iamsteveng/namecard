@@ -35,7 +35,7 @@ const parseLogLevel = (value: string | undefined): LogLevel => {
   return 'info';
 };
 
-const GLOBAL_LOG_LEVEL = parseLogLevel(process.env.LOG_LEVEL);
+const GLOBAL_LOG_LEVEL = parseLogLevel(process.env['LOG_LEVEL']);
 
 const shouldLog = (level: LogLevel) => LEVEL_PRIORITY[level] >= LEVEL_PRIORITY[GLOBAL_LOG_LEVEL];
 
@@ -49,7 +49,13 @@ const emit = (envelope: LogEnvelope) => {
 };
 
 export class StructuredLogger {
-  private readonly baseFields: Omit<LogEnvelope, 'level' | 'message' | 'timestamp' | 'data' | 'error'>;
+  private readonly baseFields: {
+    readonly service: string;
+    readonly requestId?: string;
+    readonly invocationId?: string;
+    readonly coldStart?: boolean;
+    readonly correlationIds?: Record<string, string>;
+  };
 
   constructor(
     private readonly serviceName: string,
@@ -62,10 +68,14 @@ export class StructuredLogger {
   ) {
     this.baseFields = {
       service: this.serviceName,
-      requestId: this.defaultContext.requestId,
-      invocationId: this.defaultContext.invocationId,
-      coldStart: this.defaultContext.coldStart,
-      correlationIds: this.defaultContext.correlationIds,
+      ...(this.defaultContext.requestId ? { requestId: this.defaultContext.requestId } : {}),
+      ...(this.defaultContext.invocationId ? { invocationId: this.defaultContext.invocationId } : {}),
+      ...(typeof this.defaultContext.coldStart === 'boolean'
+        ? { coldStart: this.defaultContext.coldStart }
+        : {}),
+      ...(this.defaultContext.correlationIds
+        ? { correlationIds: this.defaultContext.correlationIds }
+        : {}),
     };
   }
 
@@ -162,7 +172,7 @@ export const createLogger = (
 export const getLogger = (): StructuredLogger => {
   const context = getExecutionContext();
   if (!context) {
-    return new StructuredLogger(process.env.SERVICE_NAME ?? 'unknown');
+    return new StructuredLogger(process.env['SERVICE_NAME'] ?? 'unknown');
   }
 
   return context.logger;

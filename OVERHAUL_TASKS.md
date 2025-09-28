@@ -66,12 +66,12 @@
 - [x] verified — Runbook reviewed during an operational readiness exercise with observability tooling sign-off.
 
 ## Task 9 — Developer Tooling & Local Experience
-- [ ] done — Provide docker-compose updates (local Postgres + localstack if needed), seed scripts, sample env files, pnpm scripts for local Lambda emulation (SAM/Architect), and onboarding docs guaranteeing a parity local experience with automated smoke verification.
+- [x] done — Provide docker-compose updates (local Postgres + localstack if needed), seed scripts, sample env files, pnpm scripts for local Lambda emulation (SAM/Architect), and onboarding docs guaranteeing a parity local experience with automated smoke verification.
 
 **Test Cases**
-- [ ] verified — `pnpm run fullstack:up` boots the local stack and passes health checks.
-- [ ] verified — Fresh-clone onboarding script completes without manual fixes.
-- [ ] verified — Local smoke suite validates parity with deployed environment (fixtures, seed data, feature flags).
+- [x] verified — `pnpm run fullstack:up` boots the local stack and passes health checks.
+- [x] verified — Fresh-clone onboarding script completes without manual fixes.
+- [x] verified — Local smoke suite validates parity with deployed environment (fixtures, seed data, feature flags).
 - [ ] pending — Regression E2E suite (`pnpm run test:e2e`) passes against the local stack once real per-service data layers replace the mock store and services run on the expected ports, confirming service boundaries end-to-end.
 
 ## Task 10 — CI/CD Pipeline & Launch Readiness

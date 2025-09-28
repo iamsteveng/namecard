@@ -10,7 +10,7 @@ interface MetricDatum {
   readonly name: string;
   readonly unit: MetricUnit;
   readonly value: number;
-  readonly dimensions?: Record<string, string>;
+  readonly dimensions?: Record<string, string> | undefined;
 }
 
 export class MetricsEmitter {
@@ -55,7 +55,7 @@ export class MetricsEmitter {
   }
 }
 
-const DEFAULT_NAMESPACE = process.env.POWERTOOLS_METRICS_NAMESPACE ?? 'NameCard';
+const DEFAULT_NAMESPACE = process.env['POWERTOOLS_METRICS_NAMESPACE'] ?? 'NameCard';
 
 export const createMetricsEmitter = (
   serviceName: string,
@@ -66,8 +66,9 @@ export const createMetricsEmitter = (
 export const getMetrics = (): MetricsEmitter => {
   const context = getExecutionContext();
   if (!context) {
-    const logger = new StructuredLogger(process.env.SERVICE_NAME ?? 'unknown');
-    return new MetricsEmitter(DEFAULT_NAMESPACE, process.env.SERVICE_NAME ?? 'unknown', logger);
+    const service = process.env['SERVICE_NAME'] ?? 'unknown';
+    const logger = new StructuredLogger(service);
+    return new MetricsEmitter(DEFAULT_NAMESPACE, service, logger);
   }
 
   return context.metrics;

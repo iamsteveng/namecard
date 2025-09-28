@@ -8,11 +8,22 @@ async function main() {
   try {
     logger.info('Starting database seed...');
 
+    const TEST_USER_ID = process.env.TEST_USER_ID || 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+
+    // Reset dependent data to keep seed idempotent
+    await prisma.cardCompany.deleteMany();
+    await prisma.calendarEvent.deleteMany();
+    await prisma.newsArticle.deleteMany();
+    await prisma.card.deleteMany();
+    await prisma.company.deleteMany();
+    await prisma.user.deleteMany({ where: { email: 'test@namecard.app' } });
+
     // Create test user
     const testUser = await prisma.user.upsert({
       where: { email: 'test@namecard.app' },
       update: {},
       create: {
+        id: TEST_USER_ID,
         email: 'test@namecard.app',
         name: 'Test User',
         cognitoId: 'test-cognito-id',

@@ -1,4 +1,4 @@
-import { schemas } from '@namecard/shared';
+import * as shared from '@namecard/shared';
 import { Request, Response, NextFunction } from 'express';
 import { ZodSchema } from 'zod';
 
@@ -46,6 +46,8 @@ export const validate = (validationSchemas: ValidationOptions) => {
 // Direct imports from @namecard/shared - no namespace needed
 
 // Specific validation middleware functions
+const { schemas } = shared as { schemas: typeof import('@namecard/shared/validations') };
+
 export const validatePagination = validate({ query: schemas.paginationParamsSchema });
 export const validateId = validate({ params: schemas.getCardParamsSchema });
 export const validateSearch = validate({ query: schemas.searchParamsSchema });

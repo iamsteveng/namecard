@@ -36,16 +36,30 @@ const envSchema = Joi.object({
     then: Joi.required(),
     otherwise: Joi.optional(),
   }),
+  AWS_ENDPOINT_URL: Joi.string().uri().optional(),
+  USE_LOCALSTACK: Joi.boolean()
+    .truthy('1', 'true', 'TRUE', 'True')
+    .falsy('0', 'false', 'FALSE', 'False', '')
+    .default(false),
+  LOCALSTACK_HOST: Joi.string().default('localhost'),
+  LOCALSTACK_EDGE_PORT: Joi.number().default(4566),
 
   // S3
   S3_BUCKET_NAME: Joi.string().required(),
   S3_REGION: Joi.string().default('us-east-1'),
   S3_CDN_DOMAIN: Joi.string().allow(''),
+  S3_ENDPOINT_URL: Joi.string().uri().optional(),
+  S3_FORCE_PATH_STYLE: Joi.boolean()
+    .truthy('1', 'true', 'TRUE', 'True')
+    .falsy('0', 'false', 'FALSE', 'False', '')
+    .default(false),
 
   // Cognito
   COGNITO_USER_POOL_ID: Joi.string().required(),
   COGNITO_CLIENT_ID: Joi.string().required(),
   COGNITO_REGION: Joi.string().default('us-east-1'),
+  COGNITO_ENDPOINT_URL: Joi.string().uri().optional(),
+  COGNITO_CLIENT_SECRET: Joi.string().allow(''),
 
   // Redis
   REDIS_URL: Joi.string().default('redis://localhost:6379'),
@@ -69,6 +83,9 @@ const envSchema = Joi.object({
   // File Upload
   MAX_FILE_SIZE: Joi.number().default(10 * 1024 * 1024), // 10MB
   ALLOWED_FILE_TYPES: Joi.string().default('image/jpeg,image/png,image/heic,image/webp'),
+
+  // Textract / OCR
+  TEXTRACT_ENDPOINT_URL: Joi.string().uri().optional(),
 }).unknown();
 
 const { error, value: envVars } = envSchema.validate(process.env);
@@ -120,18 +137,26 @@ export const env = {
     region: envVars.AWS_REGION,
     accessKeyId: envVars.AWS_ACCESS_KEY_ID,
     secretAccessKey: envVars.AWS_SECRET_ACCESS_KEY,
+    endpoint: envVars.AWS_ENDPOINT_URL,
+    useLocalstack: envVars.USE_LOCALSTACK,
+    localstackEdgeUrl:
+      envVars.AWS_ENDPOINT_URL || `http://${envVars.LOCALSTACK_HOST}:${envVars.LOCALSTACK_EDGE_PORT}`,
   },
 
   s3: {
     bucketName: envVars.S3_BUCKET_NAME,
     region: envVars.S3_REGION,
     cdnDomain: envVars.S3_CDN_DOMAIN,
+    endpoint: envVars.S3_ENDPOINT_URL,
+    forcePathStyle: envVars.S3_FORCE_PATH_STYLE,
   },
 
   cognito: {
     userPoolId: envVars.COGNITO_USER_POOL_ID,
     clientId: envVars.COGNITO_CLIENT_ID,
     region: envVars.COGNITO_REGION,
+    endpoint: envVars.COGNITO_ENDPOINT_URL,
+    clientSecret: envVars.COGNITO_CLIENT_SECRET,
   },
 
   redis: {
@@ -158,6 +183,10 @@ export const env = {
   upload: {
     maxFileSize: envVars.MAX_FILE_SIZE,
     allowedTypes: envVars.ALLOWED_FILE_TYPES.split(','),
+  },
+
+  textract: {
+    endpoint: envVars.TEXTRACT_ENDPOINT_URL,
   },
 } as const;
 

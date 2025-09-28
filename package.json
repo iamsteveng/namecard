@@ -35,11 +35,14 @@
     "db:logs": "sh -c 'docker-compose logs -f postgres || docker compose logs -f postgres'",
     "migrate:local": "pnpm --filter @namecard/infra exec ts-node --project tsconfig.json --esm --experimentalSpecifierResolution=node migrator/local-runner.ts",
     "migrate:validate": "pnpm --filter @namecard/infra exec ts-node --project tsconfig.json --esm --experimentalSpecifierResolution=node migrator/validate-runner.ts",
-    "fullstack:up": "docker-compose up -d",
+    "fullstack:up": "node scripts/fullstack-up.mjs",
     "fullstack:logs": "docker-compose logs -f",
     "fullstack:test": "docker-compose up -d && sleep 15 && curl http://localhost:3001/health && curl http://localhost:8080/health",
     "frontend:up": "docker-compose up -d frontend",
     "frontend:logs": "docker-compose logs -f frontend",
+    "lambda:sandbox": "node scripts/lambda-sandbox.mjs",
+    "smoke:local": "node scripts/smoke-local.mjs",
+    "onboard:local": "node scripts/onboard-local.mjs",
     "prepare": "husky install || echo 'Husky install failed, continuing...'"
   },
   "workspaces": [

@@ -63,7 +63,8 @@ export const createTracingManager = (logger: StructuredLogger): TracingManager =
 export const getTracer = (): TracingManager => {
   const context = getExecutionContext();
   if (!context) {
-    return new TracingManager(new StructuredLogger(process.env.SERVICE_NAME ?? 'unknown'));
+    const service = process.env['SERVICE_NAME'] ?? 'unknown';
+    return new TracingManager(new StructuredLogger(service));
   }
 
   return context.tracing;

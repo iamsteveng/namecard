@@ -21,7 +21,8 @@ interface ObservabilityOptions {
   readonly serviceName?: string;
 }
 
-const DEFAULT_SERVICE_NAME = process.env.POWERTOOLS_SERVICE_NAME ?? process.env.SERVICE_NAME ?? 'namecard';
+const DEFAULT_SERVICE_NAME =
+  process.env['POWERTOOLS_SERVICE_NAME'] ?? process.env['SERVICE_NAME'] ?? 'namecard';
 
 const collectCorrelationIds = (event: LambdaHttpEvent, context: LambdaContext): Record<string, string> => {
   const headers = event.headers ?? {};

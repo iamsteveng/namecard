@@ -4,19 +4,19 @@ This project uses a unified environment configuration - the same `.env` file wor
 
 ## Quick Start
 
-1. **Configure environment variables:**
+1. **Bootstrap the entire local environment:**
    ```bash
-   # Edit services/api/.env with your AWS credentials
-   cd services/api
-   nano .env  # or use your preferred editor
+   pnpm run onboard:local
+   ```
+   This installs dependencies, prepares `.env` files, applies database migrations, seeds baseline data, starts Docker services (Postgres, Redis, LocalStack, API, frontend), and finishes by running the automated smoke suite.
+
+2. **Subsequent runs:**
+   ```bash
+   pnpm run fullstack:up      # restart the local stack with health checks
+   pnpm run smoke:local       # re-verify after making changes
    ```
 
-2. **Start the services:**
-   ```bash
-   docker-compose up -d
-   ```
-
-The Docker container automatically uses `services/api/.env` and overrides only the networking-specific variables (database and Redis URLs).
+The onboarding script manages `services/api/.env` (Docker overrides) and `services/api/.env.localstack` automatically, so you only need to adjust the checked-in `.env.example` files when introducing new configuration.
 
 ## Unified Configuration
 
@@ -43,8 +43,14 @@ All other variables are shared between local and Docker:
 ## Commands
 
 ```bash
-# Start all services
-docker-compose up -d
+# One-and-done bootstrap
+pnpm run onboard:local
+
+# Start all services after developing
+pnpm run fullstack:up
+
+# Run local smoke suite
+pnpm run smoke:local
 
 # View logs
 docker-compose logs -f api
@@ -58,3 +64,16 @@ docker-compose down
 # Clean up (removes containers and volumes)
 docker-compose down -v
 ```
+
+## Lambda Sandbox
+
+Use the lightweight Lambda sandbox to exercise the individual handlers without deploying to AWS:
+
+```bash
+pnpm run lambda:sandbox
+# Invoke a handler
+curl -X POST http://localhost:4100/invoke/search -H 'Content-Type: application/json' \
+  -d '{"event": {"version":"2.0","rawPath":"/search","requestContext":{"http":{"method":"GET"}}}}'
+```
+
+The sandbox loads the TypeScript Lambda handlers directly via `esbuild-register`, mirroring the API Gateway event shape so you can iterate on serverless code locally.

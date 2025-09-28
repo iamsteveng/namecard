@@ -12,6 +12,9 @@ import logger from '../utils/logger.js';
 // AWS Textract configuration
 const textractClient = new TextractClient({
   region: env.aws.region,
+  ...(env.textract.endpoint || env.aws.endpoint
+    ? { endpoint: env.textract.endpoint || env.aws.endpoint }
+    : {}),
   ...(env.aws.accessKeyId &&
     env.aws.secretAccessKey && {
       credentials: {

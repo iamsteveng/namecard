@@ -14,7 +14,7 @@ const DEFAULT_TTL_MS = 5 * 60 * 1000; // five minutes
 const getLoggerInstance = (): StructuredLogger => {
   const context = getExecutionContext();
   if (!context) {
-    return new StructuredLogger(process.env.SERVICE_NAME ?? 'unknown');
+    return new StructuredLogger(process.env['SERVICE_NAME'] ?? 'unknown');
   }
   return context.logger;
 };
