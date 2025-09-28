@@ -72,9 +72,17 @@
 - [x] verified — `pnpm run fullstack:up` boots the local stack and passes health checks.
 - [x] verified — Fresh-clone onboarding script completes without manual fixes.
 - [x] verified — Local smoke suite validates parity with deployed environment (fixtures, seed data, feature flags).
-- [ ] pending — Regression E2E suite (`pnpm run test:e2e`) passes against the local stack once real per-service data layers replace the mock store and services run on the expected ports, confirming service boundaries end-to-end.
+- [ ] pending — Regression E2E suite (`pnpm run test:e2e`) passes against the local stack once Task 10 replaces the mock store and services run on the expected ports, confirming service boundaries end-to-end.
 
-## Task 10 — CI/CD Pipeline & Launch Readiness
+## Task 10 — Activate Per-Service Data Layers & E2E Readiness
+- [ ] done — Replace the shared mock store with production-ready per-service data layers (Prisma repositories, schema permissions, connection pooling), expose domain APIs on their real ports, and align local/Lambda configurations so services operate against the same datastore surfaces.
+
+**Test Cases**
+- [ ] verified — Service handlers depend solely on their domain repositories; the mock store is fully removed.
+- [ ] verified — `pnpm run db:seed && pnpm run smoke:local` exercises the real persistence paths without falling back to mocks.
+- [ ] verified — `pnpm run test:e2e` succeeds against the local stack using the real data layers, demonstrating readiness for live API testing.
+
+## Task 11 — CI/CD Pipeline & Launch Readiness
 - [ ] done — Update pipelines to build/test packages, synth/deploy CDK stacks, run schema orchestrator, promote artifacts across environments, enforce cost/performance budgets, integrate monitoring/rollback hooks, and document the post-launch verification checklist for greenfield cutover.
 
 **Test Cases**
@@ -82,7 +90,7 @@
 - [ ] verified — Staged deployment completes with monitoring sign-off, rollback checklist executed, and performance/cost dashboards reviewed.
 - [ ] verified — Post-launch verification checklist completed during staging launch rehearsal.
 
-## Task 11 — Security & Compliance Backbone
+## Task 12 — Security & Compliance Backbone
 - [ ] done — Conduct threat modeling, define IAM baselines, implement automated policy linting, integrate secret rotation alerts, and document security response runbooks plus compliance evidence requirements (logs, audit trails, data handling).
 
 **Test Cases**
@@ -90,7 +98,7 @@
 - [ ] verified — Automated IAM/static analysis checks wired into CI and passing.
 - [ ] verified — Security runbook validated during tabletop exercise.
 
-## Task 12 — Architecture Governance & Performance Benchmarks
+## Task 13 — Architecture Governance & Performance Benchmarks
 - [ ] done — Establish architecture decision records (ADRs), dependency mapping, cost/performance baselines, and operational readiness review (ORR) gates to ensure services meet SLO/SLA targets and scalability expectations before launch.
 
 **Test Cases**
