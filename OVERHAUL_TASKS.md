@@ -72,7 +72,6 @@
 - [x] verified — `pnpm run fullstack:up` boots the local stack and passes health checks.
 - [x] verified — Fresh-clone onboarding script completes without manual fixes.
 - [x] verified — Local smoke suite validates parity with deployed environment (fixtures, seed data, feature flags).
-- [ ] pending — Regression E2E suite (`pnpm run test:e2e`) passes against the local stack once Task 10 replaces the mock store and services run on the expected ports, confirming service boundaries end-to-end.
 
 ## Task 10 — Activate Per-Service Data Layers & E2E Readiness
 - [ ] done — Replace the shared mock store with production-ready per-service data layers (Prisma repositories, schema permissions, connection pooling), expose domain APIs on their real ports, and align local/Lambda configurations so services operate against the same datastore surfaces.
