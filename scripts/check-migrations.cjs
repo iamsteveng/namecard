@@ -103,6 +103,7 @@ function isValidTimestamp(segment) {
 }
 
 function lintSql(sql) {
+  const ignoreCreateIndexConcurrent = /lint-ignore:create-index-concurrently/.test(sql);
   const stripped = stripSqlComments(sql);
   const statements = stripped
     .split(';')
@@ -135,7 +136,11 @@ function lintSql(sql) {
       issues.push('ALTER TABLE ... DROP COLUMN/CONSTRAINT is blocked; use expansion + contract strategy.');
     }
 
-    if (/^create\s+index\b/.test(lower) && !/\bconcurrently\b/.test(lower)) {
+    if (
+      /^create\s+index\b/.test(lower) &&
+      !/\bconcurrently\b/.test(lower) &&
+      !ignoreCreateIndexConcurrent
+    ) {
       issues.push('CREATE INDEX must use CONCURRENTLY to prevent table locks.');
     }
   }

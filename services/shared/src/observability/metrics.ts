@@ -1,10 +1,7 @@
 import { getExecutionContext } from './context';
 import { StructuredLogger } from './logger';
 
-type MetricUnit =
-  | 'Count'
-  | 'Seconds'
-  | 'Milliseconds';
+type MetricUnit = 'Count' | 'Seconds' | 'Milliseconds';
 
 interface MetricDatum {
   readonly name: string;
@@ -19,7 +16,7 @@ export class MetricsEmitter {
   constructor(
     private readonly namespace: string,
     private readonly serviceName: string,
-    private readonly logger: StructuredLogger,
+    private readonly logger: StructuredLogger
   ) {}
 
   public count(name: string, value = 1, dimensions?: Record<string, string>): void {
@@ -60,7 +57,7 @@ const DEFAULT_NAMESPACE = process.env['POWERTOOLS_METRICS_NAMESPACE'] ?? 'NameCa
 export const createMetricsEmitter = (
   serviceName: string,
   logger: StructuredLogger,
-  namespace: string = DEFAULT_NAMESPACE,
+  namespace: string = DEFAULT_NAMESPACE
 ): MetricsEmitter => new MetricsEmitter(namespace, serviceName, logger);
 
 export const getMetrics = (): MetricsEmitter => {

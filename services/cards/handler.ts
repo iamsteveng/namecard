@@ -1,5 +1,4 @@
 import {
-  mockDb,
   normalizePaginationParams,
   calculatePaginationMeta,
   type CreateCardInput,
@@ -8,6 +7,20 @@ import {
   extractIdempotencyKey,
   withIdempotency,
   withHttpObservability,
+  resolveUserFromToken,
+  getTenantForUser,
+  listCards,
+  getCard,
+  createCard,
+  updateCard,
+  deleteCard,
+  addTag,
+  getCardStats,
+  recordSearchEvent,
+  getSearchAnalytics,
+  createOcrJob,
+  createEnrichment,
+  ensureDefaultDemoUser,
 } from '@namecard/shared';
 import {
   createErrorResponse,
@@ -37,18 +50,18 @@ const buildCorsResponse = (statusCode = 204) =>
     body: '',
   });
 
-const requireAuthenticatedUser = (event: LambdaHttpEvent) => {
+const requireAuthenticatedUser = async (event: LambdaHttpEvent) => {
   const token = extractBearerToken(event);
   if (!token) {
     throw createErrorResponse(401, 'Authorization token missing', { code: 'UNAUTHORIZED' });
   }
 
-  const user = mockDb.getUserForToken(token);
+  const user = await resolveUserFromToken(token);
   if (!user) {
     throw createErrorResponse(401, 'Invalid or expired access token', { code: 'UNAUTHORIZED' });
   }
 
-  return user;
+  return { user, token } as const;
 };
 
 const parseBody = <T>(event: LambdaHttpEvent) => {
@@ -69,7 +82,10 @@ const parseTags = (raw: string | string[] | undefined): string[] => {
   }
 
   if (Array.isArray(raw)) {
-    return raw.flatMap(value => value.split(',')).map(tag => tag.trim()).filter(Boolean);
+    return raw
+      .flatMap(value => value.split(','))
+      .map(tag => tag.trim())
+      .filter(Boolean);
   }
 
   return raw
@@ -78,9 +94,18 @@ const parseTags = (raw: string | string[] | undefined): string[] => {
     .filter(Boolean);
 };
 
-const handleHealth = (requestId: string) => {
+const handleHealth = async (requestId: string) => {
   const logger = getLogger();
   logger.debug('cards.health.check', { requestId });
+  await ensureDefaultDemoUser();
+  const analytics = await getSearchAnalytics().catch(
+    () =>
+      ({
+        cardsIndexed: 0,
+        averageLatencyMs: 0,
+      }) as any
+  );
+
   return withCors(
     createSuccessResponse(
       {
@@ -92,8 +117,8 @@ const handleHealth = (requestId: string) => {
           enrichment: 'nominal',
         },
         metrics: {
-          indexedCards: mockDb.getSearchAnalytics().cardsIndexed,
-          averageProcessingMs: 2800,
+          indexedCards: analytics.cardsIndexed ?? 0,
+          averageProcessingMs: analytics.averageLatencyMs ?? 0,
           pendingUploads: 0,
         },
       },
@@ -102,13 +127,13 @@ const handleHealth = (requestId: string) => {
   );
 };
 
-const handleListCards = (event: LambdaHttpEvent, requestId: string) => {
+const handleListCards = async (event: LambdaHttpEvent, requestId: string) => {
   const logger = getLogger();
   const metrics = getMetrics();
   const startedAt = Date.now();
   try {
-    const user = requireAuthenticatedUser(event);
-    const tenantId = mockDb.getTenantForUser(user.id);
+    const { user } = await requireAuthenticatedUser(event);
+    const tenantId = await getTenantForUser(user.id);
     const query = getQuery(event);
 
     logger.debug('cards.list.start', {
@@ -127,7 +152,7 @@ const handleListCards = (event: LambdaHttpEvent, requestId: string) => {
     const tags = parseTags(query.tags);
     const searchTerm = query.q ?? query.query ?? undefined;
 
-    const result = mockDb.listCards({
+    const result = await listCards({
       userId: user.id,
       page: paginationBase.page,
       limit: paginationBase.limit,
@@ -177,10 +202,10 @@ const handleListCards = (event: LambdaHttpEvent, requestId: string) => {
   }
 };
 
-const handleGetCard = (event: LambdaHttpEvent, requestId: string, cardId: string) => {
+const handleGetCard = async (event: LambdaHttpEvent, requestId: string, cardId: string) => {
   try {
-    const user = requireAuthenticatedUser(event);
-    const card = mockDb.getCard(cardId);
+    const { user } = await requireAuthenticatedUser(event);
+    const card = await getCard(cardId);
     const logger = getLogger();
     logger.debug('cards.get.start', { requestId, cardId, userId: user.id });
 
@@ -217,7 +242,7 @@ const handleCreateCard = async (event: LambdaHttpEvent, requestId: string) => {
 
   return withIdempotency(idempotencyKey, async () => {
     try {
-      const user = requireAuthenticatedUser(event);
+      const { user } = await requireAuthenticatedUser(event);
       const body = parseBody<{
         name?: string;
         title?: string;
@@ -237,7 +262,7 @@ const handleCreateCard = async (event: LambdaHttpEvent, requestId: string) => {
         : typeof body.tags === 'string'
           ? parseTags(body.tags)
           : [];
-      const tenantId = mockDb.getTenantForUser(user.id);
+      const tenantId = await getTenantForUser(user.id);
       const timestamp = new Date();
 
       const input: CreateCardInput = {
@@ -263,7 +288,7 @@ const handleCreateCard = async (event: LambdaHttpEvent, requestId: string) => {
         input.extractedText = `${body.name}\n${body.title ?? ''}\n${body.company ?? ''}`.trim();
       }
 
-      const card = mockDb.createCard(input);
+      const card = await createCard(input);
 
       metrics.count('cardsCreated');
       metrics.duration('cardCreationLatencyMs', Date.now() - startedAt);
@@ -290,21 +315,21 @@ const handleCreateCard = async (event: LambdaHttpEvent, requestId: string) => {
   });
 };
 
-const handleUpdateCard = (event: LambdaHttpEvent, requestId: string, cardId: string) => {
+const handleUpdateCard = async (event: LambdaHttpEvent, requestId: string, cardId: string) => {
   const logger = getLogger();
   const metrics = getMetrics();
   const startedAt = Date.now();
   try {
-    const user = requireAuthenticatedUser(event);
+    const { user } = await requireAuthenticatedUser(event);
     const body = parseBody<Record<string, unknown>>(event);
 
-    const card = mockDb.getCard(cardId);
+    const card = await getCard(cardId);
     if (!card || card.userId !== user.id) {
       logger.warn('cards.update.notFound', { requestId, cardId });
       return withCors(createErrorResponse(404, 'Card not found', { code: 'CARD_NOT_FOUND' }));
     }
 
-    const updated = mockDb.updateCard(cardId, {
+    const updated = await updateCard(cardId, {
       name: typeof body.name === 'string' ? body.name : undefined,
       title: typeof body.title === 'string' ? body.title : undefined,
       company: typeof body.company === 'string' ? body.company : undefined,
@@ -343,19 +368,19 @@ const handleUpdateCard = (event: LambdaHttpEvent, requestId: string, cardId: str
   }
 };
 
-const handleDeleteCard = (event: LambdaHttpEvent, requestId: string, cardId: string) => {
+const handleDeleteCard = async (event: LambdaHttpEvent, requestId: string, cardId: string) => {
   const logger = getLogger();
   const metrics = getMetrics();
   try {
-    const user = requireAuthenticatedUser(event);
-    const card = mockDb.getCard(cardId);
+    const { user } = await requireAuthenticatedUser(event);
+    const card = await getCard(cardId);
 
     if (!card || card.userId !== user.id) {
       logger.warn('cards.delete.notFound', { requestId, cardId });
       return withCors(createErrorResponse(404, 'Card not found', { code: 'CARD_NOT_FOUND' }));
     }
 
-    mockDb.deleteCard(cardId);
+    await deleteCard(cardId);
     metrics.count('cardsDeleted');
     logger.info('cards.delete.success', { requestId, cardId });
 
@@ -378,11 +403,11 @@ const handleDeleteCard = (event: LambdaHttpEvent, requestId: string, cardId: str
   }
 };
 
-const handleStats = (event: LambdaHttpEvent, requestId: string) => {
+const handleStats = async (event: LambdaHttpEvent, requestId: string) => {
   try {
-    const user = requireAuthenticatedUser(event);
+    const { user } = await requireAuthenticatedUser(event);
     const logger = getLogger();
-    const stats = mockDb.getCardStats(user.id);
+    const stats = await getCardStats(user.id);
 
     logger.debug('cards.stats.success', {
       requestId,
@@ -409,12 +434,12 @@ const handleStats = (event: LambdaHttpEvent, requestId: string) => {
   }
 };
 
-const handleSearch = (event: LambdaHttpEvent, requestId: string) => {
+const handleSearch = async (event: LambdaHttpEvent, requestId: string) => {
   const logger = getLogger();
   const metrics = getMetrics();
   const startedAt = Date.now();
   try {
-    const user = requireAuthenticatedUser(event);
+    const { user } = await requireAuthenticatedUser(event);
     const query = getQuery(event);
     const searchTerm = query.q ?? '';
     const tags = parseTags(query.tags);
@@ -433,7 +458,7 @@ const handleSearch = (event: LambdaHttpEvent, requestId: string) => {
       sortBy: 'updatedAt',
     });
 
-    const result = mockDb.listCards({
+    const result = await listCards({
       userId: user.id,
       page: paginationBase.page,
       limit: paginationBase.limit,
@@ -450,7 +475,13 @@ const handleSearch = (event: LambdaHttpEvent, requestId: string) => {
     }));
 
     const latency = Math.floor(Math.random() * 30) + 20;
-    mockDb.recordSearch(searchTerm, latency, result.items.length);
+    await recordSearchEvent({
+      query: searchTerm,
+      latencyMs: latency,
+      resultCount: result.items.length,
+      tenantId: await getTenantForUser(user.id),
+      userId: user.id,
+    });
 
     metrics.duration('cardsSearchLatencyMs', Date.now() - startedAt, {
       hasQuery: searchTerm ? 'true' : 'false',
@@ -469,8 +500,7 @@ const handleSearch = (event: LambdaHttpEvent, requestId: string) => {
           results: result.items.map(card => ({
             item: card,
             rank: Number((Math.random() * 0.2 + 0.8).toFixed(4)),
-            highlights:
-              highlights.find(highlight => highlight.cardId === card.id)?.snippet ?? null,
+            highlights: highlights.find(highlight => highlight.cardId === card.id)?.snippet ?? null,
           })),
           searchMeta: {
             query: searchTerm,
@@ -499,21 +529,23 @@ const handleSearch = (event: LambdaHttpEvent, requestId: string) => {
   }
 };
 
-const handleScan = (event: LambdaHttpEvent, requestId: string) => {
+const handleScan = async (event: LambdaHttpEvent, requestId: string) => {
   const logger = getLogger();
   const metrics = getMetrics();
   const startedAt = Date.now();
   try {
-    const user = requireAuthenticatedUser(event);
-    const tenantId = mockDb.getTenantForUser(user.id);
-    const body = parseBody<{ fileName?: string; imageUrl?: string; tags?: string[] | string }>(event);
+    const { user } = await requireAuthenticatedUser(event);
+    const tenantId = await getTenantForUser(user.id);
+    const body = parseBody<{ fileName?: string; imageUrl?: string; tags?: string[] | string }>(
+      event
+    );
     const tags = Array.isArray(body.tags)
       ? body.tags
       : typeof body.tags === 'string'
         ? parseTags(body.tags)
         : [];
 
-    const card = mockDb.createCard({
+    const card = await createCard({
       userId: user.id,
       tenantId,
       name: 'Scanned Contact',
@@ -526,7 +558,7 @@ const handleScan = (event: LambdaHttpEvent, requestId: string) => {
       scanDate: new Date(),
     });
 
-    const ocrJob = mockDb.createOcrJob(card.id, {
+    const ocrJob = await createOcrJob(card.id, {
       requestedBy: user.id,
       payload: {
         source: 'api.scan',
@@ -534,7 +566,7 @@ const handleScan = (event: LambdaHttpEvent, requestId: string) => {
       },
     });
 
-    const enrichment = mockDb.createEnrichment(card.id, {
+    const enrichment = await createEnrichment(card.id, {
       requestedBy: user.id,
       companyId: undefined,
     });
@@ -569,12 +601,12 @@ const handleScan = (event: LambdaHttpEvent, requestId: string) => {
   }
 };
 
-const handleTag = (event: LambdaHttpEvent, requestId: string, cardId: string) => {
+const handleTag = async (event: LambdaHttpEvent, requestId: string, cardId: string) => {
   const logger = getLogger();
   try {
-    const user = requireAuthenticatedUser(event);
+    const { user } = await requireAuthenticatedUser(event);
     const body = parseBody<{ tag?: string }>(event);
-    const card = mockDb.getCard(cardId);
+    const card = await getCard(cardId);
 
     if (!card || card.userId !== user.id) {
       logger.warn('cards.tag.notFound', { requestId, cardId });
@@ -586,7 +618,7 @@ const handleTag = (event: LambdaHttpEvent, requestId: string, cardId: string) =>
       return withCors(createErrorResponse(400, 'Tag is required', { code: 'INVALID_INPUT' }));
     }
 
-    const updated = mockDb.addTag(cardId, body.tag);
+    const updated = await addTag(cardId, body.tag);
     logger.info('cards.tag.success', { requestId, cardId, tag: body.tag });
 
     return withCors(

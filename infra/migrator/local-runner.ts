@@ -1,7 +1,6 @@
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { handler } from './handler.ts';
 import { stageMigrationsIntoTempRoot } from './migrations-fs.ts';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -29,6 +28,7 @@ async function main(): Promise<void> {
   };
 
   try {
+    const { handler } = await import('./handler.ts');
     await handler(event);
     console.log('✅ Local migrations applied successfully');
   } catch (error) {

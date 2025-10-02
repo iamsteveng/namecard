@@ -2,67 +2,67 @@
 
 /**
  * Phase 2 PostgreSQL Full-Text Search API Test Suite
- * 
+ *
  * This script tests all Phase 2 full-text search functionality including:
  * - Health monitoring and analytics
  * - Enhanced existing endpoints with search
- * - New advanced search endpoints  
+ * - New advanced search endpoints
  * - Multi-language search capabilities
  * - Boolean search operations
  * - Performance testing
  * - Error handling
- * 
+ *
  * SETUP INSTRUCTIONS:
  * ===================
- * 
+ *
  * 1. ENVIRONMENT SETUP:
  *    - Ensure your API server is running: cd services/api && pnpm run dev
  *    - Ensure your PostgreSQL database is running with test data
- * 
+ *
  * 2. USER ID CONFIGURATION (Optional):
  *    By default, this script uses a hardcoded test user ID. To use a different user:
- * 
+ *
  *    Option A - Set environment variable:
- *    
+ *
  *    # On Unix/Mac/Linux:
  *    export TEST_USER_ID="your-user-id-here"
  *    node test_phase2_api.js
- *    
+ *
  *    # On Windows (Command Prompt):
  *    set TEST_USER_ID=your-user-id-here
  *    node test_phase2_api.js
- *    
+ *
  *    # On Windows (PowerShell):
  *    $env:TEST_USER_ID="your-user-id-here"
  *    node test_phase2_api.js
- *    
+ *
  *    # One-liner (Unix/Mac/Linux):
  *    TEST_USER_ID="your-user-id-here" node test_phase2_api.js
- * 
+ *
  *    Option B - Find available user IDs in database:
- *    
+ *
  *    # Connect to your development database:
  *    PGPASSWORD=namecard_password psql -h localhost -U namecard_user -d namecard_dev
- *    
+ *
  *    # List available users with their cards:
- *    SELECT u.id, u.email, u.name, COUNT(c.id) as card_count 
- *    FROM users u 
- *    LEFT JOIN cards c ON u.id = c.user_id 
- *    GROUP BY u.id, u.email, u.name 
+ *    SELECT u.id, u.email, u.name, COUNT(c.id) as card_count
+ *    FROM users u
+ *    LEFT JOIN cards c ON u.id = c.user_id
+ *    GROUP BY u.id, u.email, u.name
  *    ORDER BY card_count DESC;
- *    
+ *
  *    # Copy the desired user ID and use it with TEST_USER_ID environment variable
- * 
+ *
  * 3. RUNNING THE TESTS:
  *    node test_phase2_api.js
- * 
+ *
  * TROUBLESHOOTING:
  * ================
  * - If you get authentication errors, ensure development auth bypass is enabled
  * - If you get "user not found" errors, check your TEST_USER_ID is valid
  * - If search tests fail, ensure your database has search vectors populated
  * - For database connection issues, verify your PostgreSQL container is running
- * 
+ *
  * EXPECTED RESULTS:
  * =================
  * - Success Rate: 100% (13/13 tests passing)
@@ -107,26 +107,53 @@ if (USE_LAMBDA) {
   const { handler: authHandler } = require(path.resolve(__dirname, 'services/auth/handler.ts'));
   const { handler: cardsHandler } = require(path.resolve(__dirname, 'services/cards/handler.ts'));
   const { handler: searchHandler } = require(path.resolve(__dirname, 'services/search/handler.ts'));
-  const { handler: uploadsHandler } = require(path.resolve(__dirname, 'services/uploads/handler.ts'));
+  const { handler: uploadsHandler } = require(
+    path.resolve(__dirname, 'services/uploads/handler.ts')
+  );
   const { handler: ocrHandler } = require(path.resolve(__dirname, 'services/ocr/handler.ts'));
-  const { handler: enrichmentHandler } = require(path.resolve(__dirname, 'services/enrichment/handler.ts'));
-  const { mockDb } = require(path.resolve(__dirname, 'services/shared/src/data/mock-store.ts'));
+  const { handler: enrichmentHandler } = require(
+    path.resolve(__dirname, 'services/enrichment/handler.ts')
+  );
+  const { seedDemoWorkspace } = require(
+    path.resolve(__dirname, 'services/shared/src/data/seed.ts')
+  );
 
-  mockDb.reset();
-
+  let seeded = false;
   let cachedAccessToken;
-  const ensureAccessToken = () => {
+
+  const loginEvent = () => ({
+    httpMethod: 'POST',
+    rawPath: '/v1/auth/login',
+    path: '/v1/auth/login',
+    headers: { 'content-type': 'application/json' },
+    queryStringParameters: null,
+    pathParameters: null,
+    body: JSON.stringify({ email: 'demo@namecard.app', password: 'DemoPass123!' }),
+    requestContext: { requestId: 'lambda-login' },
+  });
+
+  const fetchAccessToken = async () => {
+    if (!seeded) {
+      await seedDemoWorkspace({ reset: true });
+      seeded = true;
+    }
     if (!cachedAccessToken) {
-      const session = mockDb.authenticate('demo@namecard.app', 'DemoPass123!');
-      cachedAccessToken = session.accessToken;
+      const response = await authHandler(loginEvent());
+      if (response.statusCode !== 200) {
+        throw new Error(`Login failed: ${response.statusCode} ${response.body}`);
+      }
+      const payload = JSON.parse(response.body);
+      cachedAccessToken = payload.data.session.accessToken;
     }
     return cachedAccessToken;
   };
 
-  const normalizeHeaders = headers => {
-    const token = ensureAccessToken();
+  const normalizeHeaders = async headers => {
+    const token = await fetchAccessToken();
     const resolvedHeaders = { ...headers };
-    const authHeaderKey = Object.keys(resolvedHeaders).find(key => key.toLowerCase() === 'authorization');
+    const authHeaderKey = Object.keys(resolvedHeaders).find(
+      key => key.toLowerCase() === 'authorization'
+    );
 
     if (authHeaderKey) {
       const raw = resolvedHeaders[authHeaderKey];
@@ -183,16 +210,16 @@ async function makeRequest(path, options = {}) {
     const reqOptions = {
       method: options.method || 'GET',
       headers: {
-        'Authorization': `Bearer ${DEV_TOKEN}`,
+        Authorization: `Bearer ${DEV_TOKEN}`,
         'Content-Type': 'application/json',
-        ...options.headers
+        ...options.headers,
       },
-      ...options
+      ...options,
     };
 
-    const req = http.request(url, reqOptions, (res) => {
+    const req = http.request(url, reqOptions, res => {
       let data = '';
-      res.on('data', chunk => data += chunk);
+      res.on('data', chunk => (data += chunk));
       res.on('end', () => {
         try {
           const json = JSON.parse(data);
@@ -204,11 +231,11 @@ async function makeRequest(path, options = {}) {
     });
 
     req.on('error', reject);
-    
+
     if (options.body) {
       req.write(JSON.stringify(options.body));
     }
-    
+
     req.end();
   });
 }
@@ -217,7 +244,7 @@ async function invokeLambdaRequest(pathname, options = {}) {
   const localUrl = new URL(pathname, 'http://lambda.local');
   const fullPath = `/api/v1${localUrl.pathname}`;
   // console.debug('[lambda] invoking', fullPath);
-  const headers = lambdaRuntime.normalizeHeaders({
+  const headers = await lambdaRuntime.normalizeHeaders({
     Authorization: `Bearer ${DEV_TOKEN}`,
     'Content-Type': 'application/json',
     ...(options.headers ?? {}),
@@ -283,14 +310,14 @@ async function invokeLambdaRequest(pathname, options = {}) {
 function printTestResult(testName, result, expectedStatus = 200) {
   const statusIcon = result.status === expectedStatus ? '✅' : '❌';
   const successIcon = result.data.success === false ? '❌' : '✅';
-  
+
   console.log(`\n${testName}:`);
   console.log(`   Status: ${statusIcon} ${result.status} (expected ${expectedStatus})`);
-  
+
   if (result.data.success !== undefined) {
     console.log(`   Success: ${successIcon} ${result.data.success}`);
   }
-  
+
   if (result.data.error) {
     console.log(`   Error: ${result.data.error.message}`);
   }
@@ -303,7 +330,7 @@ async function testPhase2API() {
   const results = {
     passed: 0,
     failed: 0,
-    total: 0
+    total: 0,
   };
 
   function recordResult(passed) {
@@ -355,7 +382,9 @@ async function testPhase2API() {
     }
 
     // Test 4: Advanced cards search endpoint
-    const advancedSearchTest = await makeRequest('/cards/search?q=tech&highlight=true&includeRank=true');
+    const advancedSearchTest = await makeRequest(
+      '/cards/search?q=tech&highlight=true&includeRank=true'
+    );
     printTestResult('GET /cards/search?q=tech (advanced)', advancedSearchTest);
     recordResult(advancedSearchTest.status === 200 && advancedSearchTest.data.success);
 
@@ -380,8 +409,8 @@ async function testPhase2API() {
         highlight: true,
         includeRank: true,
         page: 1,
-        limit: 10
-      }
+        limit: 10,
+      },
     });
     printTestResult('POST /search/cards', newCardsSearchTest);
     recordResult(newCardsSearchTest.status === 200 && newCardsSearchTest.data.success);
@@ -396,7 +425,9 @@ async function testPhase2API() {
         });
       }
       if (newCardsSearchTest.data.data.searchMeta) {
-        console.log(`   Processed Query: ${newCardsSearchTest.data.data.searchMeta.processedQuery}`);
+        console.log(
+          `   Processed Query: ${newCardsSearchTest.data.data.searchMeta.processedQuery}`
+        );
         console.log(`   Total Matches: ${newCardsSearchTest.data.data.searchMeta.totalMatches}`);
       }
     }
@@ -447,7 +478,7 @@ async function testPhase2API() {
       const multiLangTest = await makeRequest(`/cards?q=${encodeURIComponent(testQuery.query)}`);
       printTestResult(`Multi-language: '${testQuery.query}'`, multiLangTest);
       recordResult(multiLangTest.status === 200 && multiLangTest.data.success);
-      
+
       if (multiLangTest.data.success) {
         const count = multiLangTest.data.data.cards.length;
         console.log(`   Expected: ${testQuery.expected}`);
@@ -473,8 +504,8 @@ async function testPhase2API() {
         highlight: true,
         includeRank: true,
         page: 1,
-        limit: 5
-      }
+        limit: 5,
+      },
     });
     printTestResult('Boolean Search: software AND engineer', booleanSearchTest);
     recordResult(booleanSearchTest.status === 200 && booleanSearchTest.data.success);
@@ -528,8 +559,8 @@ async function testPhase2API() {
       method: 'POST',
       body: {
         q: '((invalid boolean query with unmatched parentheses',
-        searchMode: 'boolean'
-      }
+        searchMode: 'boolean',
+      },
     });
     console.log('\nInvalid boolean query test:');
     console.log(`   Status: ${invalidQueryTest.status} (expected 400 or handled gracefully)`);
@@ -559,7 +590,6 @@ async function testPhase2API() {
     console.log('1. Make sure API server is running: cd services/api && pnpm run dev');
     console.log('2. Ensure database is running with test data');
     console.log('3. Run this script: node test_phase2_api.js');
-
   } catch (error) {
     console.error('\n❌ Test suite failed with error:', error.message);
     if (error.stack) {
@@ -573,8 +603,10 @@ async function testPhase2API() {
 }
 
 // Run the test suite
-testPhase2API().then(() => {
-  console.log('\n✅ Test suite completed');
-}).catch(err => {
-  console.error('❌ Test suite error:', err);
-});
+testPhase2API()
+  .then(() => {
+    console.log('\n✅ Test suite completed');
+  })
+  .catch(err => {
+    console.error('❌ Test suite error:', err);
+  });

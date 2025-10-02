@@ -124,7 +124,7 @@ async function main() {
     {
       name: 'Seeding baseline data',
       fn: () =>
-        runCommand('pnpm', ['--filter', '@namecard/api', 'run', 'db:seed'], {
+        runCommand('pnpm', ['run', 'db:seed'], {
           env: {
             DATABASE_URL:
               'postgresql://namecard_user:namecard_password@localhost:5432/namecard_dev',

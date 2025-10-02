@@ -26,7 +26,7 @@ export class TracingManager {
     this.logger.trace('trace.span.start', { spanId: span.id, name: span.name });
 
     return {
-      end: (error?: unknown) => {
+      end: (error?: unknown): void => {
         span.endedAt = Date.now();
         if (error) {
           span.error = error instanceof Error ? error.message : String(error);
@@ -58,7 +58,8 @@ export class TracingManager {
   }
 }
 
-export const createTracingManager = (logger: StructuredLogger): TracingManager => new TracingManager(logger);
+export const createTracingManager = (logger: StructuredLogger): TracingManager =>
+  new TracingManager(logger);
 
 export const getTracer = (): TracingManager => {
   const context = getExecutionContext();

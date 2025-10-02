@@ -1,4 +1,15 @@
-import { mockDb, getLogger, getMetrics, withHttpObservability } from '@namecard/shared';
+import {
+  getLogger,
+  getMetrics,
+  withHttpObservability,
+  resolveUserFromToken,
+  listCards,
+  getTenantForUser,
+  recordSearchEvent,
+  getSearchAnalytics,
+  listCompanies,
+  ensureDefaultDemoUser,
+} from '@namecard/shared';
 import {
   createErrorResponse,
   createSuccessResponse,
@@ -25,18 +36,18 @@ const buildCorsResponse = (statusCode = 204) =>
     body: '',
   });
 
-const requireAuthenticatedUser = (event: LambdaHttpEvent) => {
+const requireAuthenticatedUser = async (event: LambdaHttpEvent) => {
   const token = extractBearerToken(event);
   if (!token) {
     throw createErrorResponse(401, 'Authorization token missing', { code: 'UNAUTHORIZED' });
   }
 
-  const user = mockDb.getUserForToken(token);
+  const user = await resolveUserFromToken(token);
   if (!user) {
     throw createErrorResponse(401, 'Invalid or expired access token', { code: 'UNAUTHORIZED' });
   }
 
-  return user;
+  return { user, token } as const;
 };
 
 const parseBody = <T>(event: LambdaHttpEvent) => {
@@ -51,11 +62,11 @@ const parseBody = <T>(event: LambdaHttpEvent) => {
   return (result.data ?? {}) as T;
 };
 
-const runCardSearch = (userId: string, searchTerm: string, limit = 10) => {
+const runCardSearch = async (userId: string, tenantId: string, searchTerm: string, limit = 10) => {
   const metrics = getMetrics();
   const logger = getLogger();
   const startedAt = Date.now();
-  const listResult = mockDb.listCards({
+  const listResult = await listCards({
     userId,
     page: 1,
     limit,
@@ -72,7 +83,13 @@ const runCardSearch = (userId: string, searchTerm: string, limit = 10) => {
   }));
 
   const latencyMs = Math.floor(Math.random() * 30) + 35;
-  mockDb.recordSearch(searchTerm, latencyMs, listResult.items.length);
+  await recordSearchEvent({
+    query: searchTerm,
+    latencyMs,
+    resultCount: listResult.items.length,
+    tenantId,
+    userId,
+  });
 
   const totalDuration = Date.now() - startedAt;
   metrics.duration('searchCardsLatencyMs', totalDuration, {
@@ -105,10 +122,17 @@ const runCardSearch = (userId: string, searchTerm: string, limit = 10) => {
   };
 };
 
-const handleHealth = (requestId: string) => {
+const handleHealth = async (requestId: string) => {
   const logger = getLogger();
   const metrics = getMetrics();
-  const analytics = mockDb.getSearchAnalytics();
+  await ensureDefaultDemoUser();
+  const analytics = await getSearchAnalytics().catch(() => ({
+    totalQueries: 0,
+    averageLatencyMs: 0,
+    cardsIndexed: 0,
+    companiesIndexed: 0,
+    topQueries: [],
+  }));
 
   logger.debug('search.health.check', { requestId });
   metrics.gauge('searchAverageLatency', analytics.averageLatencyMs);
@@ -134,11 +158,14 @@ const handleHealth = (requestId: string) => {
   );
 };
 
-const handleAnalytics = (requestId: string) => {
+const handleAnalytics = async (requestId: string) => {
   const logger = getLogger();
-  const analytics = mockDb.getSearchAnalytics();
+  const analytics = await getSearchAnalytics();
 
-  logger.info('search.analytics.retrieved', { requestId, averageLatencyMs: analytics.averageLatencyMs });
+  logger.info('search.analytics.retrieved', {
+    requestId,
+    averageLatencyMs: analytics.averageLatencyMs,
+  });
 
   return withCors(
     createSuccessResponse(
@@ -151,15 +178,16 @@ const handleAnalytics = (requestId: string) => {
   );
 };
 
-const handleCardsSearch = (event: LambdaHttpEvent, requestId: string) => {
+const handleCardsSearch = async (event: LambdaHttpEvent, requestId: string) => {
   const logger = getLogger();
   try {
-    const user = requireAuthenticatedUser(event);
+    const { user } = await requireAuthenticatedUser(event);
+    const tenantId = await getTenantForUser(user.id);
     const query = getQuery(event);
     const searchTerm = query.q ?? '';
     const limit = query.limit ? Number(query.limit) : 10;
 
-    const result = runCardSearch(user.id, searchTerm, limit);
+    const result = await runCardSearch(user.id, tenantId, searchTerm, limit);
     logger.info('search.cards.get.success', {
       requestId,
       searchTerm,
@@ -188,14 +216,21 @@ const handleCardsSearch = (event: LambdaHttpEvent, requestId: string) => {
   }
 };
 
-const handleCardsSearchPost = (event: LambdaHttpEvent, requestId: string) => {
+const handleCardsSearchPost = async (event: LambdaHttpEvent, requestId: string) => {
   const logger = getLogger();
   try {
-    const user = requireAuthenticatedUser(event);
-    const body = parseBody<{ query?: string; q?: string; limit?: number; searchMode?: string }>(event);
+    const { user } = await requireAuthenticatedUser(event);
+    const tenantId = await getTenantForUser(user.id);
+    const body = parseBody<{ query?: string; q?: string; limit?: number; searchMode?: string }>(
+      event
+    );
 
     const normalizedQuery = body.query ?? body.q ?? '';
-    if (body.searchMode === 'boolean' && normalizedQuery.includes('(') && !normalizedQuery.includes(')')) {
+    if (
+      body.searchMode === 'boolean' &&
+      normalizedQuery.includes('(') &&
+      !normalizedQuery.includes(')')
+    ) {
       logger.warn('search.cards.post.invalidExpression', { requestId });
       return withCors(
         createErrorResponse(400, 'Invalid boolean search expression', {
@@ -204,7 +239,7 @@ const handleCardsSearchPost = (event: LambdaHttpEvent, requestId: string) => {
       );
     }
 
-    const searchResult = runCardSearch(user.id, normalizedQuery, body.limit ?? 10);
+    const searchResult = await runCardSearch(user.id, tenantId, normalizedQuery, body.limit ?? 10);
     logger.info('search.cards.post.success', {
       requestId,
       searchMode: body.searchMode ?? 'simple',
@@ -235,14 +270,14 @@ const handleCardsSearchPost = (event: LambdaHttpEvent, requestId: string) => {
   }
 };
 
-const handleCompaniesSearch = (event: LambdaHttpEvent, requestId: string) => {
+const handleCompaniesSearch = async (event: LambdaHttpEvent, requestId: string) => {
   const logger = getLogger();
   try {
-    void requireAuthenticatedUser(event);
+    const { user } = await requireAuthenticatedUser(event);
     const query = getQuery(event);
     const searchTerm = (query.q ?? '').toLowerCase();
-    const companies = mockDb
-      .listCompanies()
+    const allCompanies = await listCompanies();
+    const companies = allCompanies
       .filter(company =>
         !searchTerm
           ? true
@@ -258,7 +293,13 @@ const handleCompaniesSearch = (event: LambdaHttpEvent, requestId: string) => {
           : ['Included in company index'],
       }));
 
-    mockDb.recordSearch(searchTerm, 40, companies.length);
+    await recordSearchEvent({
+      query: searchTerm,
+      latencyMs: 40,
+      resultCount: companies.length,
+      tenantId: await getTenantForUser(user.id),
+      userId: user.id,
+    });
     logger.info('search.companies.success', {
       requestId,
       searchTerm,
@@ -285,10 +326,11 @@ const handleCompaniesSearch = (event: LambdaHttpEvent, requestId: string) => {
   }
 };
 
-const handleUnifiedQuery = (event: LambdaHttpEvent, requestId: string) => {
+const handleUnifiedQuery = async (event: LambdaHttpEvent, requestId: string) => {
   const logger = getLogger();
   try {
-    const user = requireAuthenticatedUser(event);
+    const { user } = await requireAuthenticatedUser(event);
+    const tenantId = await getTenantForUser(user.id);
     const body = parseBody<{
       query?: string;
       includeCompanies?: boolean;
@@ -298,16 +340,13 @@ const handleUnifiedQuery = (event: LambdaHttpEvent, requestId: string) => {
     const searchTerm = body.query ?? '';
     const limit = body.limit ?? 10;
 
-    const cardsResult = runCardSearch(user.id, searchTerm, limit);
+    const cardsResult = await runCardSearch(user.id, tenantId, searchTerm, limit);
     const includeCompanies = body.includeCompanies ?? true;
 
     const companies = includeCompanies
-      ? mockDb
-          .listCompanies()
+      ? (await listCompanies())
           .filter(company =>
-            !searchTerm
-              ? true
-              : company.name.toLowerCase().includes(searchTerm.toLowerCase())
+            !searchTerm ? true : company.name.toLowerCase().includes(searchTerm.toLowerCase())
           )
           .slice(0, 5)
       : [];
@@ -344,22 +383,24 @@ const handleUnifiedQuery = (event: LambdaHttpEvent, requestId: string) => {
   }
 };
 
-const handleSuggestions = (event: LambdaHttpEvent, requestId: string) => {
+const handleSuggestions = async (event: LambdaHttpEvent, requestId: string) => {
   const logger = getLogger();
   try {
     const query = getQuery(event);
     const prefix = (query.prefix ?? '').toLowerCase();
     const limit = query.maxSuggestions ? Number(query.maxSuggestions) : 5;
 
-    const user = requireAuthenticatedUser(event);
-    const cards = mockDb.listCards({
-      userId: user.id,
-      page: 1,
-      limit: 100,
-      query: '',
-      tags: [],
-      company: undefined,
-    }).items;
+    const { user } = await requireAuthenticatedUser(event);
+    const cards = (
+      await listCards({
+        userId: user.id,
+        page: 1,
+        limit: 200,
+        query: '',
+        tags: [],
+        company: undefined,
+      })
+    ).items;
     const pool = new Set<string>();
     cards.forEach(card => {
       if (card.name) pool.add(card.name);
@@ -395,17 +436,20 @@ const handleSuggestions = (event: LambdaHttpEvent, requestId: string) => {
   }
 };
 
-const handleFilters = (event: LambdaHttpEvent, requestId: string) => {
+const handleFilters = async (event: LambdaHttpEvent, requestId: string) => {
   const logger = getLogger();
   try {
-    const cards = mockDb.listCards({
-      userId: requireAuthenticatedUser(event).id,
-      page: 1,
-      limit: 100,
-      query: '',
-      tags: [],
-      company: undefined,
-    }).items;
+    const { user } = await requireAuthenticatedUser(event);
+    const cards = (
+      await listCards({
+        userId: user.id,
+        page: 1,
+        limit: 200,
+        query: '',
+        tags: [],
+        company: undefined,
+      })
+    ).items;
     const companies = new Set<string>();
     const tags = new Set<string>();
     const industries = new Set<string>();
@@ -415,7 +459,8 @@ const handleFilters = (event: LambdaHttpEvent, requestId: string) => {
       card.tags?.forEach(tag => tags.add(tag));
     });
 
-    mockDb.listCompanies().forEach(company => {
+    const companyProfiles = await listCompanies();
+    companyProfiles.forEach(company => {
       industries.add(company.industry ?? 'General');
     });
 

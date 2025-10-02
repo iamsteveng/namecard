@@ -20,7 +20,7 @@ const storage = new AsyncLocalStorage<ExecutionContext>();
 
 export const runWithExecutionContext = async <T>(
   context: ExecutionContext,
-  callback: () => Promise<T> | T,
+  callback: () => Promise<T> | T
 ): Promise<T> => storage.run(context, callback);
 
 export const getExecutionContext = (): ExecutionContext | undefined => storage.getStore();

@@ -1,10 +1,17 @@
 import {
-  mockDb,
   getLogger,
   getMetrics,
   extractIdempotencyKey,
   withIdempotency,
   withHttpObservability,
+  resolveUserFromToken,
+  getTenantForUser,
+  createUpload,
+  completeUpload,
+  getUpload,
+  listUploadsForUser,
+  getSearchAnalytics,
+  ensureDefaultDemoUser,
 } from '@namecard/shared';
 import {
   createErrorResponse,
@@ -32,18 +39,18 @@ const buildCorsResponse = (statusCode = 204) =>
     body: '',
   });
 
-const requireAuthenticatedUser = (event: LambdaHttpEvent) => {
+const requireAuthenticatedUser = async (event: LambdaHttpEvent) => {
   const token = extractBearerToken(event);
   if (!token) {
     throw createErrorResponse(401, 'Authorization token missing', { code: 'UNAUTHORIZED' });
   }
 
-  const user = mockDb.getUserForToken(token);
+  const user = await resolveUserFromToken(token);
   if (!user) {
     throw createErrorResponse(401, 'Invalid or expired access token', { code: 'UNAUTHORIZED' });
   }
 
-  return user;
+  return { user, token } as const;
 };
 
 const parseBody = <T>(event: LambdaHttpEvent) => {
@@ -58,10 +65,16 @@ const parseBody = <T>(event: LambdaHttpEvent) => {
   return (result.data ?? {}) as T;
 };
 
-const handleHealth = (requestId: string) => {
+const handleHealth = async (requestId: string) => {
   const logger = getLogger();
   const metrics = getMetrics();
-  const analytics = mockDb.getSearchAnalytics();
+  await ensureDefaultDemoUser();
+  const analytics = await getSearchAnalytics().catch(
+    () =>
+      ({
+        cardsIndexed: 0,
+      }) as any
+  );
 
   logger.debug('uploads.health.check', { requestId });
   metrics.gauge('uploadsActiveUrls', 1);
@@ -75,7 +88,7 @@ const handleHealth = (requestId: string) => {
         metrics: {
           activePresignedUrls: 1,
           averageUploadSizeKb: 48,
-          cardsIndexed: analytics.cardsIndexed,
+          cardsIndexed: analytics.cardsIndexed ?? 0,
         },
         storage: {
           bucket: 'mock-namecard-uploads',
@@ -95,7 +108,7 @@ const handleCreatePresign = async (event: LambdaHttpEvent, requestId: string) =>
 
   return withIdempotency(idempotencyKey, async () => {
     try {
-      const user = requireAuthenticatedUser(event);
+      const { user } = await requireAuthenticatedUser(event);
       const body = parseBody<{
         fileName?: string;
         checksum?: string;
@@ -112,8 +125,10 @@ const handleCreatePresign = async (event: LambdaHttpEvent, requestId: string) =>
         );
       }
 
-      const upload = mockDb.createUpload({
-        tenantId: mockDb.getTenantForUser(user.id),
+      const tenantId = await getTenantForUser(user.id);
+      const upload = await createUpload({
+        tenantId,
+        userId: user.id,
         fileName: body.fileName,
         checksum: body.checksum,
         contentType: body.contentType,
@@ -145,11 +160,11 @@ const handleCreatePresign = async (event: LambdaHttpEvent, requestId: string) =>
   });
 };
 
-const handleCompleteUpload = (event: LambdaHttpEvent, requestId: string) => {
+const handleCompleteUpload = async (event: LambdaHttpEvent, requestId: string) => {
   const logger = getLogger();
   const metrics = getMetrics();
   try {
-    void requireAuthenticatedUser(event);
+    await requireAuthenticatedUser(event);
     const body = parseBody<{ uploadId?: string }>(event);
 
     if (!body.uploadId) {
@@ -157,7 +172,7 @@ const handleCompleteUpload = (event: LambdaHttpEvent, requestId: string) => {
       return withCors(createErrorResponse(400, 'uploadId is required', { code: 'INVALID_INPUT' }));
     }
 
-    const upload = mockDb.completeUpload(body.uploadId);
+    const upload = await completeUpload(body.uploadId);
 
     metrics.count('uploadsCompleted');
     logger.info('uploads.complete.success', { requestId, uploadId: body.uploadId });
@@ -181,11 +196,11 @@ const handleCompleteUpload = (event: LambdaHttpEvent, requestId: string) => {
   }
 };
 
-const handleGetUpload = (event: LambdaHttpEvent, requestId: string, uploadId: string) => {
+const handleGetUpload = async (event: LambdaHttpEvent, requestId: string, uploadId: string) => {
   const logger = getLogger();
   try {
-    void requireAuthenticatedUser(event);
-    const upload = mockDb.getUpload(uploadId);
+    await requireAuthenticatedUser(event);
+    const upload = await getUpload(uploadId);
 
     if (!upload) {
       logger.warn('uploads.get.notFound', { requestId, uploadId });
@@ -212,19 +227,21 @@ const handleGetUpload = (event: LambdaHttpEvent, requestId: string, uploadId: st
   }
 };
 
-const handleListUploads = (event: LambdaHttpEvent, requestId: string) => {
+const handleListUploads = async (event: LambdaHttpEvent, requestId: string) => {
   const logger = getLogger();
   try {
-    void requireAuthenticatedUser(event);
-    const uploads = mockDb.getUpload('upload-demo-001');
+    const { user } = await requireAuthenticatedUser(event);
+    const query = getQuery(event);
+    const limit = query.limit ? Number(query.limit) : 25;
+    const uploads = await listUploadsForUser(user.id, limit);
 
-    logger.debug('uploads.list.success', { requestId, count: uploads ? 1 : 0 });
+    logger.debug('uploads.list.success', { requestId, count: uploads.length });
 
     return withCors(
       createSuccessResponse(
         {
           requestId,
-          uploads: uploads ? [uploads] : [],
+          uploads,
         },
         { message: 'Uploads listing retrieved' }
       )

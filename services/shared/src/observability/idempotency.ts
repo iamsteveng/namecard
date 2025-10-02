@@ -20,7 +20,7 @@ const getLoggerInstance = (): StructuredLogger => {
 };
 
 export const extractIdempotencyKey = (
-  headers?: Record<string, string | undefined> | null,
+  headers?: Record<string, string | undefined> | null
 ): string | undefined => {
   if (!headers) {
     return undefined;
@@ -37,7 +37,7 @@ export const extractIdempotencyKey = (
 export const withIdempotency = async <T>(
   key: string | undefined,
   callback: () => Promise<T>,
-  options?: { ttlMs?: number },
+  options?: { ttlMs?: number }
 ): Promise<T> => {
   if (!key) {
     return callback();

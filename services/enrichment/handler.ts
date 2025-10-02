@@ -1,4 +1,14 @@
-import { mockDb, getLogger, getMetrics, withHttpObservability } from '@namecard/shared';
+import {
+  getLogger,
+  getMetrics,
+  withHttpObservability,
+  resolveUserFromToken,
+  createEnrichment,
+  getEnrichmentByCard,
+  getEnrichmentByCompany,
+  getSearchAnalytics,
+  ensureDefaultDemoUser,
+} from '@namecard/shared';
 import {
   createErrorResponse,
   createSuccessResponse,
@@ -24,18 +34,18 @@ const buildCorsResponse = (statusCode = 204) =>
     body: '',
   });
 
-const requireAuthenticatedUser = (event: LambdaHttpEvent) => {
+const requireAuthenticatedUser = async (event: LambdaHttpEvent) => {
   const token = extractBearerToken(event);
   if (!token) {
     throw createErrorResponse(401, 'Authorization token missing', { code: 'UNAUTHORIZED' });
   }
 
-  const user = mockDb.getUserForToken(token);
+  const user = await resolveUserFromToken(token);
   if (!user) {
     throw createErrorResponse(401, 'Invalid or expired access token', { code: 'UNAUTHORIZED' });
   }
 
-  return user;
+  return { user, token } as const;
 };
 
 const parseBody = <T>(event: LambdaHttpEvent) => {
@@ -50,10 +60,16 @@ const parseBody = <T>(event: LambdaHttpEvent) => {
   return (result.data ?? {}) as T;
 };
 
-const handleHealth = (requestId: string) => {
+const handleHealth = async (requestId: string) => {
   const logger = getLogger();
   const metrics = getMetrics();
-  const analytics = mockDb.getSearchAnalytics();
+  await ensureDefaultDemoUser();
+  const analytics = await getSearchAnalytics().catch(
+    () =>
+      ({
+        cardsIndexed: 0,
+      }) as any
+  );
 
   logger.debug('enrichment.health.check', { requestId });
   metrics.gauge('enrichmentProcessedCards', analytics.cardsIndexed);
@@ -65,7 +81,7 @@ const handleHealth = (requestId: string) => {
         status: 'ok',
         requestId,
         metrics: {
-          processedCards: analytics.cardsIndexed,
+          processedCards: analytics.cardsIndexed ?? 0,
           averageLatencyMs: 1450,
           thirdPartyIntegrations: ['perplexity', 'clearbit', 'news-api'],
         },
@@ -78,15 +94,15 @@ const handleHealth = (requestId: string) => {
   );
 };
 
-const handleCreateForCard = (event: LambdaHttpEvent, requestId: string, cardId: string) => {
+const handleCreateForCard = async (event: LambdaHttpEvent, requestId: string, cardId: string) => {
   const logger = getLogger();
   const metrics = getMetrics();
   const startedAt = Date.now();
   try {
-    const user = requireAuthenticatedUser(event);
+    const { user } = await requireAuthenticatedUser(event);
     const body = parseBody<{ companyId?: string }>(event);
 
-    const enrichment = mockDb.createEnrichment(cardId, {
+    const enrichment = await createEnrichment(cardId, {
       requestedBy: user.id,
       companyId: body.companyId,
     });
@@ -114,11 +130,11 @@ const handleCreateForCard = (event: LambdaHttpEvent, requestId: string, cardId: 
   }
 };
 
-const handleGetForCard = (event: LambdaHttpEvent, requestId: string, cardId: string) => {
+const handleGetForCard = async (event: LambdaHttpEvent, requestId: string, cardId: string) => {
   const logger = getLogger();
   try {
-    void requireAuthenticatedUser(event);
-    const enrichment = mockDb.getEnrichmentByCard(cardId);
+    await requireAuthenticatedUser(event);
+    const enrichment = await getEnrichmentByCard(cardId);
 
     if (!enrichment) {
       logger.warn('enrichment.card.notFound', { requestId, cardId });
@@ -145,15 +161,21 @@ const handleGetForCard = (event: LambdaHttpEvent, requestId: string, cardId: str
   }
 };
 
-const handleGetForCompany = (event: LambdaHttpEvent, requestId: string, companyId: string) => {
+const handleGetForCompany = async (
+  event: LambdaHttpEvent,
+  requestId: string,
+  companyId: string
+) => {
   const logger = getLogger();
   try {
-    void requireAuthenticatedUser(event);
-    const enrichment = mockDb.getEnrichmentByCompany(companyId);
+    await requireAuthenticatedUser(event);
+    const enrichment = await getEnrichmentByCompany(companyId);
 
     if (!enrichment) {
       logger.warn('enrichment.company.notFound', { requestId, companyId });
-      return withCors(createErrorResponse(404, 'Company enrichment not found', { code: 'NOT_FOUND' }));
+      return withCors(
+        createErrorResponse(404, 'Company enrichment not found', { code: 'NOT_FOUND' })
+      );
     }
 
     logger.info('enrichment.company.retrieved', { requestId, companyId });

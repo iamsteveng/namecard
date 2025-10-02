@@ -1,4 +1,17 @@
-import { mockDb, getLogger, withHttpObservability } from '@namecard/shared';
+import {
+  authenticateUser,
+  registerUser,
+  refreshSession,
+  revokeAccessToken,
+  resolveUserFromToken,
+  ensureDefaultDemoUser,
+  getAuthServiceMetrics,
+  getUserProfile,
+  getCardStats,
+  getSearchAnalytics,
+  getLogger,
+  withHttpObservability,
+} from '@namecard/shared';
 import {
   createErrorResponse,
   createSuccessResponse,
@@ -25,13 +38,13 @@ const buildCorsResponse = (statusCode = 204) =>
     body: '',
   });
 
-const requireAuthenticatedUser = (event: LambdaHttpEvent) => {
+const requireAuthenticatedUser = async (event: LambdaHttpEvent) => {
   const token = extractBearerToken(event);
   if (!token) {
     throw createErrorResponse(401, 'Authorization token missing', { code: 'UNAUTHORIZED' });
   }
 
-  const user = mockDb.getUserForToken(token);
+  const user = await resolveUserFromToken(token);
   if (!user) {
     throw createErrorResponse(401, 'Invalid or expired access token', { code: 'UNAUTHORIZED' });
   }
@@ -51,30 +64,46 @@ const parseBody = <T>(event: LambdaHttpEvent) => {
   return (result.data ?? {}) as T;
 };
 
-const handleHealth = (requestId: string) => {
+const handleHealth = async (requestId: string) => {
   const logger = getLogger();
   logger.debug('auth.health.check', { requestId });
-  const response = createSuccessResponse({
-    service: 'auth',
-    status: 'ok',
-    requestId,
-    environment: 'mock',
-    dependencies: {
-      cognito: 'available',
-      database: 'available',
-      secrets: 'available',
+
+  await ensureDefaultDemoUser();
+  const [analytics, authMetrics] = await Promise.all([
+    getSearchAnalytics().catch(() => ({
+      totalQueries: 0,
+      averageLatencyMs: 0,
+      cardsIndexed: 0,
+      companiesIndexed: 0,
+      topQueries: [],
+    })),
+    getAuthServiceMetrics().catch(() => ({ activeSessions: 0, knownUsers: 0 })),
+  ]);
+
+  const response = createSuccessResponse(
+    {
+      service: 'auth',
+      status: 'ok',
+      requestId,
+      environment: process.env.NODE_ENV ?? 'local',
+      dependencies: {
+        cognito: 'simulated',
+        database: 'available',
+        secrets: 'available',
+      },
+      metrics: {
+        activeSessions: Math.max(authMetrics.activeSessions, 1),
+        knownUsers: Math.max(authMetrics.knownUsers, 1),
+        averageLatencyMs: analytics.averageLatencyMs ?? 0,
+      },
     },
-    metrics: {
-      activeSessions: 1,
-      knownUsers: 1,
-      averageLatencyMs: 35,
-    },
-  });
+    { message: 'Auth service healthy' }
+  );
 
   return withCors(response);
 };
 
-const handleLogin = (event: LambdaHttpEvent, requestId: string) => {
+const handleLogin = async (event: LambdaHttpEvent, requestId: string) => {
   const body = parseBody<{ email?: string; password?: string }>(event);
   const logger = getLogger();
 
@@ -90,21 +119,18 @@ const handleLogin = (event: LambdaHttpEvent, requestId: string) => {
   try {
     logger.info('auth.login.attempt', { email: body.email, requestId });
 
-    const { user, accessToken, refreshToken, expiresAt } = mockDb.authenticate(
-      body.email,
-      body.password
-    );
+    const session = await authenticateUser({ email: body.email, password: body.password });
 
-    logger.info('auth.login.success', { userId: user.id, requestId });
+    logger.info('auth.login.success', { userId: session.user.id, requestId });
 
     return withCors(
       createSuccessResponse(
         {
-          user,
+          user: session.user,
           session: {
-            accessToken,
-            refreshToken,
-            expiresAt,
+            accessToken: session.accessToken,
+            refreshToken: session.refreshToken,
+            expiresAt: session.expiresAt,
           },
           requestId,
         },
@@ -122,7 +148,7 @@ const handleLogin = (event: LambdaHttpEvent, requestId: string) => {
   }
 };
 
-const handleRegister = (event: LambdaHttpEvent, requestId: string) => {
+const handleRegister = async (event: LambdaHttpEvent, requestId: string) => {
   const body = parseBody<{ email?: string; password?: string; name?: string }>(event);
   const logger = getLogger();
 
@@ -138,22 +164,22 @@ const handleRegister = (event: LambdaHttpEvent, requestId: string) => {
   try {
     logger.info('auth.register.attempt', { email: body.email, requestId });
 
-    const { user, accessToken, refreshToken, expiresAt } = mockDb.register({
+    const session = await registerUser({
       email: body.email,
       password: body.password,
       name: body.name,
     });
 
-    logger.info('auth.register.success', { userId: user.id, requestId });
+    logger.info('auth.register.success', { userId: session.user.id, requestId });
 
     return withCors(
       createSuccessResponse(
         {
-          user,
+          user: session.user,
           session: {
-            accessToken,
-            refreshToken,
-            expiresAt,
+            accessToken: session.accessToken,
+            refreshToken: session.refreshToken,
+            expiresAt: session.expiresAt,
           },
           requestId,
         },
@@ -174,12 +200,11 @@ const handleRegister = (event: LambdaHttpEvent, requestId: string) => {
   }
 };
 
-const handleProfile = (event: LambdaHttpEvent, requestId: string) => {
+const handleProfile = async (event: LambdaHttpEvent, requestId: string) => {
   try {
-    const { user } = requireAuthenticatedUser(event);
+    const { user } = await requireAuthenticatedUser(event);
     getLogger().info('auth.profile.lookup', { userId: user.id, requestId });
-    const profile = mockDb.getUserProfile(user.id);
-    const stats = mockDb.getCardStats(user.id);
+    const [profile, stats] = await Promise.all([getUserProfile(user.id), getCardStats(user.id)]);
 
     return withCors(
       createSuccessResponse(
@@ -202,7 +227,7 @@ const handleProfile = (event: LambdaHttpEvent, requestId: string) => {
   }
 };
 
-const handleRefresh = (event: LambdaHttpEvent, requestId: string) => {
+const handleRefresh = async (event: LambdaHttpEvent, requestId: string) => {
   const body = parseBody<{ refreshToken?: string }>(event);
   const logger = getLogger();
   if (!body.refreshToken) {
@@ -216,7 +241,7 @@ const handleRefresh = (event: LambdaHttpEvent, requestId: string) => {
 
   try {
     logger.debug('auth.refresh.attempt', { requestId });
-    const refreshed = mockDb.refresh(body.refreshToken);
+    const refreshed = await refreshSession(body.refreshToken);
     logger.info('auth.refresh.success', { requestId });
     return withCors(
       createSuccessResponse(
@@ -242,12 +267,12 @@ const handleRefresh = (event: LambdaHttpEvent, requestId: string) => {
   }
 };
 
-const handleLogout = (event: LambdaHttpEvent, requestId: string) => {
+const handleLogout = async (event: LambdaHttpEvent, requestId: string) => {
   try {
-    const { token } = requireAuthenticatedUser(event);
+    const { token } = await requireAuthenticatedUser(event);
     const logger = getLogger();
     logger.debug('auth.logout.attempt', { requestId });
-    mockDb.revoke(token);
+    await revokeAccessToken(token);
     logger.info('auth.logout.success', { requestId });
     return withCors(
       createSuccessResponse(
@@ -275,10 +300,18 @@ const handleRoutesCatalog = (requestId: string) => {
         requestId,
         routes: [
           { method: 'GET', path: '/v1/auth/health', description: 'Service health status' },
-          { method: 'POST', path: '/v1/auth/login', description: 'Authenticate user and issue tokens' },
+          {
+            method: 'POST',
+            path: '/v1/auth/login',
+            description: 'Authenticate user and issue tokens',
+          },
           { method: 'POST', path: '/v1/auth/register', description: 'Create a new tenant user' },
           { method: 'POST', path: '/v1/auth/refresh', description: 'Refresh access token' },
-          { method: 'POST', path: '/v1/auth/logout', description: 'Invalidate the current session' },
+          {
+            method: 'POST',
+            path: '/v1/auth/logout',
+            description: 'Invalidate the current session',
+          },
           { method: 'GET', path: '/v1/auth/profile', description: 'Retrieve current user profile' },
         ],
       },

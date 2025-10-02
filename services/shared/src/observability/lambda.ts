@@ -14,7 +14,7 @@ interface LambdaContext {
 
 type HttpHandler<TEvent extends LambdaHttpEvent = LambdaHttpEvent, TResult = unknown> = (
   event: TEvent,
-  context: LambdaContext,
+  context: LambdaContext
 ) => Promise<TResult> | TResult;
 
 interface ObservabilityOptions {
@@ -24,7 +24,10 @@ interface ObservabilityOptions {
 const DEFAULT_SERVICE_NAME =
   process.env['POWERTOOLS_SERVICE_NAME'] ?? process.env['SERVICE_NAME'] ?? 'namecard';
 
-const collectCorrelationIds = (event: LambdaHttpEvent, context: LambdaContext): Record<string, string> => {
+const collectCorrelationIds = (
+  event: LambdaHttpEvent,
+  context: LambdaContext
+): Record<string, string> => {
   const headers = event.headers ?? {};
   const output: Record<string, string> = {};
 
@@ -53,14 +56,17 @@ const collectCorrelationIds = (event: LambdaHttpEvent, context: LambdaContext): 
   return output;
 };
 
-const finalize = (logger: StructuredLogger, metrics: MetricsEmitter) => {
+const finalize = (logger: StructuredLogger, metrics: MetricsEmitter): void => {
   metrics.flush();
   logger.trace('lambda.observability.flushed');
 };
 
-export const withHttpObservability = <TEvent extends LambdaHttpEvent = LambdaHttpEvent, TResult = unknown>(
+export const withHttpObservability = <
+  TEvent extends LambdaHttpEvent = LambdaHttpEvent,
+  TResult = unknown,
+>(
   handler: HttpHandler<TEvent, TResult>,
-  options?: ObservabilityOptions,
+  options?: ObservabilityOptions
 ): HttpHandler<TEvent, TResult> => {
   let coldStart = true;
   const serviceName = options?.serviceName ?? DEFAULT_SERVICE_NAME;
@@ -129,9 +135,10 @@ export const withHttpObservability = <TEvent extends LambdaHttpEvent = LambdaHtt
           finalize(logger, metrics);
           coldStart = false;
         }
-      },
+      }
     );
   };
 };
 
-export const getInvocationContext = () => getExecutionContext();
+export const getInvocationContext = (): ReturnType<typeof getExecutionContext> =>
+  getExecutionContext();

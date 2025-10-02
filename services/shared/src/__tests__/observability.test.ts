@@ -1,4 +1,10 @@
-import { withHttpObservability, getLogger, getMetrics, withIdempotency, clearIdempotencyEntries } from '@namecard/shared';
+import {
+  withHttpObservability,
+  getLogger,
+  getMetrics,
+  withIdempotency,
+  clearIdempotencyEntries,
+} from '@namecard/shared';
 import type { LambdaHttpEvent } from '@namecard/shared';
 
 describe('observability helpers', () => {
@@ -26,13 +32,16 @@ describe('observability helpers', () => {
   });
 
   it('wraps a lambda handler with structured logging and metrics', async () => {
-    const handler = withHttpObservability(async () => ({
-      statusCode: 200,
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ ok: true }),
-    }), {
-      serviceName: 'test-service',
-    });
+    const handler = withHttpObservability(
+      async () => ({
+        statusCode: 200,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ok: true }),
+      }),
+      {
+        serviceName: 'test-service',
+      }
+    );
 
     const response = await handler(
       {
@@ -41,7 +50,7 @@ describe('observability helpers', () => {
         headers: { 'x-request-id': 'demo-request' },
         requestContext: { requestId: 'unit-test-request' },
       } satisfies LambdaHttpEvent,
-      { awsRequestId: 'aws-request-123' },
+      { awsRequestId: 'aws-request-123' }
     );
 
     expect(response.statusCode).toBe(200);
@@ -60,7 +69,9 @@ describe('observability helpers', () => {
     let logPayloads = parseLogs();
 
     expect(logPayloads.some(payload => payload.message === 'lambda.invocation.started')).toBe(true);
-    expect(logPayloads.some(payload => payload.message === 'lambda.invocation.completed')).toBe(true);
+    expect(logPayloads.some(payload => payload.message === 'lambda.invocation.completed')).toBe(
+      true
+    );
 
     const contextLogger = getLogger();
     contextLogger.info('inside-context');
@@ -70,7 +81,11 @@ describe('observability helpers', () => {
 
     const metrics = getMetrics();
     metrics.count('customMetric');
-    expect(((metrics as unknown as { buffer: Array<{ name: string }> }).buffer).some(item => item.name === 'customMetric')).toBe(true);
+    expect(
+      (metrics as unknown as { buffer: Array<{ name: string }> }).buffer.some(
+        item => item.name === 'customMetric'
+      )
+    ).toBe(true);
     metrics.flush();
   });
 
@@ -82,37 +97,51 @@ describe('observability helpers', () => {
       requestContext: { requestId: 'idempotency-test' },
     };
 
-    const handler = withHttpObservability(async (incoming: LambdaHttpEvent) => {
-      return withIdempotency(incoming.headers?.['Idempotency-Key'], async () => ({
-        statusCode: 201,
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ created: true, token: Math.random() }),
-      }));
-    }, { serviceName: 'cards' });
+    const handler = withHttpObservability(
+      async (incoming: LambdaHttpEvent) => {
+        return withIdempotency(incoming.headers?.['Idempotency-Key'], async () => ({
+          statusCode: 201,
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ created: true, token: Math.random() }),
+        }));
+      },
+      { serviceName: 'cards' }
+    );
 
     const first = await handler(event, {});
     const second = await handler(event, {});
 
     expect(first.body).toEqual(second.body);
-    expect(capturedLogs.filter(entry => entry.includes('idempotency.replay')).length).toBeGreaterThan(0);
+    expect(
+      capturedLogs.filter(entry => entry.includes('idempotency.replay')).length
+    ).toBeGreaterThan(0);
   });
 
   it('records failures and surfaces structured error logs', async () => {
-    const handler = withHttpObservability(async () => {
-      throw new Error('unit-failure');
-    }, { serviceName: 'failing-service' });
+    const handler = withHttpObservability(
+      async () => {
+        throw new Error('unit-failure');
+      },
+      { serviceName: 'failing-service' }
+    );
 
     await expect(handler({ httpMethod: 'GET', rawPath: '/' }, {})).rejects.toThrow('unit-failure');
 
-    const errorPayloads = capturedErrors.map(entry => {
-      try {
-        return JSON.parse(entry);
-      } catch {
-        return undefined;
-      }
-    }).filter(Boolean) as Array<Record<string, unknown>>;
+    const errorPayloads = capturedErrors
+      .map(entry => {
+        try {
+          return JSON.parse(entry);
+        } catch {
+          return undefined;
+        }
+      })
+      .filter(Boolean) as Array<Record<string, unknown>>;
 
-    expect(errorPayloads.some(payload => payload.message === 'lambda.invocation.failed')).toBe(true);
-    expect(errorPayloads.some(payload => (payload.error as any)?.message === 'unit-failure')).toBe(true);
+    expect(errorPayloads.some(payload => payload.message === 'lambda.invocation.failed')).toBe(
+      true
+    );
+    expect(errorPayloads.some(payload => (payload.error as any)?.message === 'unit-failure')).toBe(
+      true
+    );
   });
 });

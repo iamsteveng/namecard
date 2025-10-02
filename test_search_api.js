@@ -35,26 +35,53 @@ if (USE_LAMBDA) {
   const { handler: authHandler } = require(path.resolve(__dirname, 'services/auth/handler.ts'));
   const { handler: cardsHandler } = require(path.resolve(__dirname, 'services/cards/handler.ts'));
   const { handler: searchHandler } = require(path.resolve(__dirname, 'services/search/handler.ts'));
-  const { handler: uploadsHandler } = require(path.resolve(__dirname, 'services/uploads/handler.ts'));
+  const { handler: uploadsHandler } = require(
+    path.resolve(__dirname, 'services/uploads/handler.ts')
+  );
   const { handler: ocrHandler } = require(path.resolve(__dirname, 'services/ocr/handler.ts'));
-  const { handler: enrichmentHandler } = require(path.resolve(__dirname, 'services/enrichment/handler.ts'));
-  const { mockDb } = require(path.resolve(__dirname, 'services/shared/src/data/mock-store.ts'));
+  const { handler: enrichmentHandler } = require(
+    path.resolve(__dirname, 'services/enrichment/handler.ts')
+  );
+  const { seedDemoWorkspace } = require(
+    path.resolve(__dirname, 'services/shared/src/data/seed.ts')
+  );
 
-  mockDb.reset();
-
+  let seeded = false;
   let cachedAccessToken;
-  const ensureAccessToken = () => {
+
+  const loginEvent = () => ({
+    httpMethod: 'POST',
+    rawPath: '/v1/auth/login',
+    path: '/v1/auth/login',
+    headers: { 'content-type': 'application/json' },
+    queryStringParameters: null,
+    pathParameters: null,
+    body: JSON.stringify({ email: 'demo@namecard.app', password: 'DemoPass123!' }),
+    requestContext: { requestId: 'lambda-login' },
+  });
+
+  const fetchAccessToken = async () => {
+    if (!seeded) {
+      await seedDemoWorkspace({ reset: true });
+      seeded = true;
+    }
     if (!cachedAccessToken) {
-      const session = mockDb.authenticate('demo@namecard.app', 'DemoPass123!');
-      cachedAccessToken = session.accessToken;
+      const response = await authHandler(loginEvent());
+      if (response.statusCode !== 200) {
+        throw new Error(`Login failed: ${response.statusCode} ${response.body}`);
+      }
+      const payload = JSON.parse(response.body);
+      cachedAccessToken = payload.data.session.accessToken;
     }
     return cachedAccessToken;
   };
 
-  const normalizeHeaders = headers => {
-    const token = ensureAccessToken();
+  const normalizeHeaders = async headers => {
+    const token = await fetchAccessToken();
     const resolvedHeaders = { ...headers };
-    const authHeaderKey = Object.keys(resolvedHeaders).find(key => key.toLowerCase() === 'authorization');
+    const authHeaderKey = Object.keys(resolvedHeaders).find(
+      key => key.toLowerCase() === 'authorization'
+    );
 
     if (authHeaderKey) {
       const raw = resolvedHeaders[authHeaderKey];
@@ -87,7 +114,8 @@ if (USE_LAMBDA) {
 
 // Test JWT token for user f47ac10b-58cc-4372-a567-0e02b2c3d479
 // This is just for testing - normally this would come from auth service
-const TEST_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZjQ3YWMxMGItNThjYy00MzcyLWE1NjctMGUwMmIyYzNkNDc5IiwiZW1haWwiOiJ0ZXN0QGV4YW1wbGUuY29tIiwiaWF0IjoxNzI1MjAzNjAwLCJleHAiOjE5NDA1NjM2MDB9.mockTokenForTestingPurposes';
+const TEST_TOKEN =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZjQ3YWMxMGItNThjYy00MzcyLWE1NjctMGUwMmIyYzNkNDc5IiwiZW1haWwiOiJ0ZXN0QGV4YW1wbGUuY29tIiwiaWF0IjoxNzI1MjAzNjAwLCJleHAiOjE5NDA1NjM2MDB9.mockTokenForTestingPurposes';
 
 const BASE_URL = 'http://localhost:3001/api/v1';
 
@@ -101,16 +129,16 @@ async function makeRequest(pathname, options = {}) {
     const reqOptions = {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${TEST_TOKEN}`,
+        Authorization: `Bearer ${TEST_TOKEN}`,
         'Content-Type': 'application/json',
-        ...options.headers
+        ...options.headers,
       },
-      ...options
+      ...options,
     };
 
-    const req = http.request(url, reqOptions, (res) => {
+    const req = http.request(url, reqOptions, res => {
       let data = '';
-      res.on('data', chunk => data += chunk);
+      res.on('data', chunk => (data += chunk));
       res.on('end', () => {
         try {
           const json = JSON.parse(data);
@@ -122,11 +150,11 @@ async function makeRequest(pathname, options = {}) {
     });
 
     req.on('error', reject);
-    
+
     if (options.body) {
       req.write(JSON.stringify(options.body));
     }
-    
+
     req.end();
   });
 }
@@ -134,7 +162,7 @@ async function makeRequest(pathname, options = {}) {
 async function invokeLambdaRequest(pathname, options = {}) {
   const localUrl = new URL(pathname, 'http://lambda.local');
   const fullPath = `/api/v1${localUrl.pathname}`;
-  const headers = lambdaRuntime.normalizeHeaders({
+  const headers = await lambdaRuntime.normalizeHeaders({
     Authorization: `Bearer ${TEST_TOKEN}`,
     'Content-Type': 'application/json',
     ...(options.headers ?? {}),
@@ -218,7 +246,9 @@ async function testSearchAPI() {
       console.log(`   Results: ${results.length} cards found`);
       results.forEach(result => {
         const card = result.item ?? result;
-        console.log(`   - ${card.first_name ?? card.name} ${card.last_name ?? ''} at ${card.company}`);
+        console.log(
+          `   - ${card.first_name ?? card.name} ${card.last_name ?? ''} at ${card.company}`
+        );
       });
     } else {
       console.log(`   Error: ${test2.data.error?.message || 'Unknown error'}`);
@@ -234,8 +264,8 @@ async function testSearchAPI() {
         highlight: true,
         includeRank: true,
         page: 1,
-        limit: 10
-      }
+        limit: 10,
+      },
     });
     console.log(`   Status: ${test3.status}`);
     if (test3.data.success) {
@@ -245,7 +275,9 @@ async function testSearchAPI() {
       console.log(`   Search Meta: ${JSON.stringify(searchMeta)}`);
       results.forEach(result => {
         const card = result.item;
-        console.log(`   - ${card.first_name} ${card.last_name} at ${card.company} (rank: ${result.rank})`);
+        console.log(
+          `   - ${card.first_name} ${card.last_name} at ${card.company} (rank: ${result.rank})`
+        );
       });
     } else {
       console.log(`   Error: ${test3.data.error?.message || 'Unknown error'}`);
@@ -295,14 +327,15 @@ async function testSearchAPI() {
     } else {
       console.log(`   Error: ${test6.data.error?.message || 'Unknown error'}`);
     }
-
   } catch (error) {
     console.error('Test failed:', error.message);
   }
 }
 
-testSearchAPI().then(() => {
-  console.log('\n✅ Search API tests completed');
-}).catch(err => {
-  console.error('❌ Search API tests failed:', err);
-});
+testSearchAPI()
+  .then(() => {
+    console.log('\n✅ Search API tests completed');
+  })
+  .catch(err => {
+    console.error('❌ Search API tests failed:', err);
+  });

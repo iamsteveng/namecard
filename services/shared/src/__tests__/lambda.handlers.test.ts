@@ -4,7 +4,7 @@ import { handler as searchHandler } from '../../../search/handler';
 import { handler as uploadsHandler } from '../../../uploads/handler';
 import { handler as ocrHandler } from '../../../ocr/handler';
 import { handler as enrichmentHandler } from '../../../enrichment/handler';
-import { mockDb } from '@namecard/shared';
+import { seedDemoWorkspace, disconnectPrisma } from '@namecard/shared';
 import type { LambdaHttpEvent } from '@namecard/shared';
 
 const baseEvent: LambdaHttpEvent = {
@@ -45,8 +45,12 @@ const loginAndGetToken = async (): Promise<string> => {
 };
 
 describe('Lambda service handlers', () => {
-  beforeEach(() => {
-    mockDb.reset();
+  beforeEach(async () => {
+    await seedDemoWorkspace({ reset: true });
+  });
+
+  afterAll(async () => {
+    await disconnectPrisma();
   });
 
   it('executes a card ingestion flow across services', async () => {

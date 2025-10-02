@@ -1,4 +1,13 @@
-import { mockDb, getLogger, getMetrics, withHttpObservability } from '@namecard/shared';
+import {
+  getLogger,
+  getMetrics,
+  withHttpObservability,
+  resolveUserFromToken,
+  listOcrJobs,
+  createOcrJob,
+  getOcrJobById,
+  ensureDefaultDemoUser,
+} from '@namecard/shared';
 import {
   createErrorResponse,
   createSuccessResponse,
@@ -25,18 +34,18 @@ const buildCorsResponse = (statusCode = 204) =>
     body: '',
   });
 
-const requireAuthenticatedUser = (event: LambdaHttpEvent) => {
+const requireAuthenticatedUser = async (event: LambdaHttpEvent) => {
   const token = extractBearerToken(event);
   if (!token) {
     throw createErrorResponse(401, 'Authorization token missing', { code: 'UNAUTHORIZED' });
   }
 
-  const user = mockDb.getUserForToken(token);
+  const user = await resolveUserFromToken(token);
   if (!user) {
     throw createErrorResponse(401, 'Invalid or expired access token', { code: 'UNAUTHORIZED' });
   }
 
-  return user;
+  return { user, token } as const;
 };
 
 const parseBody = <T>(event: LambdaHttpEvent) => {
@@ -51,10 +60,11 @@ const parseBody = <T>(event: LambdaHttpEvent) => {
   return (result.data ?? {}) as T;
 };
 
-const handleHealth = (requestId: string) => {
+const handleHealth = async (requestId: string) => {
   const logger = getLogger();
   const metrics = getMetrics();
-  const jobs = mockDb.listOcrJobs();
+  await ensureDefaultDemoUser();
+  const jobs = await listOcrJobs();
   const completed = jobs.filter(job => job.status === 'completed').length;
   const pending = jobs.filter(job => job.status !== 'completed').length;
 
@@ -83,15 +93,15 @@ const handleHealth = (requestId: string) => {
   );
 };
 
-const handleListJobs = (event: LambdaHttpEvent, requestId: string) => {
+const handleListJobs = async (event: LambdaHttpEvent, requestId: string) => {
   const logger = getLogger();
   const metrics = getMetrics();
   const startedAt = Date.now();
   try {
-    void requireAuthenticatedUser(event);
+    await requireAuthenticatedUser(event);
     const query = getQuery(event);
     const cardId = query.cardId;
-    const jobs = mockDb.listOcrJobs(cardId);
+    const jobs = await listOcrJobs(cardId);
 
     metrics.duration('ocrListLatencyMs', Date.now() - startedAt);
     metrics.count('ocrListJobsReturned', jobs.length);
@@ -121,12 +131,12 @@ const handleListJobs = (event: LambdaHttpEvent, requestId: string) => {
   }
 };
 
-const handleCreateJob = (event: LambdaHttpEvent, requestId: string) => {
+const handleCreateJob = async (event: LambdaHttpEvent, requestId: string) => {
   const logger = getLogger();
   const metrics = getMetrics();
   const startedAt = Date.now();
   try {
-    const user = requireAuthenticatedUser(event);
+    const { user } = await requireAuthenticatedUser(event);
     const body = parseBody<{ cardId?: string; payload?: Record<string, any> }>(event);
 
     if (!body.cardId) {
@@ -138,7 +148,7 @@ const handleCreateJob = (event: LambdaHttpEvent, requestId: string) => {
       );
     }
 
-    const job = mockDb.createOcrJob(body.cardId, {
+    const job = await createOcrJob(body.cardId, {
       requestedBy: user.id,
       payload: body.payload,
     });
@@ -166,11 +176,11 @@ const handleCreateJob = (event: LambdaHttpEvent, requestId: string) => {
   }
 };
 
-const handleGetJob = (event: LambdaHttpEvent, requestId: string, jobId: string) => {
+const handleGetJob = async (event: LambdaHttpEvent, requestId: string, jobId: string) => {
   const logger = getLogger();
   try {
-    void requireAuthenticatedUser(event);
-    const job = mockDb.getOcrJob(jobId);
+    await requireAuthenticatedUser(event);
+    const job = await getOcrJobById(jobId);
 
     if (!job) {
       logger.warn('ocr.jobs.get.notFound', { requestId, jobId });

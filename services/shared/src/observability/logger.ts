@@ -29,7 +29,13 @@ const parseLogLevel = (value: string | undefined): LogLevel => {
   }
 
   const normalized = value.toLowerCase();
-  if (normalized === 'trace' || normalized === 'debug' || normalized === 'info' || normalized === 'warn' || normalized === 'error') {
+  if (
+    normalized === 'trace' ||
+    normalized === 'debug' ||
+    normalized === 'info' ||
+    normalized === 'warn' ||
+    normalized === 'error'
+  ) {
     return normalized;
   }
   return 'info';
@@ -37,9 +43,10 @@ const parseLogLevel = (value: string | undefined): LogLevel => {
 
 const GLOBAL_LOG_LEVEL = parseLogLevel(process.env['LOG_LEVEL']);
 
-const shouldLog = (level: LogLevel) => LEVEL_PRIORITY[level] >= LEVEL_PRIORITY[GLOBAL_LOG_LEVEL];
+const shouldLog = (level: LogLevel): boolean =>
+  LEVEL_PRIORITY[level] >= LEVEL_PRIORITY[GLOBAL_LOG_LEVEL];
 
-const emit = (envelope: LogEnvelope) => {
+const emit = (envelope: LogEnvelope): void => {
   const payload = JSON.stringify(envelope);
   if (envelope.level === 'error' || envelope.level === 'warn') {
     console.error(payload);
@@ -64,12 +71,14 @@ export class StructuredLogger {
       readonly invocationId?: string;
       readonly coldStart?: boolean;
       readonly correlationIds?: Record<string, string>;
-    } = {},
+    } = {}
   ) {
     this.baseFields = {
       service: this.serviceName,
       ...(this.defaultContext.requestId ? { requestId: this.defaultContext.requestId } : {}),
-      ...(this.defaultContext.invocationId ? { invocationId: this.defaultContext.invocationId } : {}),
+      ...(this.defaultContext.invocationId
+        ? { invocationId: this.defaultContext.invocationId }
+        : {}),
       ...(typeof this.defaultContext.coldStart === 'boolean'
         ? { coldStart: this.defaultContext.coldStart }
         : {}),
@@ -132,7 +141,7 @@ export class StructuredLogger {
   }
 }
 
-export const serializeError = (input: unknown) => {
+export const serializeError = (input: unknown): SerializedError | undefined => {
   if (!input) {
     return undefined;
   }
@@ -166,7 +175,7 @@ export const createLogger = (
     readonly invocationId?: string;
     readonly coldStart?: boolean;
     readonly correlationIds?: Record<string, string>;
-  },
+  }
 ): StructuredLogger => new StructuredLogger(serviceName, context);
 
 export const getLogger = (): StructuredLogger => {
@@ -176,4 +185,10 @@ export const getLogger = (): StructuredLogger => {
   }
 
   return context.logger;
+};
+type SerializedError = {
+  readonly name: string;
+  readonly message: string;
+  readonly stack?: string;
+  readonly details?: unknown;
 };
