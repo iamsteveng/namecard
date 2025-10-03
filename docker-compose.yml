@@ -86,48 +86,6 @@ services:
       timeout: 10s
       retries: 5
 
-  api:
-    build:
-      context: .
-      dockerfile: services/api/Dockerfile
-    container_name: namecard-api
-    restart: unless-stopped
-    ports:
-      - "3001:3001"
-    command: >
-      sh -c "node services/api/dist/server.js"
-    env_file:
-      - services/api/.env
-      - services/api/.env.localstack
-    environment:
-      # Override specific values for Docker container networking
-      - DATABASE_URL=postgresql://namecard_user:namecard_password@postgres:5432/namecard_dev
-      - REDIS_URL=redis://redis:6379
-      - USE_LOCALSTACK=true
-      - AWS_REGION=us-east-1
-      - AWS_ACCESS_KEY_ID=test
-      - AWS_SECRET_ACCESS_KEY=test
-      - AWS_ENDPOINT_URL=http://localstack:4566
-      - S3_ENDPOINT_URL=http://localstack:4566
-      - S3_FORCE_PATH_STYLE=1
-      - COGNITO_ENDPOINT_URL=http://localstack:4566
-      - TEXTRACT_ENDPOINT_URL=http://localstack:4566
-      - LOCALSTACK_HOST=localstack
-    networks:
-      - namecard_network
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      localstack:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
   frontend:
     build:
       context: .
@@ -143,9 +101,6 @@ services:
       - NODE_ENV=production
     networks:
       - namecard_network
-    depends_on:
-      api:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
       interval: 30s

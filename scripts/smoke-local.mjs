@@ -6,7 +6,6 @@ import { setTimeout as delay } from 'timers/promises';
 import { register } from 'esbuild-register/dist/node';
 import moduleAlias from 'module-alias';
 
-const API_BASE = process.env.SMOKE_API_URL || 'http://localhost:3001';
 const FRONTEND_BASE = process.env.SMOKE_WEB_URL || 'http://localhost:8080';
 const LOCALSTACK_HEALTH =
   process.env.SMOKE_LOCALSTACK_HEALTH || 'http://localhost:4566/_localstack/health';
@@ -167,14 +166,6 @@ async function waitFor(url, options = {}) {
   throw new Error(`Timed out waiting for ${url}`);
 }
 
-async function checkApiHealth() {
-  const response = await waitFor(`${API_BASE}/health`);
-  const data = await response.json();
-  if (!data?.status || data.status !== 'ok') {
-    throw new Error('API health check did not return ok');
-  }
-}
-
 async function checkFrontendHealth() {
   await waitFor(`${FRONTEND_BASE}/health`);
 }
@@ -257,7 +248,6 @@ async function checkSearchSuggestions() {
 
 async function runSmokeSuite() {
   const steps = [
-    { name: 'API health', fn: checkApiHealth },
     { name: 'Frontend health', fn: checkFrontendHealth },
     { name: 'LocalStack health', fn: checkLocalstack },
     { name: 'Cards API', fn: checkCardsEndpoint },

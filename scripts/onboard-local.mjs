@@ -155,7 +155,7 @@ async function main() {
   }
 
   console.log('\n✅ Local development environment is ready!');
-  console.log('   - API:      http://localhost:3001');
+  console.log('   - API:      (retired Express server — invoke Lambda handlers directly)');
   console.log('   - Frontend: http://localhost:8080');
   console.log('   - LocalStack console: http://localhost:4566');
 }

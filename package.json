@@ -6,7 +6,6 @@
   "scripts": {
     "build:all": "pnpm -r run build",
     "dev": "pnpm --filter @namecard/web run dev",
-    "dev:api": "pnpm --filter @namecard/api run dev",
     "dev:web": "pnpm --filter @namecard/web run dev",
     "dev:workers": "pnpm --filter @namecard/workers run dev",
     "lint:all": "pnpm -r run lint && pnpm run lint:migrations",
@@ -38,7 +37,7 @@
     "migrate:validate": "pnpm --filter @namecard/infra exec ts-node --project tsconfig.json --esm --experimentalSpecifierResolution=node migrator/validate-runner.ts",
     "fullstack:up": "node scripts/fullstack-up.mjs",
     "fullstack:logs": "docker-compose logs -f",
-    "fullstack:test": "docker-compose up -d && sleep 15 && curl http://localhost:3001/health && curl http://localhost:8080/health",
+    "fullstack:test": "docker-compose up -d && sleep 15 && curl http://localhost:8080/health",
     "frontend:up": "docker-compose up -d frontend",
     "frontend:logs": "docker-compose logs -f frontend",
     "lambda:sandbox": "node scripts/lambda-sandbox.mjs",
