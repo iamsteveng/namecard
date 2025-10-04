@@ -3,9 +3,10 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
-import type { MigrationFile } from '../../migrator/handler';
-import { applyMigrations, discoverMigrationFiles } from '../../migrator/handler';
-import { FakeClient, normalize } from './fake-client';
+import type { MigrationFile } from '../../migrator/handler.js';
+import { applyMigrations, discoverMigrationFiles } from '../../migrator/handler.js';
+import type { QueryLogEntry } from './fake-client.js';
+import { FakeClient, normalize } from './fake-client.js';
 
 describe('migrator', () => {
   describe('applyMigrations', () => {
@@ -27,7 +28,7 @@ describe('migrator', () => {
       ]);
       expect(fake.executedMigrations).toEqual(result.applied);
       expect(fake.insertedMigrations).toEqual(result.applied);
-      expect(fake.queryLog.some((entry) => normalize(entry.text) === 'rollback')).toBe(false);
+      expect(fake.queryLog.some((entry: QueryLogEntry) => normalize(entry.text) === 'rollback')).toBe(false);
     });
 
     it('skips already applied migrations when checksums match', async () => {
@@ -68,8 +69,8 @@ describe('migrator', () => {
       );
 
       expect(fake.executedMigrations).toEqual(['202401011200__auth__init.sql']);
-      expect(fake.queryLog.some((entry) => normalize(entry.text) === 'rollback')).toBe(true);
-      const commitCalls = fake.queryLog.filter((entry) => normalize(entry.text) === 'commit');
+      expect(fake.queryLog.some((entry: QueryLogEntry) => normalize(entry.text) === 'rollback')).toBe(true);
+      const commitCalls = fake.queryLog.filter((entry: QueryLogEntry) => normalize(entry.text) === 'commit');
       expect(commitCalls).toHaveLength(1);
       expect(fake.insertedMigrations).toEqual(['202401011200__auth__init.sql']);
       expect(fake.unlockCalls).toBe(1);

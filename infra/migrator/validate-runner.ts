@@ -3,9 +3,9 @@ import { fileURLToPath } from 'node:url';
 
 import { Client } from 'pg';
 
-import { discoverMigrationFiles, resolveDatabaseConfig } from './handler.ts';
-import { stageMigrationsIntoTempRoot } from './migrations-fs.ts';
-import { MigrationDriftError, validateMigrations } from './validation.ts';
+import { discoverMigrationFiles, resolveDatabaseConfig } from './handler.js';
+import { stageMigrationsIntoTempRoot } from './migrations-fs.js';
+import { MigrationDriftError, validateMigrations } from './validation.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

@@ -32,7 +32,7 @@ export async function recordSearchEvent(params: {
 }
 
 export async function getSearchAnalytics(): Promise<SearchAnalyticsSummary> {
-  const [aggregate, cardsIndexed, companiesIndexed, topQueries] = await Promise.all([
+  const [aggregate, cardsIndexed, companiesIndexed, groupedQueries] = await Promise.all([
     prisma.searchQueryLog.aggregate({
       _count: { _all: true },
       _avg: { latencyMs: true },
@@ -43,24 +43,29 @@ export async function getSearchAnalytics(): Promise<SearchAnalyticsSummary> {
     prisma.searchQueryLog.groupBy({
       by: ['query'],
       where: { query: { not: null } },
-      _count: { _all: true },
-      orderBy: { _count: { _all: 'desc' } },
-      take: 5,
+      _count: { query: true },
     }),
   ]);
 
-  const averageLatencyMs = aggregate._avg.latencyMs ?? 0;
-  const lastQueryAt = aggregate._max.executedAt ?? undefined;
+  const averageLatencyMs = aggregate._avg?.latencyMs ?? 0;
+  const lastQueryAt = aggregate._max?.executedAt ?? undefined;
+
+  const topQueries = groupedQueries
+    .filter(item => (item.query ?? '').trim().length > 0)
+    .map(item => ({
+      term: (item.query ?? '').toLowerCase(),
+      count: item._count.query ?? 0,
+    }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
 
   return {
-    totalQueries: aggregate._count._all,
+    totalQueries: aggregate._count?._all ?? 0,
     averageLatencyMs: Math.round(averageLatencyMs * 100) / 100,
     cardsIndexed,
     companiesIndexed,
-    topQueries: topQueries
-      .filter(item => (item.query ?? '').trim().length > 0)
-      .map(item => ({ term: (item.query ?? '').toLowerCase(), count: item._count._all })),
-    lastQueryAt: lastQueryAt ?? undefined,
+    topQueries,
+    lastQueryAt,
   };
 }
 

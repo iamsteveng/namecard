@@ -1,0 +1,205 @@
+name: CI/CD & Launch Readiness
+
+on:
+  push:
+    branches:
+      - main
+      - release/**
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment for promotion'
+        required: false
+        default: 'staging'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      promote:
+        description: 'Promote artefacts after passing readiness checks'
+        required: false
+        default: 'false'
+        type: boolean
+      run_migrations:
+        description: 'Run schema orchestrator during promotion'
+        required: false
+        default: 'true'
+        type: boolean
+
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '8.15.4'
+
+jobs:
+  quality:
+    name: Quality Gates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Start database for integration tests
+        run: |
+          docker compose up -d postgres_test
+          for attempt in {1..15}; do
+            if docker compose exec -T postgres_test pg_isready -U namecard_user -d namecard_test >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Postgres test container did not become ready in time" >&2
+          docker compose logs postgres_test
+          exit 1
+
+      - name: Run lint/type/test/build
+        run: pnpm run ci:quality
+
+  infrastructure_dry_run:
+    name: Infrastructure Dry Run
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Migrations & schema orchestrator dry run
+        run: pnpm run ci:infra-dry-run
+
+  launch_readiness:
+    name: Launch Readiness Verification
+    needs: infrastructure_dry_run
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies (no scripts)
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Verify launch readiness artefacts
+        run: pnpm run launch:verify
+
+  promote:
+    name: Promote Artefacts
+    needs: launch_readiness
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.promote == 'true')
+    runs-on: ubuntu-latest
+    env:
+      TARGET_ENVIRONMENT: ${{ github.event.inputs.environment || 'staging' }}
+      RUN_MIGRATIONS: ${{ github.event.inputs.run_migrations || 'true' }}
+      AWS_REGION: ap-southeast-1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Resolve deployment environment
+        run: |
+          target="${{ env.TARGET_ENVIRONMENT }}"
+          if [ -z "$target" ]; then
+            target="staging"
+          fi
+
+          case "$target" in
+            dev|development)
+              stack_suffix="development"
+              config_env="dev"
+              ;;
+            prod|production)
+              stack_suffix="production"
+              config_env="prod"
+              ;;
+            staging)
+              stack_suffix="staging"
+              config_env="staging"
+              ;;
+            *)
+              echo "Unsupported TARGET_ENVIRONMENT '$target'" >&2
+              exit 1
+              ;;
+          esac
+
+          echo "TARGET_ENVIRONMENT_NORMALIZED=$target" >> "$GITHUB_ENV"
+          echo "STACK_ENVIRONMENT=$stack_suffix" >> "$GITHUB_ENV"
+          echo "CONFIG_ENVIRONMENT=$config_env" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build infrastructure package
+        run: pnpm --filter @namecard/infra run build
+
+      - name: Deploy API stack with migrations
+        run: |
+          pnpm --filter @namecard/infra exec cdk deploy \
+            NameCardDb-${STACK_ENVIRONMENT} \
+            NameCardApi-${STACK_ENVIRONMENT} \
+            --require-approval never \
+            --context environment=${CONFIG_ENVIRONMENT} \
+            --context migrationsVersion=${GITHUB_SHA}
+
+      - name: Summarise promotion
+        run: |
+          echo "Promoting commit ${GITHUB_SHA} to ${TARGET_ENVIRONMENT}" \
+            && echo "run_migrations=${RUN_MIGRATIONS}"
+
+      - name: Record deployment metadata
+        run: pnpm run launch:record -- --environment=${{ env.TARGET_ENVIRONMENT }} --commit=${GITHUB_SHA} --run-migrations=${{ env.RUN_MIGRATIONS }}

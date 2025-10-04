@@ -12,7 +12,7 @@ enum SupportedLogLevel {
 }
 
 function resolveLogLevels(): PrismaLogLevel[] {
-  const configured = (process.env.PRISMA_LOG_LEVEL ?? '').toLowerCase();
+  const configured = (process.env['PRISMA_LOG_LEVEL'] ?? '').toLowerCase();
 
   if (configured === SupportedLogLevel.Debug) {
     return ['query', 'info', 'warn', 'error'];

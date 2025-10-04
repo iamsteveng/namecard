@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 import * as cdk from 'aws-cdk-lib';
-import { CognitoStack } from '../lib/cognito-stack';
-import { DbStack } from '../lib/db-stack';
-import { InfrastructureStack } from '../lib/infrastructure-stack';
-import { SecretsStack } from '../lib/secrets-stack';
-import { ProductionStack } from '../lib/production-stack';
-import { ApiStack } from '../lib/api-stack';
-import { FrontendStack } from '../lib/frontend-stack';
+import { CognitoStack } from '../lib/cognito-stack.js';
+import { DbStack } from '../lib/db-stack.js';
+import { InfrastructureStack } from '../lib/infrastructure-stack.js';
+import { SecretsStack } from '../lib/secrets-stack.js';
+import { ProductionStack } from '../lib/production-stack.js';
+import { ApiStack } from '../lib/api-stack.js';
+import { FrontendStack } from '../lib/frontend-stack.js';
 
 const app = new cdk.App();
 

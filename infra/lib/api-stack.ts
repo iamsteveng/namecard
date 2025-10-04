@@ -1,4 +1,5 @@
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import * as cdk from 'aws-cdk-lib';
 import { Duration, StackProps, CustomResource } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
@@ -47,6 +48,8 @@ interface ServiceDefinition {
 
 const DATABASE_NAME = 'namecard';
 const DATABASE_USER = 'namecard_owner';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const SERVICES_DIR = path.resolve(__dirname, '../../services');
 
 export const SERVICE_DEFINITIONS: ServiceDefinition[] = [

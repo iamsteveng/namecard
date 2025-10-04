@@ -6,14 +6,14 @@ import { getPrismaClient } from './prisma';
 
 const prisma = getPrismaClient();
 
-export type EnrichmentStatus = 'pending' | 'processing' | 'completed' | 'failed';
+export type EnrichmentWorkflowStatus = 'pending' | 'processing' | 'completed' | 'failed';
 
 export interface EnrichmentResponse {
   id: string;
   cardId: string;
   companyId?: string;
   tenantId: string;
-  status: EnrichmentStatus;
+  status: EnrichmentWorkflowStatus;
   requestedBy: string;
   score?: number;
   summary?: string;
@@ -31,7 +31,7 @@ function toEnrichmentResponse(record: EnrichmentRecord): EnrichmentResponse {
     cardId: record.cardId,
     companyId: record.companyId ?? undefined,
     tenantId: record.tenantId,
-    status: record.status as EnrichmentStatus,
+    status: record.status as EnrichmentWorkflowStatus,
     requestedBy: record.requestedBy,
     score: record.score ?? undefined,
     summary: record.summary ?? undefined,

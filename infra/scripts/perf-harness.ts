@@ -1,8 +1,12 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
-import type { EnvironmentKey } from '../lib/api-stack';
-import { SERVICE_DEFINITIONS } from '../lib/api-stack';
+import type { EnvironmentKey } from '../lib/api-stack.js';
+import { SERVICE_DEFINITIONS } from '../lib/api-stack.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 type HarnessResult = {
   readonly serviceId: string;

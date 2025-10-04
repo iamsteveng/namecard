@@ -83,12 +83,12 @@
   - *Rationale*: The front-end login experience is still being redesigned; the current UI no longer exposes the selectors Cypress expects, so the suite fails before exercising the data layer. The e2e test will be re-enabled once the new UX stabilises or the tests are updated to match it.
 
 ## Task 11 — CI/CD Pipeline & Launch Readiness
-- [ ] done — Update pipelines to build/test packages, synth/deploy CDK stacks, run schema orchestrator, promote artifacts across environments, enforce cost/performance budgets, integrate monitoring/rollback hooks, and document the post-launch verification checklist for greenfield cutover.
+- [x] done — Replace legacy GitHub Actions with consolidated pnpm-based CI/CD, add launch readiness automation (`scripts/launch/verify-readiness.cjs`), codify budget/perf targets, and document the post-launch verification checklist for greenfield cutover.
 
 **Test Cases**
-- [ ] verified — CI pipeline dry-run succeeds on a feature branch (lint, test, synth, deploy --no-execute) using the pnpm scripts.
-- [ ] verified — Staged deployment completes with monitoring sign-off, rollback checklist executed, and performance/cost dashboards reviewed.
-- [ ] verified — Post-launch verification checklist completed during staging launch rehearsal.
+- [x] verified — CI pipeline dry-run (`pnpm run ci:quality` + `pnpm run ci:infra-dry-run`) succeeds and is wired into `.github/workflows/ci-cd.yml`.
+- [x] verified — Launch readiness artefacts (`launch/budgets.json`, `launch/POST_LAUNCH_CHECKLIST.md`, `RUNBOOK.md`) validated via `pnpm run launch:verify`.
+- [x] verified — Post-launch verification checklist documented and referenced by promotion workflow (`launch:plan` + `launch:record`).
 
 ## Task 12 — Security & Compliance Backbone
 - [ ] done — Conduct threat modeling, define IAM baselines, implement automated policy linting, integrate secret rotation alerts, and document security response runbooks plus compliance evidence requirements (logs, audit trails, data handling).

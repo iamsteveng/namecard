@@ -1,11 +1,11 @@
-import type { MigrationFile, PgLikeClient } from './handler.ts';
+import type { MigrationFile, PgLikeClient } from './handler.js';
 import {
   DEFAULT_LEDGER_TABLE,
   DEFAULT_LOCK_PARTITION,
   DEFAULT_LOCK_TOKEN,
   ensureLedgerTable,
   normalizeLedgerTable,
-} from './handler.ts';
+} from './handler.js';
 
 export interface ValidateMigrationsOptions {
   readonly ledgerTable?: string;

@@ -2,6 +2,7 @@
   "name": "@namecard/infra",
   "private": true,
   "version": "0.1.0",
+  "type": "module",
   "bin": {
     "infrastructure": "bin/infrastructure.js"
   },

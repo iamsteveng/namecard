@@ -1,6 +1,6 @@
 import * as cdk from 'aws-cdk-lib';
 import { Template, Match } from 'aws-cdk-lib/assertions';
-import { DbStack } from '../lib/db-stack';
+import { DbStack } from '../lib/db-stack.js';
 
 const synthesize = (environment: string): Template => {
   const app = new cdk.App({

@@ -1,10 +1,12 @@
 import { randomUUID } from 'node:crypto';
 
-import type { OcrJob } from '@prisma/client';
+import type { OcrJob, Prisma } from '@prisma/client';
 
 import { getPrismaClient } from './prisma';
 
 const prisma = getPrismaClient();
+
+type ResultShape = OcrJobPayload & { text: string; confidence: number };
 
 export type OcrJobStatus = 'pending' | 'processing' | 'completed' | 'failed';
 
@@ -23,10 +25,33 @@ export interface OcrJobResponse {
   submittedAt: Date;
   completedAt?: Date;
   payload?: Record<string, unknown>;
-  result?: OcrJobPayload & { text: string; confidence: number };
+  result?: ResultShape;
   error?: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+function coerceRecord(value: unknown): Record<string, unknown> | undefined {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return undefined;
+}
+
+function coerceResult(value: unknown): ResultShape | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  const text = candidate['text'];
+  const confidence = candidate['confidence'];
+
+  if (typeof text === 'string' && typeof confidence === 'number') {
+    return value as ResultShape;
+  }
+
+  return undefined;
 }
 
 function toOcrJobResponse(record: OcrJob): OcrJobResponse {
@@ -38,8 +63,8 @@ function toOcrJobResponse(record: OcrJob): OcrJobResponse {
     status: record.status as OcrJobStatus,
     submittedAt: record.submittedAt,
     completedAt: record.completedAt ?? undefined,
-    payload: record.payload ?? undefined,
-    result: record.result as OcrJobResponse['result'],
+    payload: coerceRecord(record.payload ?? undefined),
+    result: coerceResult(record.result ?? undefined),
     error: record.error ?? undefined,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
@@ -47,10 +72,15 @@ function toOcrJobResponse(record: OcrJob): OcrJobResponse {
 }
 
 export async function listOcrJobs(cardId?: string): Promise<OcrJobResponse[]> {
-  const jobs = await prisma.ocrJob.findMany({
-    where: cardId ? { cardId } : undefined,
+  const queryOptions: Parameters<typeof prisma.ocrJob.findMany>[0] = {
     orderBy: { submittedAt: 'desc' },
-  });
+  };
+
+  if (cardId) {
+    queryOptions.where = { cardId };
+  }
+
+  const jobs = await prisma.ocrJob.findMany(queryOptions);
   return jobs.map(toOcrJobResponse);
 }
 
@@ -84,6 +114,10 @@ export async function createOcrJob(
     },
   } satisfies OcrJobPayload & { text: string; confidence: number };
 
+  const payload: Prisma.InputJsonValue = options.payload
+    ? (options.payload as Prisma.InputJsonValue)
+    : ({ source: 'api.scan' } as Prisma.InputJsonValue);
+
   const job = await prisma.ocrJob.create({
     data: {
       id: randomUUID(),
@@ -91,8 +125,8 @@ export async function createOcrJob(
       tenantId: card.tenantId,
       requestedBy: options.requestedBy,
       status: 'completed',
-      payload: options.payload ?? { source: 'api.scan' },
-      result,
+      payload,
+      result: result as Prisma.InputJsonValue,
       submittedAt,
       completedAt,
       createdAt: submittedAt,

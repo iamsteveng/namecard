@@ -1,0 +1,44 @@
+[
+  {
+    "service": "auth",
+    "environment": "staging",
+    "monthlyBudgetUsd": 250,
+    "p95LatencyTargetMs": 250,
+    "owner": "auth-team@namecard.app"
+  },
+  {
+    "service": "cards",
+    "environment": "staging",
+    "monthlyBudgetUsd": 300,
+    "p95LatencyTargetMs": 300,
+    "owner": "cards-team@namecard.app"
+  },
+  {
+    "service": "ocr",
+    "environment": "staging",
+    "monthlyBudgetUsd": 400,
+    "p95LatencyTargetMs": 800,
+    "owner": "ocr-team@namecard.app"
+  },
+  {
+    "service": "enrichment",
+    "environment": "staging",
+    "monthlyBudgetUsd": 350,
+    "p95LatencyTargetMs": 600,
+    "owner": "enrichment-team@namecard.app"
+  },
+  {
+    "service": "uploads",
+    "environment": "staging",
+    "monthlyBudgetUsd": 150,
+    "p95LatencyTargetMs": 200,
+    "owner": "uploads-team@namecard.app"
+  },
+  {
+    "service": "search",
+    "environment": "staging",
+    "monthlyBudgetUsd": 320,
+    "p95LatencyTargetMs": 350,
+    "owner": "search-team@namecard.app"
+  }
+]

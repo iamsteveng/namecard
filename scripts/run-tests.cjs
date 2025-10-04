@@ -10,7 +10,6 @@ for (let index = 0; index < rawArgs.length; index += 1) {
   const arg = rawArgs[index];
   if (arg === '--filter' && rawArgs[index + 1]) {
     workspaceFilter = rawArgs[index + 1];
-    passthroughArgs.push(arg, rawArgs[index + 1]);
     index += 1;
     continue;
   }

@@ -3,7 +3,7 @@ import { Template, Match } from 'aws-cdk-lib/assertions';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as rds from 'aws-cdk-lib/aws-rds';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
-import { ApiStack } from '../lib/api-stack';
+import { ApiStack } from '../lib/api-stack.js';
 
 const synthesize = (environment: string = 'dev'): Template => {
   const app = new cdk.App({

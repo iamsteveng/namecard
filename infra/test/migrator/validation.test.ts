@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 
-import type { MigrationFile } from '../../migrator/handler';
-import { MigrationDriftError, validateMigrations } from '../../migrator/validation';
-import { FakeClient } from './fake-client';
+import type { MigrationFile } from '../../migrator/handler.js';
+import { MigrationDriftError, validateMigrations } from '../../migrator/validation.js';
+import { FakeClient } from './fake-client.js';
 
 describe('validateMigrations', () => {
   it('passes when ledger matches local migrations', async () => {

@@ -1,4 +1,4 @@
-import type { PgLikeClient } from '../../migrator/handler';
+import type { PgLikeClient } from '../../migrator/handler.js';
 
 export interface QueryLogEntry {
   readonly text: string;

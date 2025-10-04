@@ -251,7 +251,8 @@ namecard-app/
 │   ├── build.sh
 │   ├── deploy.sh
 │   ├── setup-dev.sh
-│   └── migrate.sh
+│   └── launch/
+│       └── verify-readiness.cjs
 ├── package.json                     # Root package.json for workspace
 ├── pnpm-workspace.yaml                       # Turborepo configuration
 ├── .gitignore
