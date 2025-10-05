@@ -4,7 +4,6 @@ import { CognitoStack } from '../lib/cognito-stack.js';
 import { DbStack } from '../lib/db-stack.js';
 import { InfrastructureStack } from '../lib/infrastructure-stack.js';
 import { SecretsStack } from '../lib/secrets-stack.js';
-import { ProductionStack } from '../lib/production-stack.js';
 import { ApiStack } from '../lib/api-stack.js';
 import { FrontendStack } from '../lib/frontend-stack.js';
 
@@ -78,49 +77,21 @@ const infraStack = new InfrastructureStack(app, `NameCardInfra-${environment}`, 
   tags: commonTags,
 });
 
-// Deploy production stack (VPC, RDS, ECS, ALB) - only for staging and production
+// Deploy frontend stack (only for staging and production)
 if (environment === 'staging' || environment === 'production') {
-  const productionStack = new ProductionStack(app, `NameCardProd-${environment}`, {
-    environment,
-    env,
-    description: `Production infrastructure for NameCard Application - ${environment}`,
-    tags: commonTags,
-
-    // Optional domain configuration
-    domainName,
-    certificateArn,
-    
-    // Reference existing stacks
-    s3Bucket: infraStack.bucket,
-    s3CdnDomain: infraStack.cloudFrontDomainName,
-    cognitoUserPoolId: cognitoStack.userPool?.userPoolId,
-    cognitoClientId: undefined, // Will be retrieved from stack outputs
-    
-    // Secrets from SecretsStack
-    apiSecret: secretsStack.apiSecret,
-  });
-
-  // Add dependencies
-  productionStack.addDependency(dbStack);
-  productionStack.addDependency(cognitoStack);
-  productionStack.addDependency(infraStack);
-  productionStack.addDependency(secretsStack);
-
-  // Deploy frontend stack
   const frontendStack = new FrontendStack(app, `NameCardFrontend-${environment}`, {
     environment,
     env,
     description: `Frontend deployment for NameCard Application - ${environment}`,
     tags: commonTags,
-    
-    // API URL from production stack
-    apiUrl: `http://${productionStack.apiService.loadBalancer.loadBalancerDnsName}`,
-    
+
+    // API Gateway endpoint exposed by the Lambda-based API stack
+    apiUrl: apiStack.httpApi.apiEndpoint,
+
     // Optional domain configuration
     domainName: domainName ? `app.${domainName}` : undefined,
     certificateArn,
   });
 
-  // Add dependencies
-  frontendStack.addDependency(productionStack);
+  frontendStack.addDependency(apiStack);
 }

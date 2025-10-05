@@ -61,7 +61,7 @@ Optional: build the production frontend image locally with `docker compose up -d
 
 ## Configuration & Secrets
 - Populate `.env` from `.env.example` for local values (database URLs, AWS credentials, etc.).
-- Runtime secrets live in AWS Secrets Manager (`namecard/api/<environment>`). Set keys such as `JWT_SECRET`, `PERPLEXITY_API_KEY`, and third-party tokens there; CDK wires them into Lambda environment variables (see `infra/lib/secrets-stack.ts` and `infra/lib/production-stack.ts`).
+- Runtime secrets live in AWS Secrets Manager (`namecard/api/<environment>`). Set keys such as `JWT_SECRET`, `PERPLEXITY_API_KEY`, and third-party tokens there; CDK wires them into Lambda environment variables (see `infra/lib/secrets-stack.ts` and `infra/lib/api-stack.ts`).
 - The Perplexity enrichment service is disabled until a non-placeholder `PERPLEXITY_API_KEY` is stored in the secret. Update the secret and redeploy to enable it.
 
 ## Infrastructure & Deployment

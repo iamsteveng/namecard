@@ -4,6 +4,7 @@ import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as s3deployment from 'aws-cdk-lib/aws-s3-deployment';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import { URL } from 'node:url';
 import { Construct } from 'constructs';
 
 export interface FrontendStackProps extends cdk.StackProps {
@@ -64,6 +65,14 @@ export class FrontendStack extends cdk.Stack {
       },
     }));
 
+    const apiEndpoint = new URL(apiUrl);
+    const originPath = apiEndpoint.pathname.replace(/\/$/, '');
+
+    const apiOrigin = new origins.HttpOrigin(apiEndpoint.host, {
+      originPath: originPath.length > 0 ? originPath : undefined,
+      protocolPolicy: cloudfront.OriginProtocolPolicy.HTTPS_ONLY,
+    });
+
     // CloudFront distribution for frontend
     this.distribution = new cloudfront.Distribution(this, 'FrontendDistribution', {
       comment: `NameCard Frontend CDN - ${environment}`,
@@ -89,9 +98,7 @@ export class FrontendStack extends cdk.Stack {
       // API proxy behavior - forward all API requests to the backend
       additionalBehaviors: {
         '/api/*': {
-          origin: new origins.HttpOrigin(apiUrl.replace(/^https?:\/\//, ''), {
-            protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,
-          }),
+          origin: apiOrigin,
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
           cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD_OPTIONS,
