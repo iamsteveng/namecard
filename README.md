@@ -24,9 +24,10 @@ See `OVERHAUL_PLAN.md`, `OVERHAUL_TASKS.md`, and `OVERHAUL_OUTPUT.md` for the de
 ## Local Development
 Prerequisites: Node.js 20+, pnpm 8+, Docker (for Postgres/Redis/LocalStack), and AWS credentials if you plan to hit real AWS accounts.
 
-1. Install dependencies:
+1. Install dependencies and generate the Prisma client (postinstall runs automatically, but you can rerun if needed):
    ```bash
    pnpm install
+   pnpm --filter @namecard/shared run prisma:generate
    ```
 2. Start data stores and LocalStack (for Textract/Cognito stubs):
    ```bash

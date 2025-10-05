@@ -50,7 +50,8 @@
     "lambda:sandbox": "node scripts/lambda-sandbox.mjs",
     "smoke:local": "node scripts/smoke-local.mjs",
     "onboard:local": "node scripts/onboard-local.mjs",
-    "prepare": "husky install || echo 'Husky install failed, continuing...'"
+    "prepare": "husky install || echo 'Husky install failed, continuing...'",
+    "postinstall": "pnpm --filter @namecard/shared run prisma:generate"
   },
   "workspaces": [
     "infra",

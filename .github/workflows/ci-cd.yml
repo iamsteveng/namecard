@@ -54,6 +54,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Generate Prisma client
+        run: pnpm --filter @namecard/shared run prisma:generate
+
       - name: Start database for integration tests
         run: |
           docker compose up -d postgres_test
@@ -92,6 +95,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Generate Prisma client
+        run: pnpm --filter @namecard/shared run prisma:generate
+
       - name: Start database for migration validation
         run: |
           docker compose up -d postgres
@@ -129,6 +135,9 @@ jobs:
 
       - name: Install dependencies (no scripts)
         run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Generate Prisma client
+        run: pnpm --filter @namecard/shared run prisma:generate
 
       - name: Verify launch readiness artefacts
         run: pnpm run launch:verify
@@ -196,6 +205,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @namecard/shared run prisma:generate
 
       - name: Build infrastructure package
         run: pnpm --filter @namecard/infra run build
