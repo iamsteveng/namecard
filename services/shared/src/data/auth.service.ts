@@ -3,12 +3,12 @@ import { randomUUID, createHash } from 'node:crypto';
 import { Prisma, type AuthSession, type AuthUser } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
-import { getPrismaClient } from './prisma';
+import { disconnectPrisma, getPrismaClient } from './prisma';
 import type { User } from '../types/user.types';
 import type { UserPreferences } from '../types/common.types';
 import type { UserSession } from '../types/user.types';
 
-const prisma = getPrismaClient();
+let prisma = getPrismaClient();
 
 const ACCESS_TOKEN_TTL_SECONDS = Number(process.env['AUTH_ACCESS_TOKEN_TTL'] ?? 3600);
 const REFRESH_TOKEN_TTL_SECONDS = Number(
@@ -21,6 +21,32 @@ const DEMO_TENANT_ID = '22222222-2222-2222-2222-222222222222';
 const DEMO_EMAIL = 'demo@namecard.app';
 const DEMO_PASSWORD = 'DemoPass123!';
 const DEMO_USER_NAME = 'Demo User';
+
+const DB_RETRY_ATTEMPTS = 10;
+const DB_RETRY_DELAY_MS = 1000;
+
+async function executeWithDbRetry<T>(operation: () => Promise<T>): Promise<T> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < DB_RETRY_ATTEMPTS; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+
+      if (error instanceof Prisma.PrismaClientInitializationError) {
+        await disconnectPrisma();
+        prisma = getPrismaClient();
+        await new Promise(resolve => setTimeout(resolve, DB_RETRY_DELAY_MS * (attempt + 1)));
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  throw lastError ?? new Error('Database unavailable');
+}
 
 function now(): Date {
   return new Date();
@@ -216,16 +242,18 @@ export async function revokeAccessToken(accessToken: string): Promise<void> {
 }
 
 export async function getUserForAccessToken(accessToken: string): Promise<User | null> {
-  const session = await prisma.authSession.findFirst({
-    where: {
-      accessTokenHash: hashToken(accessToken),
-      revokedAt: null,
-      accessTokenExpiresAt: { gt: now() },
-    },
-    include: {
-      user: true,
-    },
-  });
+  const session = await executeWithDbRetry(() =>
+    prisma.authSession.findFirst({
+      where: {
+        accessTokenHash: hashToken(accessToken),
+        revokedAt: null,
+        accessTokenExpiresAt: { gt: now() },
+      },
+      include: {
+        user: true,
+      },
+    })
+  );
 
   if (!session?.user) {
     return null;
@@ -264,7 +292,9 @@ export async function ensureDemoUser(seed: {
   avatarUrl?: string;
   preferences?: UserPreferences;
 }): Promise<User> {
-  const existing = await prisma.authUser.findUnique({ where: { id: seed.userId } });
+  const existing = await executeWithDbRetry(() =>
+    prisma.authUser.findUnique({ where: { id: seed.userId } })
+  );
   if (existing) {
     return toUser(existing);
   }
@@ -272,25 +302,27 @@ export async function ensureDemoUser(seed: {
   const passwordHash = await bcrypt.hash(seed.password, 10);
   const createdAt = now();
 
-  const user = await prisma.authUser.create({
-    data: {
-      id: seed.userId,
-      email: seed.email.trim().toLowerCase(),
-      name: seed.name,
-      passwordHash,
-      tenantId: seed.tenantId,
-      avatarUrl: seed.avatarUrl ?? null,
-      preferences: seed.preferences ?? {
-        theme: 'light',
-        notifications: true,
-        emailUpdates: true,
-        language: 'en',
-        timezone: 'UTC',
+  const user = await executeWithDbRetry(() =>
+    prisma.authUser.create({
+      data: {
+        id: seed.userId,
+        email: seed.email.trim().toLowerCase(),
+        name: seed.name,
+        passwordHash,
+        tenantId: seed.tenantId,
+        avatarUrl: seed.avatarUrl ?? null,
+        preferences: seed.preferences ?? {
+          theme: 'light',
+          notifications: true,
+          emailUpdates: true,
+          language: 'en',
+          timezone: 'UTC',
+        },
+        createdAt,
+        updatedAt: createdAt,
       },
-      createdAt,
-      updatedAt: createdAt,
-    },
-  });
+    })
+  );
 
   return toUser(user);
 }
