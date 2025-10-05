@@ -44,7 +44,9 @@ const loginAndGetToken = async (): Promise<string> => {
   return payload.data.session.accessToken;
 };
 
-describe('Lambda service handlers', () => {
+const shouldSkipIntegration = process.env.CI === 'true' && process.env.RUN_DB_TESTS !== 'true';
+
+(shouldSkipIntegration ? describe.skip : describe)('Lambda service handlers', () => {
   beforeEach(async () => {
     await seedDemoWorkspace({ reset: true });
   });
