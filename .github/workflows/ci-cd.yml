@@ -63,7 +63,7 @@ jobs:
             fi
             sleep 2
           done
-          echo "Postgres test container did not become ready in time" >&2
+          echo "Postgres container did not become ready in time" >&2
           docker compose logs postgres_test
           exit 1
 
@@ -91,6 +91,19 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Start database for migration validation
+        run: |
+          docker compose up -d postgres
+          for attempt in {1..15}; do
+            if docker compose exec -T postgres pg_isready -U namecard_user -d namecard_dev >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Postgres test container did not become ready in time" >&2
+          docker compose logs postgres
+          exit 1
 
       - name: Migrations & schema orchestrator dry run
         run: pnpm run ci:infra-dry-run
