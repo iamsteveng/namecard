@@ -74,6 +74,10 @@ jobs:
         run: |
           docker compose exec -T postgres_test psql -U namecard_user -d namecard_test -c 'select 1'
 
+      - name: Verify host connectivity
+        run: |
+          docker run --rm --network host postgres:15-alpine pg_isready -h 127.0.0.1 -p 5433 -U namecard_user -d namecard_test
+
       - name: Run lint/type/test/build
         run: pnpm run ci:quality
 

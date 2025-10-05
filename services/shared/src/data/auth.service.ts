@@ -30,11 +30,16 @@ async function executeWithDbRetry<T>(operation: () => Promise<T>): Promise<T> {
 
   for (let attempt = 0; attempt < DB_RETRY_ATTEMPTS; attempt += 1) {
     try {
+      await prisma.$connect();
       return await operation();
     } catch (error) {
       lastError = error;
 
-      if (error instanceof Prisma.PrismaClientInitializationError) {
+      const isInitializationError =
+        error instanceof Prisma.PrismaClientInitializationError ||
+        (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P1001');
+
+      if (isInitializationError) {
         await disconnectPrisma();
         prisma = getPrismaClient();
         await new Promise(resolve => setTimeout(resolve, DB_RETRY_DELAY_MS * (attempt + 1)));
