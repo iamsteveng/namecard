@@ -66,6 +66,7 @@
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
     "cypress": "^14.5.1",
+    "esbuild": "^0.24.0",
     "esbuild-register": "^3.6.0",
     "eslint": "^8.56.0",
     "eslint-config-prettier": "^10.1.5",
