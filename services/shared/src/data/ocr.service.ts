@@ -1,10 +1,14 @@
 import { randomUUID } from 'node:crypto';
 
-import type { OcrJob, Prisma } from '@prisma/client';
+import type { OcrJob } from '@prisma/client';
 
 import { getPrismaClient } from './prisma';
 
 const prisma = getPrismaClient();
+
+type OcrCreateArgs = Parameters<typeof prisma.ocrJob.create>[0]['data'];
+type OcrPayloadInput = NonNullable<OcrCreateArgs['payload']>;
+type OcrResultInput = NonNullable<OcrCreateArgs['result']>;
 
 type ResultShape = OcrJobPayload & { text: string; confidence: number };
 
@@ -114,9 +118,7 @@ export async function createOcrJob(
     },
   } satisfies OcrJobPayload & { text: string; confidence: number };
 
-  const payload: Prisma.InputJsonValue = options.payload
-    ? (options.payload as Prisma.InputJsonValue)
-    : ({ source: 'api.scan' } as Prisma.InputJsonValue);
+  const payload = options.payload ?? { source: 'api.scan' };
 
   const job = await prisma.ocrJob.create({
     data: {
@@ -125,8 +127,8 @@ export async function createOcrJob(
       tenantId: card.tenantId,
       requestedBy: options.requestedBy,
       status: 'completed',
-      payload,
-      result: result as Prisma.InputJsonValue,
+      payload: payload as unknown as OcrPayloadInput,
+      result: result as unknown as OcrResultInput,
       submittedAt,
       completedAt,
       createdAt: submittedAt,

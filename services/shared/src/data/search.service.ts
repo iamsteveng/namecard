@@ -51,11 +51,14 @@ export async function getSearchAnalytics(): Promise<SearchAnalyticsSummary> {
   const lastQueryAt = aggregate._max?.executedAt ?? undefined;
 
   const topQueries = groupedQueries
-    .filter(item => (item.query ?? '').trim().length > 0)
-    .map(item => ({
-      term: (item.query ?? '').toLowerCase(),
-      count: item._count.query ?? 0,
-    }))
+    .map(group => {
+      const term = (group.query ?? '').trim().toLowerCase();
+      return {
+        term,
+        count: group._count.query ?? 0,
+      };
+    })
+    .filter(entry => entry.term.length > 0)
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
 

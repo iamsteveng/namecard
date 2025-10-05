@@ -1,10 +1,27 @@
 import { randomUUID } from 'node:crypto';
 
-import type { UploadsAsset } from '@prisma/client';
-
 import { getPrismaClient } from './prisma';
 
 const prisma = getPrismaClient();
+
+interface UploadsAssetRow {
+  id: string;
+  tenantId: string;
+  userId: string | null;
+  objectKey: string;
+  fileName: string;
+  status: string;
+  checksum: string;
+  contentType: string;
+  sizeBytes: number;
+  presignedUrl: string;
+  cdnUrl: string | null;
+  expiresAt: Date;
+  uploadedAt: Date | null;
+  completedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 export type UploadStatus = 'pending' | 'uploaded' | 'completed';
 
@@ -27,7 +44,7 @@ export interface UploadRecord {
   updatedAt: Date;
 }
 
-function toUploadRecord(record: UploadsAsset): UploadRecord {
+function toUploadRecord(record: UploadsAssetRow): UploadRecord {
   return {
     id: record.id,
     tenantId: record.tenantId,

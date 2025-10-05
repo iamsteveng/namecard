@@ -1,7 +1,5 @@
 import { randomUUID } from 'node:crypto';
 
-import { Prisma } from '@prisma/client';
-
 import { getPrismaClient } from './prisma';
 import { ensureDefaultDemoUser, DEMO_USER_ID, DEMO_TENANT_ID } from './auth.service';
 
@@ -138,7 +136,7 @@ export async function seedDemoWorkspace(options: SeedOptions = {}): Promise<void
       id: randomUUID(),
       cardId: cardOne.id,
       activityType: 'card_created',
-      detail: { source: 'seed' } satisfies Prisma.JsonValue,
+      detail: { source: 'seed' },
       occurredAt: now,
     },
   });
@@ -173,7 +171,7 @@ export async function seedDemoWorkspace(options: SeedOptions = {}): Promise<void
       id: randomUUID(),
       cardId: cardTwo.id,
       activityType: 'card_created',
-      detail: { source: 'seed' } satisfies Prisma.JsonValue,
+      detail: { source: 'seed' },
       occurredAt: now,
     },
   });
