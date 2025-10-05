@@ -1,0 +1,8 @@
+{
+  "name": "@namecard/layer-data",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared runtime dependencies for NameCard Lambda functions",
+  "dependencies": {}
+}

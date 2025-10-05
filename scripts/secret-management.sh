@@ -466,7 +466,7 @@ deploy_stack() {
     
     check_environment "$environment"
     
-    local infra_dir="$PROJECT_ROOT/infrastructure"
+    local infra_dir="$PROJECT_ROOT/infra"
     
     if [ ! -d "$infra_dir" ]; then
         log_error "Infrastructure directory not found: $infra_dir"

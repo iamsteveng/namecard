@@ -58,39 +58,38 @@ services:
       timeout: 5s
       retries: 5
 
-  api:
-    build:
-      context: .
-      dockerfile: packages/api/Dockerfile
-    container_name: namecard-api
+  localstack:
+    image: localstack/localstack:latest
+    container_name: namecard-localstack
     restart: unless-stopped
-    ports:
-      - "3001:3001"
-    command: >
-      sh -c "node packages/api/dist/server.js"
-    env_file:
-      - packages/api/.env
     environment:
-      # Override specific values for Docker container networking
-      - DATABASE_URL=postgresql://namecard_user:namecard_password@postgres:5432/namecard_dev
-      - REDIS_URL=redis://redis:6379
+      - SERVICES=s3,cognito-idp,textract,lambda,sts,iam
+      - AWS_DEFAULT_REGION=us-east-1
+      - EDGE_PORT=4566
+      - PERSISTENCE=1
+      - DEBUG=${LOCALSTACK_DEBUG-0}
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - S3_BUCKET_NAME=namecard-local-bucket
+      - COGNITO_USER_POOL_NAME=namecard-local-pool
+      - COGNITO_USER_POOL_CLIENT_NAME=namecard-local-client
+    ports:
+      - "4566:4566"
+    volumes:
+      - localstack_data:/var/lib/localstack
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./infra/localstack/init-scripts:/etc/localstack/init/ready.d
     networks:
       - namecard_network
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
-      interval: 30s
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 20s
       timeout: 10s
-      retries: 3
+      retries: 5
 
   frontend:
     build:
       context: .
-      dockerfile: packages/web/Dockerfile
+      dockerfile: services/web/Dockerfile
     container_name: namecard-frontend
     restart: unless-stopped
     ports:
@@ -102,9 +101,6 @@ services:
       - NODE_ENV=production
     networks:
       - namecard_network
-    depends_on:
-      api:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
       interval: 30s
@@ -117,6 +113,8 @@ volumes:
   postgres_test_data:
     driver: local
   redis_data:
+    driver: local
+  localstack_data:
     driver: local
 
 networks:

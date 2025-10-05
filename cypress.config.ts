@@ -2,7 +2,7 @@ import { defineConfig } from 'cypress';
 
 export default defineConfig({
   e2e: {
-    baseUrl: 'http://localhost:5173',
+    baseUrl: 'http://localhost:3000',
     viewportWidth: 1280,
     viewportHeight: 720,
     video: false,
@@ -18,7 +18,7 @@ export default defineConfig({
       framework: 'react',
       bundler: 'vite',
     },
-    specPattern: 'packages/web/src/**/*.cy.{js,jsx,ts,tsx}',
+    specPattern: 'services/web/src/**/*.cy.{js,jsx,ts,tsx}',
     supportFile: 'cypress/support/component.ts',
   },
   env: {

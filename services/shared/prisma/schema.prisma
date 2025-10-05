@@ -1,0 +1,220 @@
+generator client {
+  provider        = "prisma-client-js"
+  binaryTargets   = ["native", "linux-arm64-openssl-3.0.x", "debian-openssl-3.0.x"]
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["public", "auth", "cards", "ocr", "enrichment", "uploads", "search"]
+}
+
+model AuthUser {
+  @@schema("auth")
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String        @map("tenant_id") @db.Uuid
+  email         String
+  passwordHash  String        @map("password_hash")
+  name          String?
+  avatarUrl     String?       @map("avatar_url")
+  preferences   Json          @default("{}")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @default(now()) @map("updated_at")
+  sessions      AuthSession[]
+  cards         CardsCard[]
+  enrichment    EnrichmentRecord[] @relation("EnrichmentRequestedBy")
+  ocrJobs       OcrJob[]      @relation("OcrRequestedBy")
+  uploads       UploadsAsset[]
+
+  @@index([email])
+}
+
+model AuthSession {
+  @@schema("auth")
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                 String    @map("user_id") @db.Uuid
+  accessTokenHash        String    @map("access_token_hash")
+  refreshTokenHash       String    @map("refresh_token_hash")
+  issuedAt               DateTime  @default(now()) @map("issued_at")
+  accessTokenExpiresAt   DateTime  @map("access_token_expires_at")
+  refreshTokenExpiresAt  DateTime  @map("refresh_token_expires_at")
+  revokedAt              DateTime? @map("revoked_at")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @default(now()) @map("updated_at")
+  user                   AuthUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@unique([accessTokenHash])
+  @@unique([refreshTokenHash])
+}
+
+model CardsCard {
+  @@schema("cards")
+  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String               @map("tenant_id") @db.Uuid
+  userId              String               @map("user_id") @db.Uuid
+  originalImageUrl    String               @map("original_image_url")
+  processedImageUrl   String?              @map("processed_image_url")
+  extractedText       String?              @map("extracted_text")
+  confidence          Float?
+  name                String?
+  title               String?
+  company             String?
+  email               String?
+  phone               String?
+  address             String?
+  website             String?
+  notes               String?
+  tags                String[]             @default([]) @db.Text
+  scanDate            DateTime?            @map("scan_date") @db.Date
+  lastEnrichmentDate  DateTime?            @map("last_enrichment_date")
+  ocrJobId            String?              @map("ocr_job_id") @db.Uuid
+  enrichmentId        String?              @map("enrichment_id") @db.Uuid
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @default(now()) @map("updated_at")
+  user                AuthUser             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activities          CardsCardActivity[]
+  ocrJobs             OcrJob[]             @relation("OcrCard")
+  enrichments         EnrichmentRecord[]
+
+  @@index([userId])
+  @@index([tenantId])
+  @@index([company])
+  @@index([name])
+  @@index([email])
+}
+
+model CardsCardActivity {
+  @@schema("cards")
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cardId      String    @map("card_id") @db.Uuid
+  activityType String   @map("activity_type")
+  detail      Json?
+  occurredAt  DateTime  @default(now()) @map("occurred_at")
+  card        CardsCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([cardId])
+  @@index([activityType])
+}
+
+model OcrJob {
+  @@schema("ocr")
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cardId      String    @map("card_id") @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  requestedBy String    @map("requested_by") @db.Uuid
+  status      String
+  payload     Json?
+  result      Json?
+  error       String?
+  submittedAt DateTime  @map("submitted_at")
+  completedAt DateTime? @map("completed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @default(now()) @map("updated_at")
+  card        CardsCard @relation("OcrCard", fields: [cardId], references: [id], onDelete: Cascade)
+  requester   AuthUser  @relation("OcrRequestedBy", fields: [requestedBy], references: [id])
+
+  @@index([cardId])
+  @@index([tenantId])
+  @@index([status])
+}
+
+model EnrichmentCompanyProfile {
+  @@schema("enrichment")
+  id          String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String              @map("tenant_id") @db.Uuid
+  name        String
+  industry    String?
+  size        String?
+  headquarters String?
+  website     String?
+  description String?
+  logoUrl     String?             @map("logo_url")
+  lastUpdated DateTime            @default(now()) @map("last_updated")
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @default(now()) @map("updated_at")
+  enrichments EnrichmentRecord[]
+  news        EnrichmentNewsArticle[]
+
+  @@index([name])
+}
+
+model EnrichmentRecord {
+  @@schema("enrichment")
+  id          String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cardId      String                @map("card_id") @db.Uuid
+  companyId   String?               @map("company_id") @db.Uuid
+  tenantId    String                @map("tenant_id") @db.Uuid
+  status      String
+  requestedBy String                @map("requested_by") @db.Uuid
+  score       Float?
+  summary     String?
+  companies   Json?
+  insights    Json?
+  error       String?
+  completedAt DateTime?             @map("completed_at")
+  createdAt   DateTime              @default(now()) @map("created_at")
+  updatedAt   DateTime              @default(now()) @map("updated_at")
+  card        CardsCard             @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  company     EnrichmentCompanyProfile? @relation(fields: [companyId], references: [id])
+  requester   AuthUser              @relation("EnrichmentRequestedBy", fields: [requestedBy], references: [id])
+
+  @@index([cardId])
+  @@index([companyId])
+  @@index([status])
+}
+
+model EnrichmentNewsArticle {
+  @@schema("enrichment")
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId     String    @map("company_id") @db.Uuid
+  title         String
+  summary       String?
+  url           String?
+  publishedDate DateTime? @map("published_date") @db.Date
+  source        String?
+  createdAt     DateTime  @default(now()) @map("created_at")
+  company       EnrichmentCompanyProfile @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+}
+
+model UploadsAsset {
+  @@schema("uploads")
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  userId      String?   @map("user_id") @db.Uuid
+  objectKey   String    @map("object_key")
+  fileName    String    @map("file_name")
+  status      String
+  checksum    String
+  contentType String    @map("content_type")
+  sizeBytes   Int       @map("size_bytes")
+  presignedUrl String   @map("presigned_url")
+  cdnUrl      String?   @map("cdn_url")
+  expiresAt   DateTime  @map("expires_at")
+  uploadedAt  DateTime? @map("uploaded_at")
+  completedAt DateTime? @map("completed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @default(now()) @map("updated_at")
+  user        AuthUser? @relation(fields: [userId], references: [id])
+
+  @@index([tenantId])
+  @@index([status])
+}
+
+model SearchQueryLog {
+  @@schema("search")
+  id          BigInt   @id @default(autoincrement())
+  tenantId    String?  @map("tenant_id") @db.Uuid
+  userId      String?  @map("user_id") @db.Uuid
+  query       String?
+  latencyMs   Int      @map("latency_ms")
+  resultCount Int      @map("result_count")
+  executedAt  DateTime @default(now()) @map("executed_at")
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([executedAt])
+}

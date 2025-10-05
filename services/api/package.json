@@ -1,0 +1,14 @@
+{
+  "name": "@namecard/api",
+  "version": "0.0.0-retired",
+  "private": true,
+  "description": "Retired Express API placeholder. Use the Lambda handlers in services/* instead.",
+  "scripts": {
+    "dev": "node ./retired.js",
+    "build": "node ./retired.js",
+    "start": "node ./retired.js",
+    "lint": "node ./retired.js",
+    "type-check": "node ./retired.js",
+    "test": "node ./retired.js"
+  }
+}
