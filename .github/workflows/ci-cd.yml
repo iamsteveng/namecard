@@ -70,6 +70,10 @@ jobs:
           docker compose logs postgres_test
           exit 1
 
+      - name: Verify database connectivity
+        run: |
+          docker compose exec -T postgres_test psql -U namecard_user -d namecard_test -c 'select 1'
+
       - name: Run lint/type/test/build
         run: pnpm run ci:quality
 
