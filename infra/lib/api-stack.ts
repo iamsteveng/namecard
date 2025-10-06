@@ -321,6 +321,7 @@ export class ApiStack extends cdk.Stack {
       description: 'Runs ordered database schema migrations from service folders',
       bundling: {
         ...lambdaBundling,
+        format: OutputFormat.CJS,
         commandHooks: {
           beforeBundling(inputDir, outputDir) {
             const migrationsDir = `${outputDir}/migrations`;
