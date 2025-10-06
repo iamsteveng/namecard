@@ -26,8 +26,8 @@ async function main(): Promise<void> {
   try {
     const migrations = discoverMigrationFiles(staged.path);
 
-    const config = await resolveDatabaseConfig();
-    client = new Client(config);
+    const { clientConfig } = await resolveDatabaseConfig();
+    client = new Client(clientConfig);
     await client.connect();
 
     await validateMigrations(client, migrations, { logger: console });

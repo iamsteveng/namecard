@@ -347,6 +347,8 @@ export class ApiStack extends cdk.Stack {
         ...baseLambdaEnv,
         POWERTOOLS_SERVICE_NAME: 'migrator',
         DB_PROXY_ENDPOINT: this.rdsProxy.endpoint,
+        DB_PROXY_NAME: this.rdsProxy.dbProxyName,
+        DB_CLUSTER_ENDPOINT: props.dbCluster.clusterEndpoint.hostname,
       },
       tracing: lambda.Tracing.ACTIVE,
     });

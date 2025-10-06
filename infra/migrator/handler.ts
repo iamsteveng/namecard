@@ -1,5 +1,6 @@
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
+import { RDSClient, DescribeDBProxyTargetsCommand } from '@aws-sdk/client-rds';
 import { createHash } from 'crypto';
 import { existsSync, readdirSync, readFileSync } from 'fs';
 import { join, resolve } from 'path';
@@ -59,9 +60,12 @@ export interface ApplyMigrationsOptions {
 const secretsClient = new SecretsManagerClient({});
 const alarmTopicArn = process.env.MIGRATION_ALARM_TOPIC_ARN ?? process.env.ALARM_TOPIC_ARN;
 const snsClient = alarmTopicArn ? new SNSClient({}) : undefined;
-const DEFAULT_CONNECT_ATTEMPTS = 6;
-const DEFAULT_CONNECT_BASE_DELAY_MS = 5_000;
-const DEFAULT_CONNECT_TIMEOUT_MS = 15_000;
+const rdsClient = new RDSClient({});
+const DEFAULT_CONNECT_ATTEMPTS = 12;
+const DEFAULT_CONNECT_BASE_DELAY_MS = 10_000;
+const DEFAULT_CONNECT_TIMEOUT_MS = 30_000;
+const DEFAULT_PROXY_WAIT_ATTEMPTS = 60;
+const DEFAULT_PROXY_WAIT_INTERVAL_MS = 10_000;
 
 export function normalizeLedgerTable(table: string): string {
   const parts = table.split('.').filter(Boolean);
@@ -264,7 +268,14 @@ interface DbSecretPayload {
   database?: string;
 }
 
-export async function resolveDatabaseConfig() {
+export interface ResolvedDatabaseConfig {
+  clientConfig: ClientConfig;
+  fallbackConfig?: ClientConfig;
+  proxyName?: string;
+  primaryEndpointType: 'proxy' | 'cluster';
+}
+
+export async function resolveDatabaseConfig(): Promise<ResolvedDatabaseConfig> {
   const secretArn = process.env.DB_SECRET_ARN;
   let secret: DbSecretPayload = {};
 
@@ -274,7 +285,9 @@ export async function resolveDatabaseConfig() {
     secret = secretString ? (JSON.parse(secretString) as DbSecretPayload) : {};
   }
 
-  const host = process.env.DB_PROXY_ENDPOINT ?? process.env.DB_HOST ?? secret.host;
+  const proxyEndpoint = process.env.DB_PROXY_ENDPOINT;
+  const clusterEndpoint = process.env.DB_CLUSTER_ENDPOINT ?? secret.host;
+  const host = proxyEndpoint ?? process.env.DB_HOST ?? secret.host;
   const port = Number(process.env.DB_PORT ?? secret.port ?? 5432);
   const user = process.env.DB_USER ?? secret.username;
   const password = process.env.DB_PASSWORD ?? secret.password;
@@ -286,21 +299,40 @@ export async function resolveDatabaseConfig() {
 
   const useSsl = determineSslMode(host);
 
-  return {
+  const baseConfig: ClientConfig = {
     host,
     port,
     user,
     password,
     database,
     ssl: useSsl ? { rejectUnauthorized: false } : undefined,
-  } as const;
+  };
+
+  const fallbackHost = proxyEndpoint && clusterEndpoint && clusterEndpoint !== proxyEndpoint ? clusterEndpoint : undefined;
+  const fallbackConfig = fallbackHost
+    ? {
+        ...baseConfig,
+        host: fallbackHost,
+      }
+    : undefined;
+
+  return {
+    clientConfig: baseConfig,
+    fallbackConfig,
+    proxyName: proxyEndpoint ? process.env.DB_PROXY_NAME ?? undefined : undefined,
+    primaryEndpointType: proxyEndpoint ? 'proxy' : 'cluster',
+  };
 }
 
 async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function connectWithRetries(baseConfig: ClientConfig, logger: Pick<typeof console, 'info' | 'warn' | 'error'>): Promise<Client> {
+async function connectWithRetries(
+  baseConfig: ClientConfig,
+  logger: Pick<typeof console, 'info' | 'warn' | 'error'>,
+  endpointLabel: string,
+): Promise<Client> {
   const maxAttempts = Number(process.env.MIGRATIONS_CONNECT_ATTEMPTS ?? DEFAULT_CONNECT_ATTEMPTS);
   const baseDelayMs = Number(process.env.MIGRATIONS_CONNECT_BASE_DELAY_MS ?? DEFAULT_CONNECT_BASE_DELAY_MS);
   const connectionTimeoutMillis = Number(process.env.MIGRATIONS_CONNECT_TIMEOUT_MS ?? DEFAULT_CONNECT_TIMEOUT_MS);
@@ -314,9 +346,7 @@ async function connectWithRetries(baseConfig: ClientConfig, logger: Pick<typeof 
 
     try {
       await client.connect();
-      if (attempt > 1) {
-        logger.info('Connected to database after retries', { attempt });
-      }
+      logger.info('Connected to database', { attempt, endpoint: endpointLabel });
       return client;
     } catch (error) {
       lastError = error;
@@ -326,19 +356,54 @@ async function connectWithRetries(baseConfig: ClientConfig, logger: Pick<typeof 
         break;
       }
 
-      const delayMs = Math.min(60_000, baseDelayMs * Math.pow(2, attempt - 1));
+      const delayMs = Math.min(120_000, baseDelayMs * Math.pow(2, attempt - 1));
       const message = error instanceof Error ? error.message : String(error);
       logger.warn('Failed to connect to database, retrying', {
         attempt,
         maxAttempts,
         delayMs,
         message,
+        endpoint: endpointLabel,
       });
       await sleep(delayMs + Math.floor(Math.random() * 1000));
     }
   }
 
-  throw augmentError(lastError, 'Unable to establish database connection');
+  throw augmentError(lastError, `Unable to establish database connection via ${endpointLabel}`);
+}
+
+async function waitForProxyTargets(proxyName: string, logger: Pick<typeof console, 'info' | 'warn'>): Promise<void> {
+  const maxAttempts = Number(process.env.MIGRATIONS_PROXY_WAIT_ATTEMPTS ?? DEFAULT_PROXY_WAIT_ATTEMPTS);
+  const intervalMs = Number(process.env.MIGRATIONS_PROXY_WAIT_INTERVAL_MS ?? DEFAULT_PROXY_WAIT_INTERVAL_MS);
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const response = await rdsClient.send(
+        new DescribeDBProxyTargetsCommand({
+          DBProxyName: proxyName,
+          TargetGroupName: 'default',
+        }),
+      );
+      const targets = response.Targets ?? [];
+      if (
+        targets.length > 0 &&
+        targets.every((target) => target.TargetHealth?.State?.toLowerCase() === 'available')
+      ) {
+        logger.info('DB proxy targets are healthy', { proxyName, attempt });
+        return;
+      }
+
+      const statuses = targets.map((target) => target.TargetHealth?.State ?? 'unknown');
+      logger.warn('DB proxy targets not yet available', { proxyName, attempt, statuses });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.warn('Failed to describe DB proxy targets', { proxyName, attempt, message });
+    }
+
+    await sleep(intervalMs);
+  }
+
+  throw new Error(`DB proxy targets for ${proxyName} did not become available in time`);
 }
 
 function determineSslMode(host: string): boolean {
@@ -389,8 +454,27 @@ export const handler = async (event: OnEventRequest): Promise<OnEventResponse> =
   let client: Client | undefined;
 
   try {
-    const config = await resolveDatabaseConfig();
-    client = await connectWithRetries(config, logger);
+    const { clientConfig, fallbackConfig, proxyName, primaryEndpointType } = await resolveDatabaseConfig();
+
+    if (proxyName) {
+      try {
+        await waitForProxyTargets(proxyName, logger);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        logger.warn('Proceeding without proxy readiness confirmation', { proxyName, message });
+      }
+    }
+
+    try {
+      client = await connectWithRetries(clientConfig, logger, primaryEndpointType);
+    } catch (primaryError) {
+      if (!fallbackConfig) {
+        throw primaryError;
+      }
+
+      logger.warn('Primary database endpoint unavailable, falling back to cluster endpoint');
+      client = await connectWithRetries(fallbackConfig, logger, 'cluster-fallback');
+    }
     const result = await applyMigrations(client, migrations, {
       ledgerTable: process.env.MIGRATIONS_LEDGER_TABLE,
       lockKey: process.env.MIGRATIONS_LOCK_PARTITION && process.env.MIGRATIONS_LOCK_TOKEN
