@@ -3,7 +3,7 @@ import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
 import { createHash } from 'crypto';
 import { existsSync, readdirSync, readFileSync } from 'fs';
 import { join, resolve } from 'path';
-import { Client } from 'pg';
+import { Client, ClientConfig } from 'pg';
 
 const MIGRATIONS_DIR = (() => {
   const override = process.env.MIGRATIONS_ROOT ?? process.env.MIGRATIONS_DIR;
@@ -59,6 +59,9 @@ export interface ApplyMigrationsOptions {
 const secretsClient = new SecretsManagerClient({});
 const alarmTopicArn = process.env.MIGRATION_ALARM_TOPIC_ARN ?? process.env.ALARM_TOPIC_ARN;
 const snsClient = alarmTopicArn ? new SNSClient({}) : undefined;
+const DEFAULT_CONNECT_ATTEMPTS = 6;
+const DEFAULT_CONNECT_BASE_DELAY_MS = 5_000;
+const DEFAULT_CONNECT_TIMEOUT_MS = 15_000;
 
 export function normalizeLedgerTable(table: string): string {
   const parts = table.split('.').filter(Boolean);
@@ -293,6 +296,51 @@ export async function resolveDatabaseConfig() {
   } as const;
 }
 
+async function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function connectWithRetries(baseConfig: ClientConfig, logger: Pick<typeof console, 'info' | 'warn' | 'error'>): Promise<Client> {
+  const maxAttempts = Number(process.env.MIGRATIONS_CONNECT_ATTEMPTS ?? DEFAULT_CONNECT_ATTEMPTS);
+  const baseDelayMs = Number(process.env.MIGRATIONS_CONNECT_BASE_DELAY_MS ?? DEFAULT_CONNECT_BASE_DELAY_MS);
+  const connectionTimeoutMillis = Number(process.env.MIGRATIONS_CONNECT_TIMEOUT_MS ?? DEFAULT_CONNECT_TIMEOUT_MS);
+
+  let attempt = 0;
+  let lastError: unknown;
+
+  while (attempt < maxAttempts) {
+    attempt += 1;
+    const client = new Client({ ...baseConfig, connectionTimeoutMillis });
+
+    try {
+      await client.connect();
+      if (attempt > 1) {
+        logger.info('Connected to database after retries', { attempt });
+      }
+      return client;
+    } catch (error) {
+      lastError = error;
+      await client.end().catch(() => undefined);
+
+      if (attempt >= maxAttempts) {
+        break;
+      }
+
+      const delayMs = Math.min(60_000, baseDelayMs * Math.pow(2, attempt - 1));
+      const message = error instanceof Error ? error.message : String(error);
+      logger.warn('Failed to connect to database, retrying', {
+        attempt,
+        maxAttempts,
+        delayMs,
+        message,
+      });
+      await sleep(delayMs + Math.floor(Math.random() * 1000));
+    }
+  }
+
+  throw augmentError(lastError, 'Unable to establish database connection');
+}
+
 function determineSslMode(host: string): boolean {
   if (process.env.DB_SSL_MODE) {
     return ['require', 'verify-full', 'verify-ca', 'true', '1'].includes(process.env.DB_SSL_MODE.toLowerCase());
@@ -342,8 +390,7 @@ export const handler = async (event: OnEventRequest): Promise<OnEventResponse> =
 
   try {
     const config = await resolveDatabaseConfig();
-    client = new Client(config);
-    await client.connect();
+    client = await connectWithRetries(config, logger);
     const result = await applyMigrations(client, migrations, {
       ledgerTable: process.env.MIGRATIONS_LEDGER_TABLE,
       lockKey: process.env.MIGRATIONS_LOCK_PARTITION && process.env.MIGRATIONS_LOCK_TOKEN
