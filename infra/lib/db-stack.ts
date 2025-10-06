@@ -71,7 +71,7 @@ const ENVIRONMENT_CONFIG: Record<EnvironmentKey, EnvironmentConfig> = {
     natGateways: 1,
     backupRetention: cdk.Duration.days(14),
     backupWindow: '02:00-03:00',
-    maintenanceWindow: 'Sun:01:00-Sun:03:00',
+    maintenanceWindow: 'Sun:03:30-Sun:05:30',
     deletionProtection: false,
     removalPolicy: cdk.RemovalPolicy.SNAPSHOT,
     performanceInsights: true,
