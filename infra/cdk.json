@@ -69,6 +69,7 @@
     "@aws-cdk/aws-ecs:removeDefaultDeploymentAlarm": true,
     "@aws-cdk/custom-resources:logApiResponseDataPropertyTrueDefault": false,
     "@aws-cdk/aws-s3:keepNotificationInImportedBucket": false,
+    "@aws-cdk/core:bootstrapQualifier": "namecard",
     "@aws-cdk/core:explicitStackTags": true,
     "@aws-cdk/aws-ecs:enableImdsBlockingDeprecatedFeature": false,
     "@aws-cdk/aws-ecs:disableEcsImdsBlocking": true,
