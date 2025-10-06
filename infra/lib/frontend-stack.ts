@@ -4,7 +4,6 @@ import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as s3deployment from 'aws-cdk-lib/aws-s3-deployment';
 import * as iam from 'aws-cdk-lib/aws-iam';
-import { URL } from 'node:url';
 import { Construct } from 'constructs';
 
 export interface FrontendStackProps extends cdk.StackProps {
@@ -65,11 +64,15 @@ export class FrontendStack extends cdk.Stack {
       },
     }));
 
-    const apiEndpoint = new URL(apiUrl);
-    const originPath = apiEndpoint.pathname.replace(/\/$/, '');
+    // Derive the API Gateway domain and stage from the endpoint token so this works at deploy time.
+    const hostAndStage = cdk.Fn.select(1, cdk.Fn.split('://', apiUrl));
+    const hostSegments = cdk.Fn.split('/', hostAndStage);
+    const apiDomain = cdk.Fn.select(0, hostSegments);
+    const apiStage = cdk.Fn.select(1, hostSegments);
+    const stagePath = cdk.Fn.join('', ['/', apiStage]);
 
-    const apiOrigin = new origins.HttpOrigin(apiEndpoint.host, {
-      originPath: originPath.length > 0 ? originPath : undefined,
+    const apiOrigin = new origins.HttpOrigin(apiDomain, {
+      originPath: stagePath,
       protocolPolicy: cloudfront.OriginProtocolPolicy.HTTPS_ONLY,
     });
 
