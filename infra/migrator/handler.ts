@@ -64,8 +64,8 @@ const rdsClient = new RDSClient({});
 const DEFAULT_CONNECT_ATTEMPTS = 12;
 const DEFAULT_CONNECT_BASE_DELAY_MS = 10_000;
 const DEFAULT_CONNECT_TIMEOUT_MS = 30_000;
-const DEFAULT_PROXY_WAIT_ATTEMPTS = 60;
-const DEFAULT_PROXY_WAIT_INTERVAL_MS = 10_000;
+const DEFAULT_PROXY_WAIT_ATTEMPTS = 12;
+const DEFAULT_PROXY_WAIT_INTERVAL_MS = 5_000;
 
 export function normalizeLedgerTable(table: string): string {
   const parts = table.split('.').filter(Boolean);
@@ -285,7 +285,8 @@ export async function resolveDatabaseConfig(): Promise<ResolvedDatabaseConfig> {
     secret = secretString ? (JSON.parse(secretString) as DbSecretPayload) : {};
   }
 
-  const proxyEndpoint = process.env.DB_PROXY_ENDPOINT;
+  const forceCluster = (process.env.MIGRATIONS_FORCE_CLUSTER ?? '').toLowerCase() === 'true';
+  const proxyEndpoint = forceCluster ? undefined : process.env.DB_PROXY_ENDPOINT;
   const clusterEndpoint = process.env.DB_CLUSTER_ENDPOINT ?? secret.host;
   const host = proxyEndpoint ?? process.env.DB_HOST ?? secret.host;
   const port = Number(process.env.DB_PORT ?? secret.port ?? 5432);
@@ -308,7 +309,9 @@ export async function resolveDatabaseConfig(): Promise<ResolvedDatabaseConfig> {
     ssl: useSsl ? { rejectUnauthorized: false } : undefined,
   };
 
-  const fallbackHost = proxyEndpoint && clusterEndpoint && clusterEndpoint !== proxyEndpoint ? clusterEndpoint : undefined;
+  const fallbackHost = !forceCluster && proxyEndpoint && clusterEndpoint && clusterEndpoint !== proxyEndpoint
+    ? clusterEndpoint
+    : undefined;
   const fallbackConfig = fallbackHost
     ? {
         ...baseConfig,
@@ -317,10 +320,12 @@ export async function resolveDatabaseConfig(): Promise<ResolvedDatabaseConfig> {
     : undefined;
 
   return {
-    clientConfig: baseConfig,
+    clientConfig: forceCluster && clusterEndpoint
+      ? { ...baseConfig, host: clusterEndpoint }
+      : baseConfig,
     fallbackConfig,
-    proxyName: proxyEndpoint ? process.env.DB_PROXY_NAME ?? undefined : undefined,
-    primaryEndpointType: proxyEndpoint ? 'proxy' : 'cluster',
+    proxyName: forceCluster ? undefined : proxyEndpoint ? process.env.DB_PROXY_NAME ?? undefined : undefined,
+    primaryEndpointType: forceCluster || !proxyEndpoint ? 'cluster' : 'proxy',
   };
 }
 
@@ -385,10 +390,11 @@ async function waitForProxyTargets(proxyName: string, logger: Pick<typeof consol
         }),
       );
       const targets = response.Targets ?? [];
-      if (
-        targets.length > 0 &&
-        targets.every((target) => target.TargetHealth?.State?.toLowerCase() === 'available')
-      ) {
+      const availableTargets = targets.filter((target) => {
+        const state = target.TargetHealth?.State;
+        return typeof state === 'string' && state.trim().toUpperCase() === 'AVAILABLE';
+      });
+      if (availableTargets.length > 0) {
         logger.info('DB proxy targets are healthy', { proxyName, attempt });
         return;
       }

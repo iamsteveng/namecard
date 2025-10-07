@@ -356,11 +356,7 @@ export class ApiStack extends cdk.Stack {
     migrationLambda.addToRolePolicy(
       new iam.PolicyStatement({
         actions: ['rds:DescribeDBProxyTargets', 'rds:DescribeDBProxies', 'rds:DescribeDBClusters'],
-        resources: [
-          `arn:aws:rds:${this.region}:${this.account}:db-proxy:*`,
-          `arn:aws:rds:${this.region}:${this.account}:target-group:*`,
-          `arn:aws:rds:${this.region}:${this.account}:cluster/namecard-${envKey}-aurora`,
-        ],
+        resources: ['*'],
       }),
     );
 
@@ -416,7 +412,9 @@ export class ApiStack extends cdk.Stack {
         vpc: props.vpc,
         securityGroups: [lambdaSecurityGroup],
         vpcSubnets: props.applicationSubnets,
-        reservedConcurrentExecutions: service.scaling.reservedConcurrency[envKey],
+        reservedConcurrentExecutions: envKey === 'prod'
+          ? service.scaling.reservedConcurrency[envKey]
+          : undefined,
         tracing: lambda.Tracing.ACTIVE,
         environment: functionEnv,
         layers: [lambdaLayer],
@@ -443,7 +441,7 @@ export class ApiStack extends cdk.Stack {
 
       const provisionedValue = service.scaling.provisionedConcurrency?.[envKey];
       const integrationTarget: lambda.IFunction = (() => {
-        if (provisionedValue && provisionedValue > 0) {
+        if (envKey === 'prod' && provisionedValue && provisionedValue > 0) {
           const alias = new lambda.Alias(this, `${service.id}Alias`, {
             aliasName: `${stageName}-live`,
             version: fn.currentVersion,
