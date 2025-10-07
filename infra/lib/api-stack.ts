@@ -353,6 +353,16 @@ export class ApiStack extends cdk.Stack {
       tracing: lambda.Tracing.ACTIVE,
     });
 
+    migrationLambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['rds:DescribeDBProxyTargets', 'rds:DescribeDBProxies', 'rds:DescribeDBClusters'],
+        resources: [
+          `arn:aws:rds:${this.region}:${this.account}:db-proxy:*`,
+          `arn:aws:rds:${this.region}:${this.account}:cluster/namecard-${envKey}-aurora`,
+        ],
+      }),
+    );
+
     new logs.LogRetention(this, 'SchemaMigratorLogRetention', {
       logGroupName: migrationLambda.logGroup.logGroupName,
       retention: toLogRetention(envKey),
