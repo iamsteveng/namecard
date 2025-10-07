@@ -358,6 +358,7 @@ export class ApiStack extends cdk.Stack {
         actions: ['rds:DescribeDBProxyTargets', 'rds:DescribeDBProxies', 'rds:DescribeDBClusters'],
         resources: [
           `arn:aws:rds:${this.region}:${this.account}:db-proxy:*`,
+          `arn:aws:rds:${this.region}:${this.account}:target-group:*`,
           `arn:aws:rds:${this.region}:${this.account}:cluster/namecard-${envKey}-aurora`,
         ],
       }),
