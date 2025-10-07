@@ -333,13 +333,19 @@ async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+interface RetryOptions {
+  maxAttempts?: number;
+  baseDelayMs?: number;
+}
+
 async function connectWithRetries(
   baseConfig: ClientConfig,
   logger: Pick<typeof console, 'info' | 'warn' | 'error'>,
   endpointLabel: string,
+  options: RetryOptions = {},
 ): Promise<Client> {
-  const maxAttempts = Number(process.env.MIGRATIONS_CONNECT_ATTEMPTS ?? DEFAULT_CONNECT_ATTEMPTS);
-  const baseDelayMs = Number(process.env.MIGRATIONS_CONNECT_BASE_DELAY_MS ?? DEFAULT_CONNECT_BASE_DELAY_MS);
+  const maxAttempts = options.maxAttempts ?? Number(process.env.MIGRATIONS_CONNECT_ATTEMPTS ?? DEFAULT_CONNECT_ATTEMPTS);
+  const baseDelayMs = options.baseDelayMs ?? Number(process.env.MIGRATIONS_CONNECT_BASE_DELAY_MS ?? DEFAULT_CONNECT_BASE_DELAY_MS);
   const connectionTimeoutMillis = Number(process.env.MIGRATIONS_CONNECT_TIMEOUT_MS ?? DEFAULT_CONNECT_TIMEOUT_MS);
 
   let attempt = 0;
@@ -472,7 +478,10 @@ export const handler = async (event: OnEventRequest): Promise<OnEventResponse> =
     }
 
     try {
-      client = await connectWithRetries(clientConfig, logger, primaryEndpointType);
+      const retryOptions = primaryEndpointType === 'proxy'
+        ? { maxAttempts: 3, baseDelayMs: 5_000 }
+        : {};
+      client = await connectWithRetries(clientConfig, logger, primaryEndpointType, retryOptions);
     } catch (primaryError) {
       if (!fallbackConfig) {
         throw primaryError;
