@@ -45,6 +45,10 @@ export const getPathSegments = (event: LambdaHttpEvent | undefined): string[] =>
   if (segments[0] === 'api') {
     segments.shift();
   }
+  const envPrefix = (process.env['APP_ENVIRONMENT'] ?? process.env['NODE_ENV'] ?? '').toLowerCase();
+  if (envPrefix && segments[0]?.toLowerCase() === envPrefix) {
+    segments.shift();
+  }
   return segments;
 };
 

@@ -349,6 +349,9 @@ export class ApiStack extends cdk.Stack {
         DB_PROXY_ENDPOINT: this.rdsProxy.endpoint,
         DB_PROXY_NAME: this.rdsProxy.dbProxyName,
         DB_CLUSTER_ENDPOINT: props.dbCluster.clusterEndpoint.hostname,
+        DB_PREFER_PROXY: 'false',
+        MIGRATIONS_FORCE_CLUSTER: 'true',
+        MIGRATIONS_ROOT: '/var/task/migrations',
       },
       tracing: lambda.Tracing.ACTIVE,
     });
@@ -397,6 +400,8 @@ export class ApiStack extends cdk.Stack {
       const functionEnv = {
         ...baseLambdaEnv,
         DB_PROXY_ENDPOINT: this.rdsProxy.endpoint,
+        DB_CLUSTER_ENDPOINT: props.dbCluster.clusterEndpoint.hostname,
+        DB_PREFER_PROXY: 'false',
         SERVICE_NAME: service.domain,
         ...(service.environment ?? {}),
       };

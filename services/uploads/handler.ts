@@ -12,6 +12,7 @@ import {
   listUploadsForUser,
   getSearchAnalytics,
   ensureDefaultDemoUser,
+  ensureDatabaseUrl,
 } from '@namecard/shared';
 import {
   createErrorResponse,
@@ -257,7 +258,9 @@ const handleListUploads = async (event: LambdaHttpEvent, requestId: string) => {
 };
 
 const handleRequest = async (event: LambdaHttpEvent) => {
-  const method = event.httpMethod ?? 'GET';
+  await ensureDatabaseUrl();
+  const method =
+    (event.httpMethod ?? event.requestContext?.http?.method ?? 'GET').toUpperCase();
   const requestId = getRequestId(event);
   const segments = getPathSegments(event);
   const logger = getLogger();

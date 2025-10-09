@@ -1,11 +1,9 @@
 import { randomUUID } from 'node:crypto';
 
-import { Prisma, type CardsCard } from '@prisma/client';
+import type { Prisma as PrismaTypes, CardsCard } from '@prisma/client';
 
-import { getPrismaClient } from './prisma';
+import { getPrismaClient, Prisma } from './prisma';
 import type { Card } from '../types/card.types';
-
-const prisma = getPrismaClient();
 
 function normalizeTags(tags: readonly string[] | undefined): string[] {
   if (!tags) {
@@ -54,11 +52,12 @@ async function recordActivity(
   activityType: string,
   detail?: Record<string, unknown>
 ): Promise<void> {
+  const prisma = getPrismaClient();
   await prisma.cardsCardActivity.create({
     data: {
       cardId,
       activityType,
-      detail: detail ? (detail as Prisma.JsonObject) : Prisma.JsonNull,
+      detail: detail ? (detail as PrismaTypes.JsonObject) : Prisma.JsonNull,
       occurredAt: now(),
     },
   });
@@ -115,8 +114,9 @@ export interface ListCardsResult {
 }
 
 export async function listCards(params: ListCardsParams): Promise<ListCardsResult> {
+  const prisma = getPrismaClient();
   const normalizedTags = normalizeTags(params.tags);
-  const where: Prisma.CardsCardWhereInput = {
+  const where: PrismaTypes.CardsCardWhereInput = {
     userId: params.userId,
   };
 
@@ -161,11 +161,13 @@ export async function listCards(params: ListCardsParams): Promise<ListCardsResul
 }
 
 export async function getCard(cardId: string): Promise<Card | null> {
+  const prisma = getPrismaClient();
   const record = await prisma.cardsCard.findUnique({ where: { id: cardId } });
   return record ? toCard(record) : null;
 }
 
 export async function createCard(input: CreateCardInput): Promise<Card> {
+  const prisma = getPrismaClient();
   const timestamp = now();
   const tags = normalizeTags(input.tags);
 
@@ -201,9 +203,10 @@ export async function createCard(input: CreateCardInput): Promise<Card> {
 }
 
 export async function updateCard(cardId: string, updates: UpdateCardInput): Promise<Card> {
+  const prisma = getPrismaClient();
   const tags = updates.tags ? normalizeTags(updates.tags) : undefined;
 
-  const data: Prisma.CardsCardUpdateInput = {
+  const data: PrismaTypes.CardsCardUpdateInput = {
     updatedAt: now(),
   };
 
@@ -235,10 +238,12 @@ export async function updateCard(cardId: string, updates: UpdateCardInput): Prom
 }
 
 export async function deleteCard(cardId: string): Promise<void> {
+  const prisma = getPrismaClient();
   await prisma.cardsCard.delete({ where: { id: cardId } });
 }
 
 export async function addTag(cardId: string, tag: string): Promise<Card> {
+  const prisma = getPrismaClient();
   const trimmed = tag.trim();
   if (!trimmed) {
     throw new Error('Tag is required');
@@ -263,6 +268,7 @@ export async function addTag(cardId: string, tag: string): Promise<Card> {
 }
 
 export async function getCardStats(userId: string): Promise<Record<string, unknown>> {
+  const prisma = getPrismaClient();
   const cards = await prisma.cardsCard.findMany({
     where: { userId },
     select: {
@@ -289,7 +295,7 @@ export async function getCardStats(userId: string): Promise<Record<string, unkno
     if (card.company) {
       companies.add(card.company.toLowerCase());
     }
-    if (card.tags.some(tag => tag.toLowerCase() === 'investor')) {
+    if (card.tags.some((tag: string) => tag.toLowerCase() === 'investor')) {
       investorCards += 1;
     }
   }

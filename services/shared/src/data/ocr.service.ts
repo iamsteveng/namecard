@@ -1,14 +1,11 @@
 import { randomUUID } from 'node:crypto';
 
-import type { OcrJob } from '@prisma/client';
+import type { Prisma, OcrJob } from '@prisma/client';
 
 import { getPrismaClient } from './prisma';
 
-const prisma = getPrismaClient();
-
-type OcrCreateArgs = Parameters<typeof prisma.ocrJob.create>[0]['data'];
-type OcrPayloadInput = NonNullable<OcrCreateArgs['payload']>;
-type OcrResultInput = NonNullable<OcrCreateArgs['result']>;
+type OcrPayloadInput = Prisma.InputJsonValue;
+type OcrResultInput = Prisma.InputJsonValue;
 
 type ResultShape = OcrJobPayload & { text: string; confidence: number };
 
@@ -76,6 +73,7 @@ function toOcrJobResponse(record: OcrJob): OcrJobResponse {
 }
 
 export async function listOcrJobs(cardId?: string): Promise<OcrJobResponse[]> {
+  const prisma = getPrismaClient();
   const queryOptions: Parameters<typeof prisma.ocrJob.findMany>[0] = {
     orderBy: { submittedAt: 'desc' },
   };
@@ -92,6 +90,7 @@ export async function createOcrJob(
   cardId: string,
   options: { requestedBy: string; payload?: Record<string, unknown> }
 ): Promise<OcrJobResponse> {
+  const prisma = getPrismaClient();
   const cardRecord = await prisma.cardsCard.findUnique({ where: { id: cardId } });
   if (!cardRecord) {
     throw new Error('Card not found');
@@ -148,6 +147,7 @@ export async function createOcrJob(
 }
 
 export async function getOcrJobById(jobId: string): Promise<OcrJobResponse | null> {
+  const prisma = getPrismaClient();
   const job = await prisma.ocrJob.findUnique({ where: { id: jobId } });
   return job ? toOcrJobResponse(job) : null;
 }

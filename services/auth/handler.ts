@@ -1,3 +1,5 @@
+import { ensureDatabaseUrl } from './runtime-shim';
+
 import {
   authenticateUser,
   registerUser,
@@ -321,9 +323,13 @@ const handleRoutesCatalog = (requestId: string) => {
 };
 
 const handleRequest = async (event: LambdaHttpEvent) => {
-  const method = event.httpMethod ?? 'GET';
+  await ensureDatabaseUrl();
+  const method =
+    (event.httpMethod ?? event.requestContext?.http?.method ?? 'GET').toUpperCase();
   const requestId = getRequestId(event);
-  const segments = getPathSegments(event);
+  const rawSegments = getPathSegments(event);
+  const envPrefix = (process.env.APP_ENVIRONMENT ?? '').toLowerCase();
+  const segments = rawSegments[0]?.toLowerCase() === envPrefix ? rawSegments.slice(1) : rawSegments;
   const logger = getLogger();
 
   logger.debug('auth.router.received', {

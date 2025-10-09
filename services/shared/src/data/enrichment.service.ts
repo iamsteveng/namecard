@@ -4,8 +4,6 @@ import type { EnrichmentCompanyProfile, EnrichmentRecord } from '@prisma/client'
 
 import { getPrismaClient } from './prisma';
 
-const prisma = getPrismaClient();
-
 export type EnrichmentWorkflowStatus = 'pending' | 'processing' | 'completed' | 'failed';
 
 export interface EnrichmentResponse {
@@ -52,6 +50,7 @@ async function findOrCreateCompanyProfile(
     return null;
   }
 
+  const prisma = getPrismaClient();
   const existing = await prisma.enrichmentCompanyProfile.findFirst({
     where: {
       tenantId,
@@ -89,6 +88,7 @@ export async function createEnrichment(
   cardId: string,
   options: { requestedBy: string; companyId?: string }
 ): Promise<EnrichmentResponse> {
+  const prisma = getPrismaClient();
   const cardRecord = await prisma.cardsCard.findUnique({ where: { id: cardId } });
   if (!cardRecord) {
     throw new Error('Card not found');
@@ -165,6 +165,7 @@ export async function createEnrichment(
 }
 
 export async function getEnrichmentByCard(cardId: string): Promise<EnrichmentResponse | null> {
+  const prisma = getPrismaClient();
   const record = await prisma.enrichmentRecord.findFirst({
     where: { cardId },
     orderBy: { createdAt: 'desc' },
@@ -175,6 +176,7 @@ export async function getEnrichmentByCard(cardId: string): Promise<EnrichmentRes
 export async function getEnrichmentByCompany(
   companyId: string
 ): Promise<EnrichmentResponse | null> {
+  const prisma = getPrismaClient();
   const record = await prisma.enrichmentRecord.findFirst({
     where: { companyId },
     orderBy: { createdAt: 'desc' },

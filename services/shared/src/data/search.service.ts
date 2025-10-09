@@ -1,8 +1,6 @@
 import { getPrismaClient } from './prisma';
 import type { Company } from '../types/company.types';
 
-const prisma = getPrismaClient();
-
 export interface SearchAnalyticsSummary {
   totalQueries: number;
   averageLatencyMs: number;
@@ -19,6 +17,7 @@ export async function recordSearchEvent(params: {
   tenantId?: string;
   userId?: string;
 }): Promise<void> {
+  const prisma = getPrismaClient();
   await prisma.searchQueryLog.create({
     data: {
       query: params.query,
@@ -32,6 +31,7 @@ export async function recordSearchEvent(params: {
 }
 
 export async function getSearchAnalytics(): Promise<SearchAnalyticsSummary> {
+  const prisma = getPrismaClient();
   const [aggregate, cardsIndexed, companiesIndexed, groupedQueries] = await Promise.all([
     prisma.searchQueryLog.aggregate({
       _count: { _all: true },
@@ -73,6 +73,7 @@ export async function getSearchAnalytics(): Promise<SearchAnalyticsSummary> {
 }
 
 export async function listCompanies(): Promise<Company[]> {
+  const prisma = getPrismaClient();
   const records = await prisma.enrichmentCompanyProfile.findMany({
     orderBy: { updatedAt: 'desc' },
   });

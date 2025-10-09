@@ -3,8 +3,6 @@ import { randomUUID } from 'node:crypto';
 import { getPrismaClient } from './prisma';
 import { ensureDefaultDemoUser, DEMO_USER_ID, DEMO_TENANT_ID } from './auth.service';
 
-const prisma = getPrismaClient();
-
 interface SeedOptions {
   reset?: boolean;
 }
@@ -22,6 +20,7 @@ function toDate(value: string): Date {
 }
 
 export async function seedDemoWorkspace(options: SeedOptions = {}): Promise<void> {
+  const prisma = getPrismaClient();
   const { reset = true } = options;
 
   await ensureDefaultDemoUser();

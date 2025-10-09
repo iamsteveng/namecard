@@ -2,8 +2,6 @@ import { randomUUID } from 'node:crypto';
 
 import { getPrismaClient } from './prisma';
 
-const prisma = getPrismaClient();
-
 interface UploadsAssetRow {
   id: string;
   tenantId: string;
@@ -73,6 +71,7 @@ export async function createUpload(input: {
   contentType: string;
   size: number;
 }): Promise<UploadRecord> {
+  const prisma = getPrismaClient();
   const now = new Date();
   const id = randomUUID();
   const objectKey = `uploads/${input.tenantId}/${id}/${input.fileName}`;
@@ -103,6 +102,7 @@ export async function createUpload(input: {
 }
 
 export async function completeUpload(uploadId: string): Promise<UploadRecord> {
+  const prisma = getPrismaClient();
   const record = await prisma.uploadsAsset.findUnique({ where: { id: uploadId } });
   if (!record) {
     throw new Error('Upload not found');
@@ -123,11 +123,13 @@ export async function completeUpload(uploadId: string): Promise<UploadRecord> {
 }
 
 export async function getUpload(uploadId: string): Promise<UploadRecord | null> {
+  const prisma = getPrismaClient();
   const record = await prisma.uploadsAsset.findUnique({ where: { id: uploadId } });
   return record ? toUploadRecord(record) : null;
 }
 
 export async function listUploadsForUser(userId: string, limit = 20): Promise<UploadRecord[]> {
+  const prisma = getPrismaClient();
   const records = await prisma.uploadsAsset.findMany({
     where: { userId },
     orderBy: { createdAt: 'desc' },

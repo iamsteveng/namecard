@@ -460,6 +460,11 @@ export const handler = async (event: OnEventRequest): Promise<OnEventResponse> =
 
   const logger = console;
   const migrations = discoverMigrationFiles();
+  logger.info('Schema migrator scan', {
+    migrationsDir: MIGRATIONS_DIR,
+    dirExists: existsSync(MIGRATIONS_DIR),
+    files: existsSync(MIGRATIONS_DIR) ? readdirSync(MIGRATIONS_DIR) : [],
+  });
   const versionTag = typeof event.ResourceProperties?.version === 'string' ? event.ResourceProperties.version : undefined;
   const batchId = buildBatchId(versionTag);
 

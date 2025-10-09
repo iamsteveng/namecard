@@ -1,14 +1,19 @@
 import { randomUUID, createHash } from 'node:crypto';
 
-import { Prisma, type AuthSession, type AuthUser } from '@prisma/client';
+import type { Prisma as PrismaTypes, PrismaClient, AuthSession, AuthUser } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
-import { disconnectPrisma, getPrismaClient } from './prisma';
+import {
+  disconnectPrisma,
+  getPrismaClient,
+  handlePrismaAuthFailure,
+  Prisma,
+} from './prisma';
 import type { User } from '../types/user.types';
 import type { UserPreferences } from '../types/common.types';
 import type { UserSession } from '../types/user.types';
 
-let prisma = getPrismaClient();
+let prisma: PrismaClient | undefined;
 
 const ACCESS_TOKEN_TTL_SECONDS = Number(process.env['AUTH_ACCESS_TOKEN_TTL'] ?? 3600);
 const REFRESH_TOKEN_TTL_SECONDS = Number(
@@ -30,18 +35,41 @@ async function executeWithDbRetry<T>(operation: () => Promise<T>): Promise<T> {
 
   for (let attempt = 0; attempt < DB_RETRY_ATTEMPTS; attempt += 1) {
     try {
-      await prisma.$connect();
+      const client = getActivePrisma();
+      await client.$connect();
       return await operation();
     } catch (error) {
       lastError = error;
 
-      const isInitializationError =
-        error instanceof Prisma.PrismaClientInitializationError ||
-        (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P1001');
+      const prismaCode = error instanceof Prisma.PrismaClientKnownRequestError ? error.code : undefined;
+      const prismaClientVersion = (error as any)?.clientVersion as string | undefined;
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn('[auth.dbRetry] operation failed', {
+        attempt,
+        code: prismaCode,
+        name: (error as any)?.name,
+        message,
+        clientVersion: prismaClientVersion,
+      });
 
-      if (isInitializationError) {
+      const isInitializationError = error instanceof Prisma.PrismaClientInitializationError;
+      const isNetworkFailure =
+        error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P1001';
+      const isAuthFailure =
+        error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P1000';
+
+      if (isAuthFailure) {
+        const recovered = await handlePrismaAuthFailure();
+        if (recovered) {
+          prisma = undefined;
+          await new Promise(resolve => setTimeout(resolve, DB_RETRY_DELAY_MS));
+          continue;
+        }
+      }
+
+      if (isInitializationError || isNetworkFailure) {
         await disconnectPrisma();
-        prisma = getPrismaClient();
+        prisma = undefined;
         await new Promise(resolve => setTimeout(resolve, DB_RETRY_DELAY_MS * (attempt + 1)));
         continue;
       }
@@ -61,7 +89,14 @@ function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
-function toUserPreferences(preferences: Prisma.JsonValue | null | undefined): UserPreferences {
+function getActivePrisma(): PrismaClient {
+  if (!prisma) {
+    prisma = getPrismaClient();
+  }
+  return prisma;
+}
+
+function toUserPreferences(preferences: PrismaTypes.JsonValue | null | undefined): UserPreferences {
   if (!preferences || typeof preferences !== 'object') {
     return {};
   }
@@ -106,6 +141,7 @@ function buildSessionPayload(
 async function createSession(
   userId: string
 ): Promise<{ session: AuthSession; accessToken: string; refreshToken: string }> {
+  const prisma = getActivePrisma();
   const issuedAt = now();
   const accessToken = `access_${randomUUID()}`;
   const refreshToken = `refresh_${randomUUID()}`;
@@ -129,13 +165,16 @@ async function createSession(
 }
 
 async function findUserByEmail(email: string): Promise<AuthUser | null> {
-  return prisma.authUser.findFirst({
-    where: {
-      email: {
-        equals: email.trim().toLowerCase(),
-        mode: 'insensitive',
+  return executeWithDbRetry(() => {
+    const prisma = getActivePrisma();
+    return prisma.authUser.findFirst({
+      where: {
+        email: {
+          equals: email.trim().toLowerCase(),
+          mode: 'insensitive',
+        },
       },
-    },
+    });
   });
 }
 
@@ -144,6 +183,7 @@ export async function registerUser(input: {
   password: string;
   name: string;
 }): Promise<UserSession> {
+  const prisma = getActivePrisma();
   const existing = await findUserByEmail(input.email);
   if (existing) {
     throw new Error('A user with this email already exists');
@@ -195,6 +235,7 @@ export async function authenticateUser(credentials: {
 export async function refreshSession(
   refreshToken: string
 ): Promise<{ accessToken: string; refreshToken: string; expiresAt: Date }> {
+  const prisma = getActivePrisma();
   const session = await prisma.authSession.findFirst({
     where: {
       refreshTokenHash: hashToken(refreshToken),
@@ -234,6 +275,7 @@ export async function refreshSession(
 }
 
 export async function revokeAccessToken(accessToken: string): Promise<void> {
+  const prisma = getActivePrisma();
   await prisma.authSession.updateMany({
     where: {
       accessTokenHash: hashToken(accessToken),
@@ -248,16 +290,19 @@ export async function revokeAccessToken(accessToken: string): Promise<void> {
 
 export async function getUserForAccessToken(accessToken: string): Promise<User | null> {
   const session = await executeWithDbRetry(() =>
-    prisma.authSession.findFirst({
-      where: {
-        accessTokenHash: hashToken(accessToken),
-        revokedAt: null,
-        accessTokenExpiresAt: { gt: now() },
-      },
-      include: {
-        user: true,
-      },
-    })
+    {
+      const prisma = getActivePrisma();
+      return prisma.authSession.findFirst({
+        where: {
+          accessTokenHash: hashToken(accessToken),
+          revokedAt: null,
+          accessTokenExpiresAt: { gt: now() },
+        },
+        include: {
+          user: true,
+        },
+      });
+    }
   );
 
   if (!session?.user) {
@@ -268,6 +313,7 @@ export async function getUserForAccessToken(accessToken: string): Promise<User |
 }
 
 export async function getUserProfile(userId: string): Promise<User> {
+  const prisma = getActivePrisma();
   const user = await prisma.authUser.findUnique({ where: { id: userId } });
   if (!user) {
     throw new Error('User not found');
@@ -276,6 +322,7 @@ export async function getUserProfile(userId: string): Promise<User> {
 }
 
 export async function getTenantForUser(userId: string): Promise<string> {
+  const prisma = getActivePrisma();
   const user = await prisma.authUser.findUnique({
     where: { id: userId },
     select: { tenantId: true },
@@ -298,7 +345,10 @@ export async function ensureDemoUser(seed: {
   preferences?: UserPreferences;
 }): Promise<User> {
   const existing = await executeWithDbRetry(() =>
-    prisma.authUser.findUnique({ where: { id: seed.userId } })
+    {
+      const prisma = getActivePrisma();
+      return prisma.authUser.findUnique({ where: { id: seed.userId } });
+    }
   );
   if (existing) {
     return toUser(existing);
@@ -308,25 +358,28 @@ export async function ensureDemoUser(seed: {
   const createdAt = now();
 
   const user = await executeWithDbRetry(() =>
-    prisma.authUser.create({
-      data: {
-        id: seed.userId,
-        email: seed.email.trim().toLowerCase(),
-        name: seed.name,
-        passwordHash,
-        tenantId: seed.tenantId,
-        avatarUrl: seed.avatarUrl ?? null,
-        preferences: seed.preferences ?? {
-          theme: 'light',
-          notifications: true,
-          emailUpdates: true,
-          language: 'en',
-          timezone: 'UTC',
+    {
+      const prisma = getActivePrisma();
+      return prisma.authUser.create({
+        data: {
+          id: seed.userId,
+          email: seed.email.trim().toLowerCase(),
+          name: seed.name,
+          passwordHash,
+          tenantId: seed.tenantId,
+          avatarUrl: seed.avatarUrl ?? null,
+          preferences: seed.preferences ?? {
+            theme: 'light',
+            notifications: true,
+            emailUpdates: true,
+            language: 'en',
+            timezone: 'UTC',
+          },
+          createdAt,
+          updatedAt: createdAt,
         },
-        createdAt,
-        updatedAt: createdAt,
-      },
-    })
+      });
+    }
   );
 
   return toUser(user);
@@ -368,6 +421,7 @@ export async function getAuthServiceMetrics(): Promise<{
   activeSessions: number;
   knownUsers: number;
 }> {
+  const prisma = getActivePrisma();
   const [activeSessions, knownUsers] = await Promise.all([
     prisma.authSession.count({
       where: {
