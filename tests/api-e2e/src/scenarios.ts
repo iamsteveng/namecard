@@ -1,4 +1,48 @@
-import type { ScenarioDefinition } from './types.js';
+import { randomUUID } from 'node:crypto';
+
+import type { ScenarioContext, ScenarioDefinition, ScenarioOutcome } from './types.js';
+
+const DRY_RUN_NOTE = 'Scenario not executed in dry-run mode';
+
+async function registerNewUser(context: ScenarioContext): Promise<ScenarioOutcome> {
+  if (context.dryRun) {
+    return {
+      status: 'skipped',
+      notes: DRY_RUN_NOTE,
+    };
+  }
+
+  const uniqueSuffix = `${Date.now()}-${randomUUID().slice(0, 8)}`;
+  const email = `e2e+${context.state.runId}.${uniqueSuffix}@example.com`;
+  const password = `E2e!${context.state.runId.slice(0, 8)}`;
+  const name = 'API E2E User';
+
+  context.log(`registering user ${email}`);
+  const registration = await context.api.registerUser({ email, password, name });
+
+  context.log('registration complete, performing explicit login');
+  const session = await context.api.login({ email, password });
+
+  context.log('fetching profile to confirm persisted state');
+  const profile = await context.api.getProfile(session.accessToken);
+
+  if (profile.email.toLowerCase() !== email.toLowerCase()) {
+    throw new Error(`Profile email mismatch. Expected ${email}, received ${profile.email}`);
+  }
+
+  context.state.user = {
+    email,
+    password,
+    userId: registration.userId,
+    accessToken: session.accessToken,
+    refreshToken: session.refreshToken,
+  };
+
+  return {
+    status: 'passed',
+    notes: `Registered and authenticated user ${email}`,
+  };
+}
 
 function pendingScenario(id: string, description: string, todo: string): ScenarioDefinition {
   return {
@@ -16,11 +60,11 @@ function pendingScenario(id: string, description: string, todo: string): Scenari
 }
 
 export const scenarios: ScenarioDefinition[] = [
-  pendingScenario(
-    'register-new-user',
-    'Register a new user and acquire session tokens',
-    'Implement registration + login flow against /v1/auth endpoints.'
-  ),
+  {
+    id: 'register-new-user',
+    description: 'Register a new user and acquire session tokens',
+    execute: registerNewUser,
+  },
   pendingScenario(
     'upload-card-image',
     'Upload card image and ensure OCR job enqueued',

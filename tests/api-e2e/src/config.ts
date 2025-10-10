@@ -1,9 +1,11 @@
+import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { z } from 'zod';
 
+import { createApiClient } from './api-client.js';
 import type { RunEnvironment, ScenarioContext } from './types.js';
 
 const optionsSchema = z.object({
@@ -44,6 +46,11 @@ export async function createHarnessContext(
     );
   }
 
+  const api = await createApiClient(options.env as RunEnvironment, options.dryRun);
+  const state = {
+    runId: randomUUID(),
+  };
+
   const context: ScenarioContext = {
     env: options.env as RunEnvironment,
     dryRun: options.dryRun,
@@ -54,6 +61,8 @@ export async function createHarnessContext(
       // The CLI will replace this logger per-scenario; this is a fallback.
       console.log(message);
     },
+    api,
+    state,
   };
 
   return {
