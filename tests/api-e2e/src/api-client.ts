@@ -5,7 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { z } from 'zod';
 
-import type { ApiClient, AuthSession, RunEnvironment } from './types.js';
+import type { ApiClient, AuthSession, CardRecord, RunEnvironment, UploadRecord } from './types.js';
 
 interface LambdaHttpResponse {
   statusCode: number;
@@ -210,6 +210,127 @@ class LocalLambdaClient implements ApiClient {
     return { email: profile.email };
   }
 
+  async createUpload(
+    accessToken: string,
+    input: { fileName: string; checksum: string; contentType: string; size: number }
+  ): Promise<UploadRecord> {
+    const { response, payload } = await this.invoke('/v1/uploads/presign', 'POST', {
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        'content-type': 'application/json',
+      },
+      body: input,
+    });
+
+    if (response.statusCode >= 400) {
+      throw buildApiError('createUpload', response, payload);
+    }
+
+    return parseUploadEnvelope(payload).upload;
+  }
+
+  async completeUpload(accessToken: string, uploadId: string): Promise<UploadRecord> {
+    const { response, payload } = await this.invoke('/v1/uploads/complete', 'POST', {
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        'content-type': 'application/json',
+      },
+      body: { uploadId },
+    });
+
+    if (response.statusCode >= 400) {
+      throw buildApiError('completeUpload', response, payload);
+    }
+
+    return parseUploadEnvelope(payload).upload;
+  }
+
+  async scanCard(
+    accessToken: string,
+    input: { fileName: string; imageUrl: string; tags?: string[] }
+  ): Promise<{ card: CardRecord; ocrJobId: string; enrichmentId: string }> {
+    const { response, payload } = await this.invoke('/v1/cards/scan', 'POST', {
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        'content-type': 'application/json',
+      },
+      body: input,
+    });
+
+    if (response.statusCode >= 400) {
+      throw buildApiError('scanCard', response, payload);
+    }
+
+    return parseScanEnvelope(payload);
+  }
+
+  async updateCard(
+    accessToken: string,
+    cardId: string,
+    input: Partial<{
+      name: string;
+      title: string;
+      company: string;
+      email: string;
+      phone: string;
+      address: string;
+      website: string;
+      notes: string;
+      tags: string[];
+    }>
+  ): Promise<CardRecord> {
+    const { response, payload } = await this.invoke(`/v1/cards/${cardId}`, 'PATCH', {
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        'content-type': 'application/json',
+      },
+      body: input,
+    });
+
+    if (response.statusCode >= 400) {
+      throw buildApiError('updateCard', response, payload);
+    }
+
+    return parseUpdateCardEnvelope(payload).card;
+  }
+
+  async listCards(accessToken: string): Promise<CardRecord[]> {
+    const { response, payload } = await this.invoke('/v1/cards', 'GET', {
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (response.statusCode >= 400) {
+      throw buildApiError('listCards', response, payload);
+    }
+
+    return parseListCardsEnvelope(payload).cards;
+  }
+
+  async searchCards(
+    accessToken: string,
+    input: { query: string; tags?: string[] }
+  ): Promise<CardRecord[]> {
+    const query = new URLSearchParams();
+    query.set('q', input.query);
+    if (input.tags?.length) {
+      query.set('tags', input.tags.join(','));
+    }
+
+    const { response, payload } = await this.invoke(`/v1/cards/search?${query.toString()}`, 'GET', {
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (response.statusCode >= 400) {
+      throw buildApiError('searchCards', response, payload);
+    }
+
+    return parseSearchCardsEnvelope(payload);
+  }
+
   private async invoke(
     path: string,
     method: string,
@@ -242,6 +363,24 @@ class DryRunClient implements ApiClient {
   async getProfile(): Promise<{ email: string }> {
     throw new Error('API client invoked during dry-run');
   }
+  async createUpload(): Promise<UploadRecord> {
+    throw new Error('API client invoked during dry-run');
+  }
+  async completeUpload(): Promise<UploadRecord> {
+    throw new Error('API client invoked during dry-run');
+  }
+  async scanCard(): Promise<{ card: CardRecord; ocrJobId: string; enrichmentId: string }> {
+    throw new Error('API client invoked during dry-run');
+  }
+  async updateCard(): Promise<CardRecord> {
+    throw new Error('API client invoked during dry-run');
+  }
+  async listCards(): Promise<CardRecord[]> {
+    throw new Error('API client invoked during dry-run');
+  }
+  async searchCards(): Promise<CardRecord[]> {
+    throw new Error('API client invoked during dry-run');
+  }
 }
 
 class NotImplementedClient implements ApiClient {
@@ -256,6 +395,24 @@ class NotImplementedClient implements ApiClient {
   async getProfile(): Promise<{ email: string }> {
     throw new Error(`API client not implemented for environment ${this.env}`);
   }
+  async createUpload(): Promise<UploadRecord> {
+    throw new Error(`API client not implemented for environment ${this.env}`);
+  }
+  async completeUpload(): Promise<UploadRecord> {
+    throw new Error(`API client not implemented for environment ${this.env}`);
+  }
+  async scanCard(): Promise<{ card: CardRecord; ocrJobId: string; enrichmentId: string }> {
+    throw new Error(`API client not implemented for environment ${this.env}`);
+  }
+  async updateCard(): Promise<CardRecord> {
+    throw new Error(`API client not implemented for environment ${this.env}`);
+  }
+  async listCards(): Promise<CardRecord[]> {
+    throw new Error(`API client not implemented for environment ${this.env}`);
+  }
+  async searchCards(): Promise<CardRecord[]> {
+    throw new Error(`API client not implemented for environment ${this.env}`);
+  }
 }
 
 export async function createApiClient(env: RunEnvironment, dryRun: boolean): Promise<ApiClient> {
@@ -264,7 +421,7 @@ export async function createApiClient(env: RunEnvironment, dryRun: boolean): Pro
   }
 
   if (env === 'local') {
-    process.env.DATABASE_URL ||=
+    process.env['DATABASE_URL'] ||=
       'postgresql://namecard_user:namecard_password@localhost:5432/namecard_dev';
     await ensureSharedBuild();
     return new LocalLambdaClient();
@@ -311,13 +468,70 @@ const sessionEnvelopeSchema = z.object({
   }),
 });
 
-function parseSessionEnvelope(payload: unknown) {
-  const result = sessionEnvelopeSchema.safeParse(payload);
-  if (!result.success) {
-    throw new Error(`Unexpected session payload: ${result.error.message}`);
-  }
-  return result.data.data;
-}
+const uploadSchema = z
+  .object({
+    id: z.string(),
+    fileName: z.string(),
+    contentType: z.string(),
+    size: z.number(),
+    status: z.string(),
+    presignedUrl: z.string(),
+    cdnUrl: z.string(),
+    checksum: z.string(),
+  })
+  .passthrough();
+
+const uploadEnvelopeSchema = z.object({
+  data: z.object({
+    upload: uploadSchema,
+  }),
+});
+
+const cardSchema = z
+  .object({
+    id: z.string(),
+    name: z.string().nullable().optional(),
+    title: z.string().nullable().optional(),
+    company: z.string().nullable().optional(),
+    email: z.string().nullable().optional(),
+    phone: z.string().nullable().optional(),
+    tags: z.array(z.string()).optional(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .passthrough();
+
+const scanEnvelopeSchema = z.object({
+  data: z.object({
+    card: cardSchema,
+    ocrJobId: z.string(),
+    enrichmentId: z.string(),
+  }),
+});
+
+const updateCardEnvelopeSchema = z.object({
+  data: z.object({
+    card: cardSchema,
+  }),
+});
+
+const listCardsEnvelopeSchema = z.object({
+  data: z.object({
+    cards: z.array(cardSchema),
+  }),
+});
+
+const searchCardsEnvelopeSchema = z.object({
+  data: z.object({
+    results: z.array(
+      z.object({
+        item: cardSchema,
+        rank: z.number(),
+        highlights: z.string().nullable(),
+      })
+    ),
+  }),
+});
 
 const profileEnvelopeSchema = z.object({
   data: z.object({
@@ -327,10 +541,95 @@ const profileEnvelopeSchema = z.object({
   }),
 });
 
+function parseSessionEnvelope(payload: unknown) {
+  const result = sessionEnvelopeSchema.safeParse(payload);
+  if (!result.success) {
+    throw new Error(`Unexpected session payload: ${result.error.message}`);
+  }
+  return result.data.data;
+}
+
 function parseProfileEnvelope(payload: unknown) {
   const result = profileEnvelopeSchema.safeParse(payload);
   if (!result.success) {
     throw new Error(`Unexpected profile payload: ${result.error.message}`);
   }
   return result.data.data.profile;
+}
+
+function parseUploadEnvelope(payload: unknown): { upload: UploadRecord } {
+  const result = uploadEnvelopeSchema.safeParse(payload);
+  if (!result.success) {
+    throw new Error(`Unexpected upload payload: ${result.error.message}`);
+  }
+  const upload = result.data.data.upload;
+  return {
+    upload: {
+      id: upload.id,
+      fileName: upload.fileName,
+      contentType: upload.contentType,
+      size: upload.size,
+      status: upload.status,
+      presignedUrl: upload.presignedUrl,
+      cdnUrl: upload.cdnUrl,
+      checksum: upload.checksum,
+    },
+  };
+}
+
+function parseScanEnvelope(payload: unknown): {
+  card: CardRecord;
+  ocrJobId: string;
+  enrichmentId: string;
+} {
+  const result = scanEnvelopeSchema.safeParse(payload);
+  if (!result.success) {
+    throw new Error(`Unexpected scan payload: ${result.error.message}`);
+  }
+  const { card, ocrJobId, enrichmentId } = result.data.data;
+  return {
+    card: normalizeCard(card),
+    ocrJobId,
+    enrichmentId,
+  };
+}
+
+function parseUpdateCardEnvelope(payload: unknown): { card: CardRecord } {
+  const result = updateCardEnvelopeSchema.safeParse(payload);
+  if (!result.success) {
+    throw new Error(`Unexpected update payload: ${result.error.message}`);
+  }
+  return { card: normalizeCard(result.data.data.card) };
+}
+
+function parseListCardsEnvelope(payload: unknown): { cards: CardRecord[] } {
+  const result = listCardsEnvelopeSchema.safeParse(payload);
+  if (!result.success) {
+    throw new Error(`Unexpected list payload: ${result.error.message}`);
+  }
+  return {
+    cards: result.data.data.cards.map(normalizeCard),
+  };
+}
+
+function parseSearchCardsEnvelope(payload: unknown): CardRecord[] {
+  const result = searchCardsEnvelopeSchema.safeParse(payload);
+  if (!result.success) {
+    throw new Error(`Unexpected search payload: ${result.error.message}`);
+  }
+  return result.data.data.results.map(item => normalizeCard(item.item));
+}
+
+function normalizeCard(card: z.infer<typeof cardSchema>): CardRecord {
+  return {
+    id: card.id,
+    name: card.name ?? null,
+    title: card.title ?? null,
+    company: card.company ?? null,
+    email: card.email ?? null,
+    phone: card.phone ?? null,
+    tags: Array.isArray(card.tags) ? [...card.tags] : [],
+    createdAt: card.createdAt,
+    updatedAt: card.updatedAt,
+  };
 }

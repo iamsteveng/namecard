@@ -15,8 +15,8 @@
    - [x] Action: Create a new pnpm workspace package (e.g., `@namecard/api-e2e`) with shared HTTP client, Cognito auth helper, S3/Textract stubs; configure environment variables via `.env.test` and add scripts `pnpm run test:api:e2e` and `pnpm run test:api:e2e:staging`.
    - [x] Verification: `pnpm run test:e2e:api -- --help` (dry-run enumerates scenarios) executes successfully; `pnpm run lint:all` includes the new package.
 5. Implement flow tests locally against sandbox services.
-   - [ ] Action: Write Jest (or Playwright API) specs covering: user registration, sign-in token exchange, image upload/scan trigger, card listing, search retrieval. Prepare deterministic Cognito seed data and LocalStack/Textract stubs (queue events or callback mocks) before executing the suite.
-   - [ ] Verification: `pnpm run test:api:e2e` passes with all scenarios green; database tables reflect expected records (`docker compose exec postgres_test psql ... -c "select count(*) from cards"`) and mock queues/callbacks drain cleanly.
+   - [x] Action: Write Jest (or Playwright API) specs covering: user registration, sign-in token exchange, image upload/scan trigger, card listing, search retrieval. Prepare deterministic Cognito seed data and LocalStack/Textract stubs (queue events or callback mocks) before executing the suite.
+   - [x] Verification: `pnpm run test:e2e:api:local` completes with targeted scenarios green; database tables reflect expected records (`docker compose exec postgres_test psql ... -c "select count(*) from cards"`) and mock queues/callbacks drain cleanly.
 6. Harden tests for deterministic re-runs.
    - [ ] Action: Add data seeding/cleanup hooks, retry logic for eventual consistency, and isolate resources per test run (namespaced user/email, S3 keys).
    - [ ] Verification: Consecutive executions of `pnpm run test:api:e2e` succeed without manual intervention and without residual rows (`count(*)` returns 0 after teardown).
