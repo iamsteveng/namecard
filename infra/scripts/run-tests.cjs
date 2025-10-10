@@ -15,9 +15,17 @@ for (let index = 0; index < rawArgs.length; index += 1) {
   mappedArgs.push(arg);
 }
 
+const env = { ...process.env };
+const vmFlag = '--experimental-vm-modules';
+env.NODE_OPTIONS = env.NODE_OPTIONS
+  ? env.NODE_OPTIONS.includes(vmFlag)
+    ? env.NODE_OPTIONS
+    : `${env.NODE_OPTIONS} ${vmFlag}`.trim()
+  : vmFlag;
+
 const result = spawnSync('jest', mappedArgs, {
   stdio: 'inherit',
-  env: process.env,
+  env,
 });
 
 if (result.error) {

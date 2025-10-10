@@ -4,7 +4,7 @@
 
 1. Establish local baseline environment.
    - [x] Action: Pin pnpm (`corepack prepare pnpm@8.15.4 --activate`), install dependencies with `pnpm install --frozen-lockfile`, start local services via `pnpm run fullstack:up`.
-   - [ ] Verification: `pnpm run lint:all && pnpm run type-check:all && pnpm run test:all` complete without error; `docker compose ps` shows required containers healthy.
+   - [x] Verification: `pnpm run lint:all && pnpm run type-check:all && pnpm run test:all` complete without error; `docker compose ps` shows required containers healthy.
 2. Audit existing API integration tests and fixtures.
    - [ ] Action: Inspect `test_phase2_api.js`, `test_search_api.js`, Cypress specs, and shared utilities under `services/shared` to catalogue current coverage and data contracts.
    - [ ] Verification: Produce a short gap analysis note (`tests/api-e2e/GAPS.md`) summarising uncovered flows (register → search) committed to branch.

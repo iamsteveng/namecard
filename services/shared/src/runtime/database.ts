@@ -2,7 +2,13 @@ import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-sec
 
 let bootstrapPromise: Promise<void> | null = null;
 
-function buildConnectionString(host: string, port: number, database: string, username: string, password: string): string {
+function buildConnectionString(
+  host: string,
+  port: number,
+  database: string,
+  username: string,
+  password: string
+): string {
   const encodedUser = encodeURIComponent(username);
   const encodedPass = encodeURIComponent(password);
   const encodedDb = encodeURIComponent(database);
@@ -10,7 +16,7 @@ function buildConnectionString(host: string, port: number, database: string, use
 }
 
 async function resolveDatabaseUrl(): Promise<void> {
-  if (process.env.DATABASE_URL) {
+if (process.env['DATABASE_URL']) {
     return;
   }
 
@@ -37,11 +43,18 @@ async function resolveDatabaseUrl(): Promise<void> {
     }
 
     const secret = JSON.parse(secretString) as Record<string, string | number | undefined>;
-    const username = (secret.username ?? secret.user ?? secret.USER ?? secret.USERNAME) as string | undefined;
-    const password = (secret.password ?? secret.PASSWORD) as string | undefined;
-    const database = (secret.dbname ?? secret.DB_NAME ?? 'namecard') as string;
-    const port = Number(secret.port ?? secret.PORT ?? 5432);
-    const clusterHostSecret = (secret.host as string | undefined) ?? undefined;
+    const username = (
+      secret['username'] ??
+      secret['user'] ??
+      secret['USER'] ??
+      secret['USERNAME']
+    ) as
+      | string
+      | undefined;
+    const password = (secret['password'] ?? secret['PASSWORD']) as string | undefined;
+    const database = (secret['dbname'] ?? secret['DB_NAME'] ?? 'namecard') as string;
+    const port = Number(secret['port'] ?? secret['PORT'] ?? 5432);
+    const clusterHostSecret = (secret['host'] as string | undefined) ?? undefined;
     const clusterHost = clusterHostOverride ?? clusterHostSecret;
 
     if (!username || !password || (!proxyHost && !clusterHost)) {
@@ -90,15 +103,19 @@ async function resolveDatabaseUrl(): Promise<void> {
 
     const primary = connectionStrings[0];
 
-    process.env.DATABASE_URL = primary.url;
-    process.env.DATABASE_URL_MODE = primary.mode;
+    if (!primary) {
+      throw new Error('No database host candidates resolved');
+    }
+
+    process.env['DATABASE_URL'] = primary.url;
+    process.env['DATABASE_URL_MODE'] = primary.mode;
 
     connectionStrings.forEach(({ mode, url }) => {
       if (mode === 'proxy') {
-        process.env.DATABASE_URL_PROXY = url;
+        process.env['DATABASE_URL_PROXY'] = url;
       }
       if (mode === 'cluster') {
-        process.env.DATABASE_URL_CLUSTER = url;
+        process.env['DATABASE_URL_CLUSTER'] = url;
       }
     });
 
@@ -116,12 +133,12 @@ async function resolveDatabaseUrl(): Promise<void> {
 }
 
 export async function ensureDatabaseUrl(): Promise<void> {
-  if (process.env.DATABASE_URL) {
+  if (process.env['DATABASE_URL']) {
     return;
   }
 
   if (!bootstrapPromise) {
-    bootstrapPromise = resolveDatabaseUrl().catch((error) => {
+    bootstrapPromise = resolveDatabaseUrl().catch(error => {
       bootstrapPromise = null;
       throw error;
     });

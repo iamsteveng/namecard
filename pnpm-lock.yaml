@@ -137,6 +137,9 @@ importers:
 
   services/shared:
     dependencies:
+      '@aws-sdk/client-secrets-manager':
+        specifier: ^3.896.0
+        version: 3.896.0
       '@aws-sdk/rds-signer':
         specifier: ^3.896.0
         version: 3.906.0

@@ -3,12 +3,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import type { Prisma as PrismaTypes, PrismaClient, AuthSession, AuthUser } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
-import {
-  disconnectPrisma,
-  getPrismaClient,
-  handlePrismaAuthFailure,
-  Prisma,
-} from './prisma';
+import { disconnectPrisma, getPrismaClient, handlePrismaAuthFailure, Prisma } from './prisma';
 import type { User } from '../types/user.types';
 import type { UserPreferences } from '../types/common.types';
 import type { UserSession } from '../types/user.types';
@@ -41,7 +36,8 @@ async function executeWithDbRetry<T>(operation: () => Promise<T>): Promise<T> {
     } catch (error) {
       lastError = error;
 
-      const prismaCode = error instanceof Prisma.PrismaClientKnownRequestError ? error.code : undefined;
+      const prismaCode =
+        error instanceof Prisma.PrismaClientKnownRequestError ? error.code : undefined;
       const prismaClientVersion = (error as any)?.clientVersion as string | undefined;
       const message = error instanceof Error ? error.message : String(error);
       console.warn('[auth.dbRetry] operation failed', {
@@ -289,21 +285,19 @@ export async function revokeAccessToken(accessToken: string): Promise<void> {
 }
 
 export async function getUserForAccessToken(accessToken: string): Promise<User | null> {
-  const session = await executeWithDbRetry(() =>
-    {
-      const prisma = getActivePrisma();
-      return prisma.authSession.findFirst({
-        where: {
-          accessTokenHash: hashToken(accessToken),
-          revokedAt: null,
-          accessTokenExpiresAt: { gt: now() },
-        },
-        include: {
-          user: true,
-        },
-      });
-    }
-  );
+  const session = await executeWithDbRetry(() => {
+    const prisma = getActivePrisma();
+    return prisma.authSession.findFirst({
+      where: {
+        accessTokenHash: hashToken(accessToken),
+        revokedAt: null,
+        accessTokenExpiresAt: { gt: now() },
+      },
+      include: {
+        user: true,
+      },
+    });
+  });
 
   if (!session?.user) {
     return null;
@@ -344,12 +338,10 @@ export async function ensureDemoUser(seed: {
   avatarUrl?: string;
   preferences?: UserPreferences;
 }): Promise<User> {
-  const existing = await executeWithDbRetry(() =>
-    {
-      const prisma = getActivePrisma();
-      return prisma.authUser.findUnique({ where: { id: seed.userId } });
-    }
-  );
+  const existing = await executeWithDbRetry(() => {
+    const prisma = getActivePrisma();
+    return prisma.authUser.findUnique({ where: { id: seed.userId } });
+  });
   if (existing) {
     return toUser(existing);
   }
@@ -357,30 +349,28 @@ export async function ensureDemoUser(seed: {
   const passwordHash = await bcrypt.hash(seed.password, 10);
   const createdAt = now();
 
-  const user = await executeWithDbRetry(() =>
-    {
-      const prisma = getActivePrisma();
-      return prisma.authUser.create({
-        data: {
-          id: seed.userId,
-          email: seed.email.trim().toLowerCase(),
-          name: seed.name,
-          passwordHash,
-          tenantId: seed.tenantId,
-          avatarUrl: seed.avatarUrl ?? null,
-          preferences: seed.preferences ?? {
-            theme: 'light',
-            notifications: true,
-            emailUpdates: true,
-            language: 'en',
-            timezone: 'UTC',
-          },
-          createdAt,
-          updatedAt: createdAt,
+  const user = await executeWithDbRetry(() => {
+    const prisma = getActivePrisma();
+    return prisma.authUser.create({
+      data: {
+        id: seed.userId,
+        email: seed.email.trim().toLowerCase(),
+        name: seed.name,
+        passwordHash,
+        tenantId: seed.tenantId,
+        avatarUrl: seed.avatarUrl ?? null,
+        preferences: seed.preferences ?? {
+          theme: 'light',
+          notifications: true,
+          emailUpdates: true,
+          language: 'en',
+          timezone: 'UTC',
         },
-      });
-    }
-  );
+        createdAt,
+        updatedAt: createdAt,
+      },
+    });
+  });
 
   return toUser(user);
 }
