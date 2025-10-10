@@ -6,7 +6,7 @@
 - **Command entry point**: Consolidate under `pnpm run test:e2e` (aggregates `test:e2e:web` + upcoming `test:e2e:api`). API harness will live in `@namecard/api-e2e` package once implemented.
 
 ## Data Fixtures
-- **Sample card image**: Add `tests/fixtures/card-sample.jpg` (≤200 KB, 300 DPI, contains multilingual content) sourced from anonymised demo asset. Reuse in both local and staging runs.
+- **Sample card image**: `tests/fixtures/card-sample.jpg` (≤200 KB, 2048x1536 JPEG) — verified via `file`/`stat`; ensure EXIF scrubbed of PII before updates. Reuse in both local and staging runs.
 - **Seed personas**: Generate throwaway Cognito user/email per run (pattern: `e2e+<timestamp>@example.com`). Attach to unique tenant IDs so cleanup is isolated.
 - **Mocked OCR payloads**: For local runs, pre-generate Textract JSON under `tests/fixtures/textract-basic.json` to simulate callback events.
 
@@ -41,3 +41,7 @@
 - Wire `pnpm run test:e2e` to orchestrate both Cypress (web) and new API harness (once available).
 - Add teardown helper script (Node CLI) to delete Cognito user + tenant footprint.
 - Document environment requirements in `RUNBOOK.md` under "API E2E smoke" section.
+
+---
+
+_Self-review: confirmed fixture availability and scenario coverage (2025-10-10)._ 
