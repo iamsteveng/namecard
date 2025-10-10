@@ -16,7 +16,7 @@ function buildConnectionString(
 }
 
 async function resolveDatabaseUrl(): Promise<void> {
-if (process.env['DATABASE_URL']) {
+  if (process.env['DATABASE_URL']) {
     return;
   }
 
@@ -43,14 +43,10 @@ if (process.env['DATABASE_URL']) {
     }
 
     const secret = JSON.parse(secretString) as Record<string, string | number | undefined>;
-    const username = (
-      secret['username'] ??
+    const username = (secret['username'] ??
       secret['user'] ??
       secret['USER'] ??
-      secret['USERNAME']
-    ) as
-      | string
-      | undefined;
+      secret['USERNAME']) as string | undefined;
     const password = (secret['password'] ?? secret['PASSWORD']) as string | undefined;
     const database = (secret['dbname'] ?? secret['DB_NAME'] ?? 'namecard') as string;
     const port = Number(secret['port'] ?? secret['PORT'] ?? 5432);
