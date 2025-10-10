@@ -18,8 +18,8 @@
    - [x] Action: Write Jest (or Playwright API) specs covering: user registration, sign-in token exchange, image upload/scan trigger, card listing, search retrieval. Prepare deterministic Cognito seed data and LocalStack/Textract stubs (queue events or callback mocks) before executing the suite.
    - [x] Verification: `pnpm run test:e2e:api:local` completes with targeted scenarios green; database tables reflect expected records (`docker compose exec postgres_test psql ... -c "select count(*) from cards"`) and mock queues/callbacks drain cleanly.
 6. Harden tests for deterministic re-runs.
-   - [ ] Action: Add data seeding/cleanup hooks, retry logic for eventual consistency, and isolate resources per test run (namespaced user/email, S3 keys).
-   - [ ] Verification: Consecutive executions of `pnpm run test:api:e2e` succeed without manual intervention and without residual rows (`count(*)` returns 0 after teardown).
+   - [x] Action: Add data seeding/cleanup hooks, retry logic for eventual consistency, and isolate resources per test run (namespaced user/email, S3 keys).
+   - [x] Verification: `pnpm run test:e2e:api:local` can be executed repeatedly without manual intervention and teardown queries confirm zero residual rows in cards/uploads/OCR/auth tables.
 7. Execute tests against staging AWS stack.
    - [ ] Action: Parameterise base URL and credentials; provision required Cognito clients/SSM secrets and document VPN/AWS profile prerequisites; run `pnpm run test:api:e2e:staging` from a workstation with those credentials targeting the deployed API.
    - [ ] Verification: Command exits 0; confirm staging CloudWatch logs show exercised Lambdas; verify S3/Textract artefacts cleaned up and temporary Cognito users removed.

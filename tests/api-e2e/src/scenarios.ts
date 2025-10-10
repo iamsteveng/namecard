@@ -339,6 +339,59 @@ async function cleanupLocalDatabase(input: {
     await client.query('ROLLBACK');
     throw error;
   } finally {
+    await verifyCleanup(client, input);
     await client.end();
+  }
+}
+
+async function verifyCleanup(
+  client: Client,
+  input: {
+    userId: string;
+    cardId?: string;
+    uploadId?: string;
+  }
+): Promise<void> {
+  const checks: Array<{ label: string; query: string; params?: Array<string | undefined> }> = [
+    {
+      label: 'cards',
+      query: 'SELECT COUNT(*)::int AS count FROM "cards"."CardsCard" WHERE user_id = $1',
+      params: [input.userId],
+    },
+    {
+      label: 'uploads',
+      query: 'SELECT COUNT(*)::int AS count FROM "uploads"."UploadsAsset" WHERE user_id = $1',
+      params: [input.userId],
+    },
+    {
+      label: 'ocr jobs',
+      query: 'SELECT COUNT(*)::int AS count FROM "ocr"."OcrJob" WHERE requested_by = $1',
+      params: [input.userId],
+    },
+    {
+      label: 'enrichment records',
+      query:
+        'SELECT COUNT(*)::int AS count FROM "enrichment"."EnrichmentRecord" WHERE requested_by = $1',
+      params: [input.userId],
+    },
+    {
+      label: 'auth sessions',
+      query: 'SELECT COUNT(*)::int AS count FROM "auth"."AuthSession" WHERE user_id = $1',
+      params: [input.userId],
+    },
+    {
+      label: 'auth users',
+      query: 'SELECT COUNT(*)::int AS count FROM "auth"."AuthUser" WHERE id = $1',
+      params: [input.userId],
+    },
+  ];
+
+  for (const check of checks) {
+    const result = await client.query(check.query, check.params ?? []);
+    const row = result.rows[0];
+    const count = typeof row?.count === 'number' ? row.count : Number(row?.count ?? 0);
+    if (count > 0) {
+      throw new Error(`Teardown incomplete: ${count} ${check.label} remaining`);
+    }
   }
 }
