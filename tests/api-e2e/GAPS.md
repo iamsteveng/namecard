@@ -1,7 +1,7 @@
 # API E2E Coverage Gaps (Register → Search Flow)
 
 ## What Exists Today
-- `test_phase2_api.js` and `test_search_api.js` target legacy Express endpoints via localhost and reuse demo credentials; Lambda mode shortcuts seed data and reuse cached access tokens.
+- Legacy Node scripts (`test_phase2_api.js`, `test_search_api.js`) previously targeted Express endpoints via localhost and reused demo credentials; they are being retired in favour of a consolidated harness.
 - Cypress specs (`cypress/e2e/auth.cy.ts`, `cypress/e2e/cards.cy.ts`) validate login, profile fetch, basic card listing/stats/search using the pre-seeded demo workspace.
 - No suite exercises the serverless handlers end-to-end with realistic Cognito auth; tests rely on dev bypass tokens or hard-coded JWTs.
 

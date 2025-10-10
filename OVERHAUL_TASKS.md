@@ -47,7 +47,7 @@
 
 **Test Cases**
 - [x] verified — Domain-specific unit tests execute via `pnpm run test -- --scope services` (runs the shared package Jest suite including the Lambda end-to-end flow).
-- [x] verified — Lambda-mode contract checks succeed with `USE_LAMBDA_HANDLERS=true pnpm exec node test_phase2_api.js` and `USE_LAMBDA_HANDLERS=true pnpm exec node test_search_api.js` to simulate API Gateway behaviour without the legacy Express server.
+- [x] verified — Lambda-mode contract checks now run through the unified E2E harness (see `tests/api-e2e/PLAN.md`) rather than the legacy `test_phase2_api.js` / `test_search_api.js` scripts.
 
 ## Task 7 — Database Migration Authoring Workflow
 - [x] done — Establish per-service migration directories, timestamped filename templates, lint/CI guards for unsafe SQL, drift detection automation, and documentation on adding migrations, ensuring migrations bundle automatically with deployments and record metadata in `schema_migrations`.
