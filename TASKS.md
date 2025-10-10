@@ -15,14 +15,14 @@
    - [ ] Action: Create a new pnpm workspace package (e.g., `@namecard/api-e2e`) with shared HTTP client, Cognito auth helper, S3/Textract stubs; configure environment variables via `.env.test` and add scripts `pnpm run test:api:e2e` and `pnpm run test:api:e2e:staging`.
    - [ ] Verification: `pnpm run test:api:e2e -- --help` (or dry-run flag) lists available scenarios; linting on the new package passes.
 5. Implement flow tests locally against sandbox services.
-   - [ ] Action: Write Jest (or Playwright API) specs covering: user registration, sign-in token exchange, image upload/scan trigger, card listing, search retrieval. Use LocalStack/Textract mocks to simulate OCR callback.
-   - [ ] Verification: `pnpm run test:api:e2e` passes with all scenarios green; database tables reflect expected records (`docker compose exec postgres_test psql ... -c "select count(*) from cards"`).
+   - [ ] Action: Write Jest (or Playwright API) specs covering: user registration, sign-in token exchange, image upload/scan trigger, card listing, search retrieval. Prepare deterministic Cognito seed data and LocalStack/Textract stubs (queue events or callback mocks) before executing the suite.
+   - [ ] Verification: `pnpm run test:api:e2e` passes with all scenarios green; database tables reflect expected records (`docker compose exec postgres_test psql ... -c "select count(*) from cards"`) and mock queues/callbacks drain cleanly.
 6. Harden tests for deterministic re-runs.
    - [ ] Action: Add data seeding/cleanup hooks, retry logic for eventual consistency, and isolate resources per test run (namespaced user/email, S3 keys).
    - [ ] Verification: Consecutive executions of `pnpm run test:api:e2e` succeed without manual intervention and without residual rows (`count(*)` returns 0 after teardown).
 7. Execute tests against staging AWS stack.
-   - [ ] Action: Parameterise base URL and credentials; store staging secrets in GitHub/AWS SSM; run `pnpm run test:api:e2e:staging` from workstation (assumes VPN/AWS creds) targeting deployed API.
-   - [ ] Verification: Command exits 0; confirm staging CloudWatch logs show exercised Lambdas; verify S3/Textract artefacts cleaned up.
+   - [ ] Action: Parameterise base URL and credentials; provision required Cognito clients/SSM secrets and document VPN/AWS profile prerequisites; run `pnpm run test:api:e2e:staging` from a workstation with those credentials targeting the deployed API.
+   - [ ] Verification: Command exits 0; confirm staging CloudWatch logs show exercised Lambdas; verify S3/Textract artefacts cleaned up and temporary Cognito users removed.
 8. Document operations + add runbook entry.
    - [ ] Action: Update `RUNBOOK.md` with “API E2E smoke” section describing invocation, environment variables, roll-back steps.
    - [ ] Verification: Markdown lint passes; reviewer acknowledges update during PR.
@@ -35,15 +35,12 @@
 2. Provide staging execution toggle for workflows.
    - [ ] Action: Add boolean/choice input to workflow_dispatch for running staging tests; guard the new job to trigger on main/promotion only; configure AWS credentials + secrets references.
    - [ ] Verification: Manual `workflow_dispatch` dry-run (no promotion) shows staging job skipped/enabled according to input in GitHub UI.
-3. Validate workflow locally before push.
-   - [ ] Action: Use `act pull_request --job quality` and `act pull_request --job api_e2e` (with Docker-in-Docker) to ensure jobs succeed in simulated GitHub environment.
-   - [ ] Verification: act completes without non-zero exit codes; inspect logs for service start-up timing issues.
+3. Validate workflow logic before push.
+   - [ ] Action: Dry-run the updated workflow (e.g., `pnpm exec actionlint`, targeted script invocations) and, if Docker resources allow, optionally run `act pull_request --job quality` / `--job api_e2e` to catch orchestration issues early.
+   - [ ] Verification: Local lint/dry-run checks complete without error; if `act` is executed, it exits 0 and logs show services starting cleanly.
 4. Push feature branch and monitor GitHub Actions.
    - [ ] Action: Open PR; ensure `quality`, `api_e2e`, `infrastructure_dry_run`, `launch_readiness` jobs complete successfully.
    - [ ] Verification: Capture run URL + success screenshot in PR comments; annotate any flakes for follow-up.
 5. Promote to staging and confirm AWS execution path.
    - [ ] Action: Trigger `workflow_dispatch` with `environment=staging`, `promote=true`; confirm new job runs against staging endpoints using stored secrets.
    - [ ] Verification: Workflow finishes green; AWS CloudWatch/SQS queues show expected traffic; update PR/issue with confirmation notes.
-6. Establish ongoing monitoring + alerts.
-   - [ ] Action: Configure GitHub branch protection requiring `api_e2e` job; add Slack/Teams webhook for failure notifications; optionally surface metrics in existing monitoring dashboards.
-   - [ ] Verification: Branch protection rule visible in repository settings; send test notification to channel; document links in RUNBOOK.
