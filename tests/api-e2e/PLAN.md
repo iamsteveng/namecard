@@ -1,9 +1,9 @@
 # API E2E Scenario Plan
 
 ## Environments & Tooling
-- **Local (Docker stack)**: `pnpm run fullstack:up` to provision Postgres, Redis, LocalStack, and frontend sandbox. Test harness runs against http://localhost:4100 proxying Lambda sandbox events.
+- **Local (Docker stack)**: `pnpm run fullstack:up` to provision Postgres, Redis, LocalStack, and frontend sandbox. Test harness targets the Lambda sandbox at http://localhost:4100 (configurable later).
 - **Staging (AWS)**: Requires VPN + AWS SSO credentials with permission to invoke API Gateway, Cognito, S3, Textract, EventBridge, and Secrets Manager.
-- **Command entry point**: Consolidate under `pnpm run test:e2e` (aggregates `test:e2e:web` + upcoming `test:e2e:api`). API harness will live in `@namecard/api-e2e` package once implemented.
+- **Harness CLI**: `pnpm run test:e2e:api` (dry-run) or `pnpm run test:e2e:api:local`/`...:staging` once flows are implemented. `pnpm run test:e2e` now runs both Cypress (`test:e2e:web`) and the API harness sequentially.
 
 ## Data Fixtures
 - **Sample card image**: `tests/fixtures/card-sample.jpg` (≤200 KB, 2048x1536 JPEG) — verified via `file`/`stat`; ensure EXIF scrubbed of PII before updates. Reuse in both local and staging runs.

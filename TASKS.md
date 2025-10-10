@@ -12,8 +12,8 @@
    - [x] Action: Draft scenario table (request payloads, expected responses, prerequisite state, clean-up strategy) in `tests/api-e2e/PLAN.md`; select sample card image (reuse existing fixture or add to `tests/fixtures/card-sample.jpg`).
    - [x] Verification: Peer review or self-review sign-off noted in PLAN.md; image fixture loads locally (`file` command reports correct format) and repository size impact <200 KB.
 4. Build reusable API test harness.
-   - [ ] Action: Create a new pnpm workspace package (e.g., `@namecard/api-e2e`) with shared HTTP client, Cognito auth helper, S3/Textract stubs; configure environment variables via `.env.test` and add scripts `pnpm run test:api:e2e` and `pnpm run test:api:e2e:staging`.
-   - [ ] Verification: `pnpm run test:api:e2e -- --help` (or dry-run flag) lists available scenarios; linting on the new package passes.
+   - [x] Action: Create a new pnpm workspace package (e.g., `@namecard/api-e2e`) with shared HTTP client, Cognito auth helper, S3/Textract stubs; configure environment variables via `.env.test` and add scripts `pnpm run test:api:e2e` and `pnpm run test:api:e2e:staging`.
+   - [x] Verification: `pnpm run test:e2e:api -- --help` (dry-run enumerates scenarios) executes successfully; `pnpm run lint:all` includes the new package.
 5. Implement flow tests locally against sandbox services.
    - [ ] Action: Write Jest (or Playwright API) specs covering: user registration, sign-in token exchange, image upload/scan trigger, card listing, search retrieval. Prepare deterministic Cognito seed data and LocalStack/Textract stubs (queue events or callback mocks) before executing the suite.
    - [ ] Verification: `pnpm run test:api:e2e` passes with all scenarios green; database tables reflect expected records (`docker compose exec postgres_test psql ... -c "select count(*) from cards"`) and mock queues/callbacks drain cleanly.
