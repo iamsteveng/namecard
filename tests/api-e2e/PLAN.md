@@ -21,6 +21,10 @@
 | `search-cards` (local ✅) | Validate search index updates with new card content. | GET `/v1/cards/search?q=<company>`; GET `/v1/search/cards?q=<name>`. | 200 responses containing card id; search meta shows hit count ≥1. | Search service indexer; eventual consistency window (poll with backoff). | Delete search index entries if API supports; otherwise wait for DB cleanup job. |
 | `tear-down-user` (local ✅) | Ensure run leaves no residue. | Call admin teardown utility (API or direct SQL) after tests. | All rows for tenant removed; S3/Textract assets deleted; Cognito user gone. | Access to teardown endpoint or DB credentials. | n/a |
 
+### Environment Notes
+- **Staging prerequisites:** set `API_E2E_BASE_URL=https://<host>/api` (include `/api` prefix). If the gateway requires an API key, export `API_E2E_STAGE_API_KEY`. Invoke the suite with `pnpm run test:e2e:api:staging` or `pnpm --filter @namecard/api-e2e run test:staging -- --base-url ...`.
+- The staging teardown deletes created cards via `DELETE /v1/cards/{id}` and logs out the temporary user. The Cognito identity remains for audit trails; coordinate periodic cleanup with the identity team.
+
 ## Execution Flow
 1. Bootstrap harness context (env vars, fixture paths, HTTP client, logging).
 2. Run scenarios sequentially with timeout-aware polling for async operations.

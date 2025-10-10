@@ -135,38 +135,54 @@ async function invokeLambda(
   return { response, payload };
 }
 
-function resolveServiceFromPath(pathname: string): string {
-  const segments = pathname.replace(/^\/+/, '').split('/');
-  if (segments[0] === 'api') {
-    segments.shift();
-  }
-  if (segments[0] !== 'v1' || segments.length < 2) {
-    throw new Error(`Unsupported API path: ${pathname}`);
-  }
-  const service = segments[1];
-  if (!service) {
-    throw new Error(`Unable to resolve service from path: ${pathname}`);
-  }
-  return service;
+interface ApiClientOptions {
+  baseUrl?: string;
+  apiKey?: string;
 }
 
-class LocalLambdaClient implements ApiClient {
+export async function createApiClient(
+  env: RunEnvironment,
+  dryRun: boolean,
+  options: ApiClientOptions = {}
+): Promise<ApiClient> {
+  if (dryRun) {
+    return new DryRunClient();
+  }
+
+  if (env === 'local') {
+    process.env['DATABASE_URL'] ||=
+      'postgresql://namecard_user:namecard_password@localhost:5432/namecard_dev';
+    await ensureSharedBuild();
+    return new LocalLambdaClient();
+  }
+
+  if (!options.baseUrl) {
+    throw new Error('Remote API client requires API_E2E_BASE_URL or --base-url');
+  }
+
+  return new RemoteHttpClient(
+    options.baseUrl,
+    options.apiKey ? { 'x-api-key': options.apiKey } : {}
+  );
+}
+
+class RemoteHttpClient implements ApiClient {
+  constructor(
+    private readonly baseUrl: string,
+    private readonly defaultHeaders: Record<string, string>
+  ) {}
+
   async registerUser(input: {
     email: string;
     password: string;
     name: string;
   }): Promise<AuthSession> {
-    const { response, payload } = await this.invoke('/v1/auth/register', 'POST', {
-      body: input,
-      headers: { 'content-type': 'application/json' },
+    const payload = await this.request('/v1/auth/register', {
+      method: 'POST',
+      json: input,
     });
 
-    if (response.statusCode >= 400) {
-      throw buildApiError('registerUser', response, payload);
-    }
-
     const { user, session } = parseSessionEnvelope(payload);
-
     return {
       userId: user.id,
       email: user.email,
@@ -177,17 +193,12 @@ class LocalLambdaClient implements ApiClient {
   }
 
   async login(input: { email: string; password: string }): Promise<AuthSession> {
-    const { response, payload } = await this.invoke('/v1/auth/login', 'POST', {
-      body: input,
-      headers: { 'content-type': 'application/json' },
+    const payload = await this.request('/v1/auth/login', {
+      method: 'POST',
+      json: input,
     });
 
-    if (response.statusCode >= 400) {
-      throw buildApiError('login', response, payload);
-    }
-
     const { user, session } = parseSessionEnvelope(payload);
-
     return {
       userId: user.id,
       email: user.email,
@@ -198,12 +209,219 @@ class LocalLambdaClient implements ApiClient {
   }
 
   async getProfile(accessToken: string): Promise<{ email: string }> {
+    const payload = await this.request('/v1/auth/profile', {
+      method: 'GET',
+      authToken: accessToken,
+    });
+    const profile = parseProfileEnvelope(payload);
+    return { email: profile.email };
+  }
+
+  async createUpload(
+    accessToken: string,
+    input: { fileName: string; checksum: string; contentType: string; size: number }
+  ): Promise<UploadRecord> {
+    const payload = await this.request('/v1/uploads/presign', {
+      method: 'POST',
+      authToken: accessToken,
+      json: input,
+    });
+
+    return parseUploadEnvelope(payload).upload;
+  }
+
+  async completeUpload(accessToken: string, uploadId: string): Promise<UploadRecord> {
+    const payload = await this.request('/v1/uploads/complete', {
+      method: 'POST',
+      authToken: accessToken,
+      json: { uploadId },
+    });
+
+    return parseUploadEnvelope(payload).upload;
+  }
+
+  async scanCard(
+    accessToken: string,
+    input: { fileName: string; imageUrl: string; tags?: string[] }
+  ): Promise<{ card: CardRecord; ocrJobId: string; enrichmentId: string }> {
+    const payload = await this.request('/v1/cards/scan', {
+      method: 'POST',
+      authToken: accessToken,
+      json: input,
+    });
+
+    return parseScanEnvelope(payload);
+  }
+
+  async updateCard(
+    accessToken: string,
+    cardId: string,
+    input: Partial<{
+      name: string;
+      title: string;
+      company: string;
+      email: string;
+      phone: string;
+      address: string;
+      website: string;
+      notes: string;
+      tags: string[];
+    }>
+  ): Promise<CardRecord> {
+    const payload = await this.request(`/v1/cards/${cardId}`, {
+      method: 'PATCH',
+      authToken: accessToken,
+      json: input,
+    });
+
+    return parseUpdateCardEnvelope(payload).card;
+  }
+
+  async listCards(accessToken: string): Promise<CardRecord[]> {
+    const payload = await this.request('/v1/cards', {
+      method: 'GET',
+      authToken: accessToken,
+    });
+
+    return parseListCardsEnvelope(payload).cards;
+  }
+
+  async searchCards(
+    accessToken: string,
+    input: { query: string; tags?: string[] }
+  ): Promise<CardRecord[]> {
+    const params = new URLSearchParams({ q: input.query });
+    if (input.tags?.length) {
+      params.set('tags', input.tags.join(','));
+    }
+
+    const payload = await this.request(`/v1/cards/search?${params.toString()}`, {
+      method: 'GET',
+      authToken: accessToken,
+    });
+
+    return parseSearchCardsEnvelope(payload);
+  }
+
+  async deleteCard(accessToken: string, cardId: string): Promise<void> {
+    await this.request(`/v1/cards/${cardId}`, {
+      method: 'DELETE',
+      authToken: accessToken,
+      expectJson: false,
+    });
+  }
+
+  async logout(accessToken: string): Promise<void> {
+    await this.request('/v1/auth/logout', {
+      method: 'POST',
+      authToken: accessToken,
+      expectJson: false,
+    }).catch(() => undefined);
+  }
+
+  private async request(
+    path: string,
+    init: {
+      method?: string;
+      authToken?: string;
+      json?: unknown;
+      expectJson?: boolean;
+    }
+  ): Promise<unknown> {
+    const url = this.resolveUrl(path);
+    const headers: Record<string, string> = { ...this.defaultHeaders };
+
+    if (init.json !== undefined) {
+      headers['content-type'] = 'application/json';
+    }
+    if (init.authToken) {
+      headers['authorization'] = `Bearer ${init.authToken}`;
+    }
+
+    const response = await fetch(url, {
+      method: init.method ?? 'GET',
+      headers,
+      body:
+        init.json === undefined
+          ? undefined
+          : typeof init.json === 'string'
+            ? (init.json as string)
+            : JSON.stringify(init.json),
+    });
+
+    if (!response.ok) {
+      const errorPayload = await safeReadJson(response);
+      throw buildApiError(`${init.method ?? 'GET'} ${path}`, response.status, errorPayload);
+    }
+
+    if (init.expectJson === false || response.status === 204) {
+      return undefined;
+    }
+
+    return safeReadJson(response);
+  }
+
+  private resolveUrl(pathname: string): string {
+    const base = this.baseUrl.endsWith('/') ? this.baseUrl.slice(0, -1) : this.baseUrl;
+    const normalised = pathname.startsWith('/') ? pathname : `/${pathname}`;
+    return `${base}${normalised}`;
+  }
+}
+
+class LocalLambdaClient implements ApiClient {
+  async registerUser(input: {
+    email: string;
+    password: string;
+    name: string;
+  }): Promise<AuthSession> {
+    const { response, payload } = await this.invoke('/v1/auth/register', 'POST', {
+      headers: { 'content-type': 'application/json' },
+      body: input,
+    });
+
+    if (response.statusCode >= 400) {
+      throw buildApiError('registerUser', response.statusCode, payload);
+    }
+
+    const data = parseSessionEnvelope(payload);
+
+    return {
+      userId: data.user.id,
+      email: data.user.email,
+      accessToken: data.session.accessToken,
+      refreshToken: data.session.refreshToken,
+      expiresAt: data.session.expiresAt,
+    };
+  }
+
+  async login(input: { email: string; password: string }): Promise<AuthSession> {
+    const { response, payload } = await this.invoke('/v1/auth/login', 'POST', {
+      headers: { 'content-type': 'application/json' },
+      body: input,
+    });
+
+    if (response.statusCode >= 400) {
+      throw buildApiError('login', response.statusCode, payload);
+    }
+
+    const data = parseSessionEnvelope(payload);
+
+    return {
+      userId: data.user.id,
+      email: data.user.email,
+      accessToken: data.session.accessToken,
+      refreshToken: data.session.refreshToken,
+      expiresAt: data.session.expiresAt,
+    };
+  }
+
+  async getProfile(accessToken: string): Promise<{ email: string }> {
     const { response, payload } = await this.invoke('/v1/auth/profile', 'GET', {
       headers: { authorization: `Bearer ${accessToken}` },
     });
 
     if (response.statusCode >= 400) {
-      throw buildApiError('getProfile', response, payload);
+      throw buildApiError('getProfile', response.statusCode, payload);
     }
 
     const profile = parseProfileEnvelope(payload);
@@ -223,7 +441,7 @@ class LocalLambdaClient implements ApiClient {
     });
 
     if (response.statusCode >= 400) {
-      throw buildApiError('createUpload', response, payload);
+      throw buildApiError('createUpload', response.statusCode, payload);
     }
 
     return parseUploadEnvelope(payload).upload;
@@ -239,7 +457,7 @@ class LocalLambdaClient implements ApiClient {
     });
 
     if (response.statusCode >= 400) {
-      throw buildApiError('completeUpload', response, payload);
+      throw buildApiError('completeUpload', response.statusCode, payload);
     }
 
     return parseUploadEnvelope(payload).upload;
@@ -258,7 +476,7 @@ class LocalLambdaClient implements ApiClient {
     });
 
     if (response.statusCode >= 400) {
-      throw buildApiError('scanCard', response, payload);
+      throw buildApiError('scanCard', response.statusCode, payload);
     }
 
     return parseScanEnvelope(payload);
@@ -288,7 +506,7 @@ class LocalLambdaClient implements ApiClient {
     });
 
     if (response.statusCode >= 400) {
-      throw buildApiError('updateCard', response, payload);
+      throw buildApiError('updateCard', response.statusCode, payload);
     }
 
     return parseUpdateCardEnvelope(payload).card;
@@ -302,7 +520,7 @@ class LocalLambdaClient implements ApiClient {
     });
 
     if (response.statusCode >= 400) {
-      throw buildApiError('listCards', response, payload);
+      throw buildApiError('listCards', response.statusCode, payload);
     }
 
     return parseListCardsEnvelope(payload).cards;
@@ -312,23 +530,46 @@ class LocalLambdaClient implements ApiClient {
     accessToken: string,
     input: { query: string; tags?: string[] }
   ): Promise<CardRecord[]> {
-    const query = new URLSearchParams();
-    query.set('q', input.query);
+    const params = new URLSearchParams({ q: input.query });
     if (input.tags?.length) {
-      query.set('tags', input.tags.join(','));
+      params.set('tags', input.tags.join(','));
     }
 
-    const { response, payload } = await this.invoke(`/v1/cards/search?${query.toString()}`, 'GET', {
+    const { response, payload } = await this.invoke(
+      `/v1/cards/search?${params.toString()}`,
+      'GET',
+      {
+        headers: {
+          authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+
+    if (response.statusCode >= 400) {
+      throw buildApiError('searchCards', response.statusCode, payload);
+    }
+
+    return parseSearchCardsEnvelope(payload);
+  }
+
+  async deleteCard(accessToken: string, cardId: string): Promise<void> {
+    const { response, payload } = await this.invoke(`/v1/cards/${cardId}`, 'DELETE', {
       headers: {
         authorization: `Bearer ${accessToken}`,
       },
     });
 
     if (response.statusCode >= 400) {
-      throw buildApiError('searchCards', response, payload);
+      throw buildApiError('deleteCard', response.statusCode, payload);
     }
+  }
 
-    return parseSearchCardsEnvelope(payload);
+  async logout(accessToken: string): Promise<void> {
+    await this.invoke('/v1/auth/logout', 'POST', {
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+      },
+    }).catch(() => undefined);
   }
 
   private async invoke(
@@ -381,53 +622,12 @@ class DryRunClient implements ApiClient {
   async searchCards(): Promise<CardRecord[]> {
     throw new Error('API client invoked during dry-run');
   }
-}
-
-class NotImplementedClient implements ApiClient {
-  constructor(private readonly env: RunEnvironment) {}
-
-  async registerUser(): Promise<AuthSession> {
-    throw new Error(`API client not implemented for environment ${this.env}`);
+  async deleteCard(): Promise<void> {
+    throw new Error('API client invoked during dry-run');
   }
-  async login(): Promise<AuthSession> {
-    throw new Error(`API client not implemented for environment ${this.env}`);
+  async logout(): Promise<void> {
+    throw new Error('API client invoked during dry-run');
   }
-  async getProfile(): Promise<{ email: string }> {
-    throw new Error(`API client not implemented for environment ${this.env}`);
-  }
-  async createUpload(): Promise<UploadRecord> {
-    throw new Error(`API client not implemented for environment ${this.env}`);
-  }
-  async completeUpload(): Promise<UploadRecord> {
-    throw new Error(`API client not implemented for environment ${this.env}`);
-  }
-  async scanCard(): Promise<{ card: CardRecord; ocrJobId: string; enrichmentId: string }> {
-    throw new Error(`API client not implemented for environment ${this.env}`);
-  }
-  async updateCard(): Promise<CardRecord> {
-    throw new Error(`API client not implemented for environment ${this.env}`);
-  }
-  async listCards(): Promise<CardRecord[]> {
-    throw new Error(`API client not implemented for environment ${this.env}`);
-  }
-  async searchCards(): Promise<CardRecord[]> {
-    throw new Error(`API client not implemented for environment ${this.env}`);
-  }
-}
-
-export async function createApiClient(env: RunEnvironment, dryRun: boolean): Promise<ApiClient> {
-  if (dryRun) {
-    return new DryRunClient();
-  }
-
-  if (env === 'local') {
-    process.env['DATABASE_URL'] ||=
-      'postgresql://namecard_user:namecard_password@localhost:5432/namecard_dev';
-    await ensureSharedBuild();
-    return new LocalLambdaClient();
-  }
-
-  return new NotImplementedClient(env);
 }
 
 async function ensureSharedBuild(): Promise<void> {
@@ -441,7 +641,22 @@ async function ensureSharedBuild(): Promise<void> {
   }
 }
 
-function buildApiError(operation: string, response: LambdaHttpResponse, payload: unknown): Error {
+function resolveServiceFromPath(pathname: string): string {
+  const segments = pathname.replace(/^\/+/, '').split('/');
+  if (segments[0] === 'api') {
+    segments.shift();
+  }
+  if (segments[0] !== 'v1' || segments.length < 2) {
+    throw new Error(`Unsupported API path: ${pathname}`);
+  }
+  const service = segments[1];
+  if (!service) {
+    throw new Error(`Unable to resolve service from path: ${pathname}`);
+  }
+  return service;
+}
+
+function buildApiError(operation: string, status: number, payload: unknown): Error {
   const payloadRecord = payload as Record<string, unknown> | undefined;
   const errorContainer = payloadRecord?.['error'] as Record<string, unknown> | undefined;
   const errorMessage =
@@ -450,8 +665,20 @@ function buildApiError(operation: string, response: LambdaHttpResponse, payload:
     'Unknown error';
   const details = JSON.stringify(payloadRecord ?? {}, null, 2);
   return new Error(
-    `${operation} failed with status ${response.statusCode}: ${errorMessage}\nPayload: ${details}`
+    `${operation} failed with status ${status}: ${errorMessage}\nPayload: ${details}`
   );
+}
+
+async function safeReadJson(response: Response): Promise<unknown> {
+  const text = await response.text();
+  if (!text) {
+    return undefined;
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { raw: text };
+  }
 }
 
 const sessionEnvelopeSchema = z.object({

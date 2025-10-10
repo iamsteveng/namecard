@@ -83,3 +83,20 @@ This runbook captures the day-two operating procedures for the serverless NameCa
 - Wire alarms to PagerDuty via SNS subscription (pending Task 10).
 
 Maintain this runbook alongside infrastructure code to ensure operational readiness remains versioned with deployments.
+
+## 9. API E2E Smoke Tests
+- **Local verification** (against Docker stack & Lambda sandbox)
+  1. Ensure dependencies running: `pnpm run fullstack:up`.
+  2. Execute API harness: `pnpm run test:e2e:api:local`.
+  3. Expected: six scenarios pass (register → upload → enrich → list → search → teardown). Teardown validates no rows remain in `cards`, `uploads`, `ocr`, `enrichment`, `auth`, `search` schemas.
+
+- **Staging verification** (against deployed API Gateway)
+  1. Export `API_E2E_BASE_URL=https://<host>/api` (include `/api` prefix) and, if required, `API_E2E_STAGE_API_KEY` for `x-api-key` authentication.
+  2. Optionally specify `--base-url` on the CLI to override environment variables.
+  3. Run `pnpm run test:e2e:api:staging` (or `pnpm --filter @namecard/api-e2e run test:staging`).
+  4. The harness provisions a throwaway user via `/v1/auth/register`, performs upload/scan/enrichment, then deletes the card via `DELETE /v1/cards/{id}` and revokes the session via `/v1/auth/logout`. The Cognito user remains for audit trails—coordinate periodic pruning via the identity team.
+
+- **Dry-run mode**
+  - `pnpm run test:e2e:api -- --dry-run` enumerates scenarios without calling APIs (used by CI `test:all`).
+
+Record any failures (response payloads logged in CLI output) and create follow-up tickets for flaky stages.

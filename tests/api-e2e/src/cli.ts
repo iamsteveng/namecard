@@ -21,6 +21,10 @@ async function main() {
       default: false,
       describe: 'Skip API calls and mark scenarios as pending',
     })
+    .option('base-url', {
+      type: 'string',
+      describe: 'Override API base URL (e.g., https://api.example.com/api)',
+    })
     .option('scenario', {
       type: 'array',
       string: true,
@@ -43,6 +47,7 @@ async function main() {
   const { options, context, fixtures } = await createHarnessContext({
     env: argv.env as 'local' | 'staging',
     dryRun: Boolean(dryRunFlag),
+    baseUrl: (argvRecord['base-url'] as string | undefined) ?? undefined,
   });
 
   const scenarioFilterArg = (argvRecord['scenario'] as string[] | undefined) ?? [];
@@ -52,6 +57,9 @@ async function main() {
   const modeLabel = options.dryRun ? chalk.yellow('DRY-RUN') : chalk.green('EXECUTION');
   console.log(chalk.bold(`API E2E Harness (${modeLabel})`));
   console.log(`Environment: ${chalk.cyan(options.env)}`);
+  if (options.baseUrl) {
+    console.log(`Base URL: ${chalk.cyan(options.baseUrl)}`);
+  }
   console.log(
     `Card fixture: ${chalk.cyan(fixtures.cardImagePath)} (${formatBytes(fixtures.cardImageSize)})`
   );

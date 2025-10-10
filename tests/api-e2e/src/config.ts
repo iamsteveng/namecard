@@ -11,6 +11,7 @@ import type { RunEnvironment, ScenarioContext } from './types.js';
 const optionsSchema = z.object({
   env: z.enum(['local', 'staging']).default('local'),
   dryRun: z.boolean().default(false),
+  baseUrl: z.string().url().optional(),
 });
 
 const MAX_CARD_IMAGE_BYTES = 200 * 1024; // 200 KB ceiling per plan guardrail
@@ -46,7 +47,21 @@ export async function createHarnessContext(
     );
   }
 
-  const api = await createApiClient(options.env as RunEnvironment, options.dryRun);
+  const baseUrlEnv =
+    options.baseUrl ??
+    process.env[`API_E2E_BASE_URL_${options.env.toUpperCase()}`] ??
+    process.env['API_E2E_BASE_URL'];
+
+  if (options.env !== 'local' && !options.dryRun && !baseUrlEnv) {
+    throw new Error(
+      'API_E2E_BASE_URL (or --base-url) must be provided for non-local environments.'
+    );
+  }
+
+  const api = await createApiClient(options.env as RunEnvironment, options.dryRun, {
+    baseUrl: baseUrlEnv,
+    apiKey: process.env['API_E2E_STAGE_API_KEY'] ?? process.env['API_E2E_API_KEY'],
+  });
   const state = {
     runId: randomUUID(),
   };

@@ -328,10 +328,7 @@ async function cleanupLocalDatabase(input: {
     await client.query('DELETE FROM "enrichment"."EnrichmentRecord" WHERE requested_by = $1', [
       input.userId,
     ]);
-    await client.query(
-      'DELETE FROM "search"."SearchQueryLog" WHERE tenant_id IN (SELECT tenant_id FROM "auth"."AuthUser" WHERE id = $1)',
-      [input.userId]
-    );
+    await client.query('DELETE FROM "search"."SearchQueryLog" WHERE user_id = $1', [input.userId]);
     await client.query('DELETE FROM "auth"."AuthSession" WHERE user_id = $1', [input.userId]);
     await client.query('DELETE FROM "auth"."AuthUser" WHERE id = $1', [input.userId]);
     await client.query('COMMIT');
@@ -372,6 +369,11 @@ async function verifyCleanup(
       label: 'enrichment records',
       query:
         'SELECT COUNT(*)::int AS count FROM "enrichment"."EnrichmentRecord" WHERE requested_by = $1',
+      params: [input.userId],
+    },
+    {
+      label: 'search logs',
+      query: 'SELECT COUNT(*)::int AS count FROM "search"."SearchQueryLog" WHERE user_id = $1',
       params: [input.userId],
     },
     {
