@@ -6,8 +6,8 @@
    - [x] Action: Pin pnpm (`corepack prepare pnpm@8.15.4 --activate`), install dependencies with `pnpm install --frozen-lockfile`, start local services via `pnpm run fullstack:up`.
    - [x] Verification: `pnpm run lint:all && pnpm run type-check:all && pnpm run test:all` complete without error; `docker compose ps` shows required containers healthy.
 2. Audit existing API integration tests and fixtures.
-   - [ ] Action: Inspect `test_phase2_api.js`, `test_search_api.js`, Cypress specs, and shared utilities under `services/shared` to catalogue current coverage and data contracts.
-   - [ ] Verification: Produce a short gap analysis note (`tests/api-e2e/GAPS.md`) summarising uncovered flows (register → search) committed to branch.
+   - [x] Action: Inspect `test_phase2_api.js`, `test_search_api.js`, Cypress specs, and shared utilities under `services/shared` to catalogue current coverage and data contracts.
+   - [x] Verification: Produce a short gap analysis note (`tests/api-e2e/GAPS.md`) summarising uncovered flows (register → search) committed to branch.
 3. Define end-to-end test scenarios and data inputs.
    - [ ] Action: Draft scenario table (request payloads, expected responses, prerequisite state, clean-up strategy) in `tests/api-e2e/PLAN.md`; select sample card image (reuse existing fixture or add to `tests/fixtures/card-sample.jpg`).
    - [ ] Verification: Peer review or self-review sign-off noted in PLAN.md; image fixture loads locally (`file` command reports correct format) and repository size impact <200 KB.
