@@ -2,6 +2,8 @@ import { createHash, randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import { setTimeout as delay } from 'node:timers/promises';
 
+import { Client } from 'pg';
+
 import type {
   ScenarioContext,
   ScenarioDefinition,
@@ -193,21 +195,6 @@ async function searchCardsScenario(context: ScenarioContext): Promise<ScenarioOu
   throw new Error(`Card ${card.id} not found via search query '${query}'`);
 }
 
-function pendingScenario(id: string, description: string, todo: string): ScenarioDefinition {
-  return {
-    id,
-    description,
-    execute: async context => {
-      const scope = context.dryRun ? 'dry-run' : 'pending';
-      context.log(`${scope}: ${todo}`);
-      return {
-        status: 'skipped',
-        notes: todo,
-      };
-    },
-  };
-}
-
 export const scenarios: ScenarioDefinition[] = [
   {
     id: 'register-new-user',
@@ -234,11 +221,11 @@ export const scenarios: ScenarioDefinition[] = [
     description: 'Search index includes newly created card',
     execute: searchCardsScenario,
   },
-  pendingScenario(
-    'tear-down-user',
-    'Clean up Cognito/S3/database artefacts created during run',
-    'Invoke teardown utility to remove tenant data and fixtures.'
-  ),
+  {
+    id: 'tear-down-user',
+    description: 'Clean up Cognito/S3/database artefacts created during run',
+    execute: tearDownScenario,
+  },
 ];
 
 function requireUser(context: ScenarioContext) {
@@ -276,4 +263,82 @@ function toCardSnapshot(card: CardRecord) {
     company: card.company ?? null,
     tags: card.tags ?? [],
   };
+}
+
+async function tearDownScenario(context: ScenarioContext): Promise<ScenarioOutcome> {
+  if (context.dryRun) {
+    return {
+      status: 'skipped',
+      notes: DRY_RUN_NOTE,
+    };
+  }
+
+  if (context.env !== 'local') {
+    return {
+      status: 'skipped',
+      notes: 'Teardown currently implemented for local environment only',
+    };
+  }
+
+  const user = context.state.user;
+  if (!user) {
+    return {
+      status: 'skipped',
+      notes: 'No user context available for teardown',
+    };
+  }
+
+  context.log(`tearing down data for user ${user.userId}`);
+
+  const uploadId = context.state.upload?.id;
+  const cardId = context.state.card?.id;
+
+  await cleanupLocalDatabase({ userId: user.userId, cardId, uploadId });
+
+  context.state.user = undefined;
+  context.state.card = undefined;
+  context.state.upload = undefined;
+  context.state.ocrJobId = undefined;
+
+  return {
+    status: 'passed',
+    notes: `Removed test user ${user.email} and associated resources`,
+  };
+}
+
+async function cleanupLocalDatabase(input: {
+  userId: string;
+  cardId?: string;
+  uploadId?: string;
+}): Promise<void> {
+  const connectionString =
+    process.env['DATABASE_URL'] ??
+    'postgresql://namecard_user:namecard_password@localhost:5432/namecard_dev';
+  const client = new Client({ connectionString });
+  await client.connect();
+  try {
+    await client.query('BEGIN');
+    if (input.cardId) {
+      await client.query('DELETE FROM "cards"."CardsCard" WHERE id = $1', [input.cardId]);
+    }
+    if (input.uploadId) {
+      await client.query('DELETE FROM "uploads"."UploadsAsset" WHERE id = $1', [input.uploadId]);
+    }
+    await client.query('DELETE FROM "ocr"."OcrJob" WHERE requested_by = $1', [input.userId]);
+    await client.query('DELETE FROM "enrichment"."EnrichmentRecord" WHERE requested_by = $1', [
+      input.userId,
+    ]);
+    await client.query(
+      'DELETE FROM "search"."SearchQueryLog" WHERE tenant_id IN (SELECT tenant_id FROM "auth"."AuthUser" WHERE id = $1)',
+      [input.userId]
+    );
+    await client.query('DELETE FROM "auth"."AuthSession" WHERE user_id = $1', [input.userId]);
+    await client.query('DELETE FROM "auth"."AuthUser" WHERE id = $1', [input.userId]);
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    await client.end();
+  }
 }
