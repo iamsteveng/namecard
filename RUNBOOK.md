@@ -175,6 +175,11 @@ readiness remains versioned with deployments.
      should return nothing; the API already deletes the created card and logs
      out.
 
+- **CI trigger**
+  - Use the `run_api_e2e_staging` toggle on the "CI/CD & Launch Readiness"
+    workflow_dispatch to execute this suite from GitHub Actions (enabled by
+    default for pushes to `main`/`release/**`).
+
 - **Rollback / manual cleanup**
   - If the harness aborts before teardown, delete artefacts via the staging API
     (`DELETE /v1/cards/{cardId}`, `POST /v1/auth/logout`).

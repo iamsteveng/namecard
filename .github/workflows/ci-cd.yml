@@ -27,6 +27,11 @@ on:
         required: false
         default: 'true'
         type: boolean
+      run_api_e2e_staging:
+        description: 'Execute API E2E suite against staging endpoints during this run'
+        required: false
+        default: 'false'
+        type: boolean
 
 env:
   NODE_VERSION: '20'
@@ -143,6 +148,65 @@ jobs:
       - name: Cleanup containers
         if: always()
         run: docker compose down -v
+
+  api_e2e_staging:
+    name: API E2E (Staging)
+    needs:
+      - api_e2e
+    if: ${{ (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/'))) || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_api_e2e_staging == 'true') }}
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      API_E2E_BASE_URL_STAGING_SECRET: ${{ secrets.API_E2E_BASE_URL_STAGING }}
+      API_E2E_STAGE_API_KEY_SECRET: ${{ secrets.API_E2E_STAGE_API_KEY }}
+      API_E2E_BASE_URL_STAGING_VAR: ${{ vars.API_E2E_BASE_URL_STAGING }}
+      API_E2E_STAGE_API_KEY_VAR: ${{ vars.API_E2E_STAGE_API_KEY }}
+      AWS_API_E2E_ACCESS_KEY_ID: ${{ secrets.AWS_API_E2E_ACCESS_KEY_ID }}
+      AWS_API_E2E_SECRET_ACCESS_KEY: ${{ secrets.AWS_API_E2E_SECRET_ACCESS_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Configure AWS credentials
+        if: ${{ env.AWS_API_E2E_ACCESS_KEY_ID != '' && env.AWS_API_E2E_SECRET_ACCESS_KEY != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ env.AWS_API_E2E_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.AWS_API_E2E_SECRET_ACCESS_KEY }}
+          aws-region: ap-southeast-1
+
+      - name: Run staging API E2E suite
+        env:
+          API_E2E_BASE_URL_STAGING: ${{ env.API_E2E_BASE_URL_STAGING_SECRET != '' && env.API_E2E_BASE_URL_STAGING_SECRET || env.API_E2E_BASE_URL_STAGING_VAR }}
+          API_E2E_STAGE_API_KEY: ${{ env.API_E2E_STAGE_API_KEY_SECRET != '' && env.API_E2E_STAGE_API_KEY_SECRET || env.API_E2E_STAGE_API_KEY_VAR }}
+        run: |
+          if [ -z "$API_E2E_BASE_URL_STAGING" ]; then
+            echo "API_E2E_BASE_URL_STAGING is required for staging runs" >&2
+            exit 1
+          fi
+          set -eo pipefail
+          pnpm run test:e2e:api:staging -- --base-url "$API_E2E_BASE_URL_STAGING" | tee api-e2e-staging.log
+
+      - name: Upload staging artefacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-e2e-staging-artifacts
+          path: api-e2e-staging.log
 
   infrastructure_dry_run:
     name: Infrastructure Dry Run

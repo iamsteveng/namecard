@@ -33,7 +33,7 @@
    - [x] Action: Add new job (post-quality, pre-launch) in `.github/workflows/ci-cd.yml` spinning up Postgres, applying local migrations, running `pnpm run test:e2e:api:local`, and uploading logs on failure.
    - [x] Verification: `actionlint` v1.7.8 (downloaded binary) passes; `pnpm run ci:quality` still green locally (2025-10-11).
 2. Provide staging execution toggle for workflows.
-   - [ ] Action: Add boolean/choice input to workflow_dispatch for running staging tests; guard the new job to trigger on main/promotion only; configure AWS credentials + secrets references.
+   - [x] Action: Add boolean workflow_dispatch input (`run_api_e2e_staging`) and conditional `api_e2e_staging` job that fans out only on main/release pushes or manual runs, wiring optional AWS creds and staging env vars.
    - [ ] Verification: Manual `workflow_dispatch` dry-run (no promotion) shows staging job skipped/enabled according to input in GitHub UI.
 3. Validate workflow logic before push.
    - [ ] Action: Dry-run the updated workflow (e.g., `pnpm exec actionlint`, targeted script invocations) and, if Docker resources allow, optionally run `act pull_request --job quality` / `--job api_e2e` to catch orchestration issues early.
