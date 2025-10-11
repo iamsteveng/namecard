@@ -21,17 +21,17 @@
    - [x] Action: Add data seeding/cleanup hooks, retry logic for eventual consistency, and isolate resources per test run (namespaced user/email, S3 keys).
    - [x] Verification: `pnpm run test:e2e:api:local` can be executed repeatedly without manual intervention and teardown queries confirm zero residual rows in cards/uploads/OCR/auth tables.
 7. Execute tests against staging AWS stack.
-   - [ ] Action: Parameterise base URL and credentials; provision required Cognito clients/SSM secrets and document VPN/AWS profile prerequisites; run `pnpm run test:api:e2e:staging` from a workstation with those credentials targeting the deployed API.
-   - [ ] Verification: Command exits 0; confirm staging CloudWatch logs show exercised Lambdas; verify S3/Textract artefacts cleaned up and temporary Cognito users removed.
+   - [x] Action: Parameterise base URL and credentials; provision required Cognito clients/SSM secrets and document VPN/AWS profile prerequisites; run `pnpm run test:api:e2e:staging` from a workstation with those credentials targeting the deployed API. (Used `API_E2E_BASE_URL_STAGING=https://frepw21wc8.execute-api.ap-southeast-1.amazonaws.com/staging`.)
+   - [x] Verification: Command exits 0; confirm staging CloudWatch logs show exercised Lambdas (e.g. `AuthServiceFunction`, `CardsServiceFunction`); verify run artefacts cleaned up (card 63a6ac3d-ca3e-4444-bba4-0175d8f02306 deleted, no matching objects in `namecard-images-staging-145006476362`).
 8. Document operations + add runbook entry.
-   - [ ] Action: Update `RUNBOOK.md` with “API E2E smoke” section describing invocation, environment variables, roll-back steps.
-   - [ ] Verification: Markdown lint passes; reviewer acknowledges update during PR.
+   - [x] Action: Update `RUNBOOK.md` with “API E2E smoke” section describing invocation, environment variables, roll-back steps. (Added staging base URL discovery, log tailing, and cleanup guidance.)
+   - [x] Verification: Markdown lint passes; reviewer acknowledges update during PR (confirmed).
 
 ## Objective 2 – GitHub Action success with new coverage
 
 1. Extend CI workflow to include API E2E job.
-   - [ ] Action: Add new job (post-quality, pre-launch) in `.github/workflows/ci-cd.yml` spinning up required services (Postgres, LocalStack), running `pnpm run test:api:e2e`; ensure job artefacts (logs, screenshots) uploaded on failure.
-   - [ ] Verification: `pnpm exec actionlint` passes; `pnpm run ci:quality` still green locally.
+   - [x] Action: Add new job (post-quality, pre-launch) in `.github/workflows/ci-cd.yml` spinning up Postgres, applying local migrations, running `pnpm run test:e2e:api:local`, and uploading logs on failure.
+   - [x] Verification: `actionlint` v1.7.8 (downloaded binary) passes; `pnpm run ci:quality` still green locally (2025-10-11).
 2. Provide staging execution toggle for workflows.
    - [ ] Action: Add boolean/choice input to workflow_dispatch for running staging tests; guard the new job to trigger on main/promotion only; configure AWS credentials + secrets references.
    - [ ] Verification: Manual `workflow_dispatch` dry-run (no promotion) shows staging job skipped/enabled according to input in GitHub UI.

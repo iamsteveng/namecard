@@ -81,9 +81,74 @@ jobs:
       - name: Run lint/type/test/build
         run: pnpm run ci:quality
 
+  api_e2e:
+    name: API E2E
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @namecard/shared run prisma:generate
+
+      - name: Start database for API E2E tests
+        run: |
+          docker compose up -d postgres
+          for attempt in {1..15}; do
+            if docker compose exec -T postgres pg_isready -U namecard_user -d namecard_dev >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Postgres container did not become ready in time" >&2
+          docker compose logs postgres
+          exit 1
+
+      - name: Apply local migrations
+        run: pnpm run migrate:local
+
+      - name: Run API E2E suite
+        run: |
+          set -eo pipefail
+          pnpm run test:e2e:api:local | tee api-e2e.log
+
+      - name: Collect docker logs on failure
+        if: failure()
+        run: docker compose logs postgres > api-e2e-docker.log || true
+
+      - name: Upload API E2E artefacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-e2e-artifacts
+          path: |
+            api-e2e.log
+            api-e2e-docker.log
+
+      - name: Cleanup containers
+        if: always()
+        run: docker compose down -v
+
   infrastructure_dry_run:
     name: Infrastructure Dry Run
-    needs: quality
+    needs:
+      - quality
+      - api_e2e
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
