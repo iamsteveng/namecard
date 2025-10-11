@@ -127,6 +127,9 @@ jobs:
       - name: Apply local migrations
         run: pnpm run migrate:local
 
+      - name: Build shared package
+        run: pnpm --filter @namecard/shared run build
+
       - name: Run API E2E suite
         run: |
           set -eo pipefail
