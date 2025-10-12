@@ -40,7 +40,7 @@
    - [x] Verification: Local lint/dry-run checks completed without error; GitHub manual dispatch confirmed green runs (`run id 18437949462`).
 4. Push feature branch and monitor GitHub Actions.
    - [x] Action: Open PR #31 ("Harden API E2E coverage and CI gating"); monitor `CI/CD & Launch Readiness` workflow for `quality`, `api_e2e`, `api_e2e (Staging)`, `infrastructure_dry_run`, `launch_readiness` jobs.
-   - [ ] Verification: Capture run URL + success screenshot in PR comments; annotate any flakes for follow-up.
+   - [x] Verification: Captured run https://github.com/iamsteveng/namecard/actions/runs/18438452507 in PR #31 comments; all jobs green, no flakes observed.
 5. Promote to staging and confirm AWS execution path.
    - [ ] Action: Trigger `workflow_dispatch` with `environment=staging`, `promote=true`; confirm new job runs against staging endpoints using stored secrets.
    - [ ] Verification: Workflow finishes green; AWS CloudWatch/SQS queues show expected traffic; update PR/issue with confirmation notes.
