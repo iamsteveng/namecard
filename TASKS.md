@@ -34,7 +34,7 @@
    - [x] Verification: `actionlint` v1.7.8 (downloaded binary) passes; `pnpm run ci:quality` still green locally (2025-10-11).
 2. Provide staging execution toggle for workflows.
    - [x] Action: Add boolean workflow_dispatch input (`run_api_e2e_staging`) and conditional `api_e2e_staging` job that fans out only on main/release pushes or manual runs, wiring optional AWS creds and staging env vars.
-   - [ ] Verification: Manual `workflow_dispatch` dry-run (no promotion) shows staging job skipped/enabled according to input in GitHub UI.
+   - [x] Verification: Manual `workflow_dispatch` dry-run toggling the flag shows the staging job skip/run behaviour as expected (confirmed by 2025-10-12 run).
 3. Validate workflow logic before push.
    - [ ] Action: Dry-run the updated workflow (e.g., `pnpm exec actionlint`, targeted script invocations) and, if Docker resources allow, optionally run `act pull_request --job quality` / `--job api_e2e` to catch orchestration issues early.
    - [ ] Verification: Local lint/dry-run checks complete without error; if `act` is executed, it exits 0 and logs show services starting cleanly.
