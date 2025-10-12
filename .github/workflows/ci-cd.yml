@@ -307,7 +307,8 @@ jobs:
   promote:
     name: Promote Artefacts
     needs: launch_readiness
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.promote == 'true')
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.promote == 'true')
     runs-on: ubuntu-latest
     env:
       TARGET_ENVIRONMENT: ${{ github.event.inputs.environment || 'staging' }}
