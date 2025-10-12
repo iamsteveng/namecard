@@ -32,6 +32,11 @@ on:
         required: false
         default: 'false'
         type: boolean
+      staging_base_url:
+        description: 'Optional override for staging API base URL (include /staging path)'
+        required: false
+        default: ''
+        type: string
 
 env:
   NODE_VERSION: '20'
@@ -166,6 +171,8 @@ jobs:
       API_E2E_STAGE_API_KEY_VAR: ${{ vars.API_E2E_STAGE_API_KEY }}
       AWS_API_E2E_ACCESS_KEY_ID: ${{ secrets.AWS_API_E2E_ACCESS_KEY_ID }}
       AWS_API_E2E_SECRET_ACCESS_KEY: ${{ secrets.AWS_API_E2E_SECRET_ACCESS_KEY }}
+      STAGING_BASE_URL_INPUT: ${{ inputs.staging_base_url }}
+      STAGING_BASE_URL_FALLBACK: https://frepw21wc8.execute-api.ap-southeast-1.amazonaws.com/staging
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -194,14 +201,29 @@ jobs:
 
       - name: Run staging API E2E suite
         env:
-          API_E2E_BASE_URL_STAGING: ${{ env.API_E2E_BASE_URL_STAGING_SECRET != '' && env.API_E2E_BASE_URL_STAGING_SECRET || env.API_E2E_BASE_URL_STAGING_VAR }}
           API_E2E_STAGE_API_KEY: ${{ env.API_E2E_STAGE_API_KEY_SECRET != '' && env.API_E2E_STAGE_API_KEY_SECRET || env.API_E2E_STAGE_API_KEY_VAR }}
         run: |
-          if [ -z "$API_E2E_BASE_URL_STAGING" ]; then
-            echo "API_E2E_BASE_URL_STAGING is required for staging runs" >&2
+          set -eo pipefail
+
+          BASE_URL="$API_E2E_BASE_URL_STAGING_SECRET"
+          if [ -z "$BASE_URL" ]; then
+            BASE_URL="$API_E2E_BASE_URL_STAGING_VAR"
+          fi
+          if [ -z "$BASE_URL" ]; then
+            BASE_URL="$STAGING_BASE_URL_INPUT"
+          fi
+          if [ -z "$BASE_URL" ]; then
+            BASE_URL="$STAGING_BASE_URL_FALLBACK"
+          fi
+
+          if [ -z "$BASE_URL" ]; then
+            echo "API_E2E_BASE_URL_STAGING is required for staging runs" | tee api-e2e-staging.log
             exit 1
           fi
-          set -eo pipefail
+
+          export API_E2E_BASE_URL_STAGING="$BASE_URL"
+          echo "Using staging base URL: $API_E2E_BASE_URL_STAGING"
+
           pnpm run test:e2e:api:staging -- --base-url "$API_E2E_BASE_URL_STAGING" | tee api-e2e-staging.log
 
       - name: Upload staging artefacts
