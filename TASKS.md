@@ -42,5 +42,5 @@
    - [x] Action: Open PR #31 ("Harden API E2E coverage and CI gating"); monitor `CI/CD & Launch Readiness` workflow for `quality`, `api_e2e`, `api_e2e (Staging)`, `infrastructure_dry_run`, `launch_readiness` jobs.
    - [x] Verification: Captured run https://github.com/iamsteveng/namecard/actions/runs/18438452507 in PR #31 comments; all jobs green, no flakes observed.
 5. Promote to staging and confirm AWS execution path.
-   - [ ] Action: Trigger `workflow_dispatch` with `environment=staging`, `promote=true`; confirm new job runs against staging endpoints using stored secrets.
-   - [ ] Verification: Workflow finishes green; AWS CloudWatch/SQS queues show expected traffic; update PR/issue with confirmation notes.
+   - [x] Action: Triggered `workflow_dispatch` (`run 18438849024`) with `environment=staging`, `promote=true`, `run_api_e2e_staging=true`; staging API E2E job executed with configured secrets.
+   - [ ] Verification: Promote job currently failing (`@namecard/infra` TypeScript build conflict between @smithy/types 4.6.0 vs 4.5.0). Need to resolve dependency mismatch before rerunning and validating CloudWatch/SQS traces.
