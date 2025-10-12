@@ -10,8 +10,7 @@ import type {
 } from '@namecard/shared/types/enrichment.types';
 
 import type { EnrichCardRequest, EnrichCardResponse } from '../types/enrichment.types';
-
-const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || '';
+import { buildV1Url } from '../config/api';
 
 export interface EnrichmentHealthResponse {
   status: 'healthy' | 'unhealthy';
@@ -64,7 +63,7 @@ export interface BatchEnrichResponse {
 }
 
 class EnrichmentService {
-  private baseUrl = `${API_BASE_URL}/api/v1/enrichment`;
+  private baseUrl = buildV1Url('/enrichment');
 
   /**
    * Get authorization headers

@@ -222,7 +222,7 @@ async function callApi(path, init = {}) {
 }
 
 async function checkCardsEndpoint() {
-  const data = await callApi('/api/v1/cards?limit=5');
+  const data = await callApi('/v1/cards?limit=5');
   if (!data?.success) {
     throw new Error('Cards endpoint returned unsuccessful response');
   }
@@ -232,7 +232,7 @@ async function checkCardsEndpoint() {
 }
 
 async function checkSearchSuggestions() {
-  const response = await callApi('/api/v1/search/suggestions?prefix=Te&type=company');
+  const response = await callApi('/v1/search/suggestions?prefix=Te&type=company');
   const suggestions = Array.isArray(response)
     ? response
     : Array.isArray(response?.data?.suggestions)

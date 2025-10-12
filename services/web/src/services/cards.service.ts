@@ -1,7 +1,7 @@
 import type { BusinessCardData } from '@namecard/shared';
 import type { BusinessCardEnrichmentData } from '@namecard/shared/types/enrichment.types';
 
-const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || '';
+import { buildV1Url } from '../config/api';
 
 export interface ScanCardOptions {
   minConfidence?: number;
@@ -179,7 +179,7 @@ export interface GetStatsResponse {
 }
 
 class CardsService {
-  private baseUrl = `${API_BASE_URL}/api/v1/cards`;
+  private baseUrl = buildV1Url('/cards');
 
   /**
    * Get authorization headers
