@@ -6,9 +6,8 @@ import { Client, Pool, type ClientConfig, type PoolConfig } from 'pg';
 
 type PrismaModule = typeof import('@prisma/client');
 
-const moduleRequire = (typeof globalThis.require === 'function'
-  ? globalThis.require
-  : createRequire(__filename));
+const moduleRequire =
+  typeof globalThis.require === 'function' ? globalThis.require : createRequire(__filename);
 
 if (typeof globalThis.require !== 'function') {
   globalThis.require = moduleRequire;
@@ -171,7 +170,7 @@ function createAdapter(): PrismaPg {
 
   if (useIamAuth) {
     const signer = getRdsSigner(parsed.host, parsed.port, username);
-    poolConfig.password = () => signer.getAuthToken();
+    poolConfig.password = (): Promise<string> => signer.getAuthToken();
   } else if (parsed.password) {
     poolConfig.password = parsed.password;
   }
@@ -184,7 +183,8 @@ function createAdapter(): PrismaPg {
     useTls,
     useIamAuth,
     passwordLength: parsed.password?.length ?? 0,
-    passwordConfigured: typeof poolConfig.password === 'string' ? 'static' : typeof poolConfig.password,
+    passwordConfigured:
+      typeof poolConfig.password === 'string' ? 'static' : typeof poolConfig.password,
   });
 
   const pool = new Pool(poolConfig);
@@ -269,7 +269,9 @@ async function logAuthSchemaState(): Promise<void> {
     const { rows } = await client.query(
       "select table_schema, table_name from information_schema.tables where table_schema in ('auth', 'cards', 'ocr', 'enrichment', 'uploads', 'search') order by table_schema, table_name limit 100"
     );
-    const ledger = await client.query('select count(*)::int as count from public.schema_migrations');
+    const ledger = await client.query(
+      'select count(*)::int as count from public.schema_migrations'
+    );
     console.info('[prisma-adapter] schema introspection', {
       tables: rows,
       ledgerCount: ledger.rows?.[0]?.count ?? null,

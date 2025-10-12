@@ -27,6 +27,16 @@ on:
         required: false
         default: 'true'
         type: boolean
+      run_api_e2e_staging:
+        description: 'Execute API E2E suite against staging endpoints during this run'
+        required: false
+        default: 'false'
+        type: boolean
+      staging_base_url:
+        description: 'Optional override for staging API base URL (include /staging path)'
+        required: false
+        default: ''
+        type: string
 
 env:
   NODE_VERSION: '20'
@@ -81,9 +91,153 @@ jobs:
       - name: Run lint/type/test/build
         run: pnpm run ci:quality
 
+  api_e2e:
+    name: API E2E
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @namecard/shared run prisma:generate
+
+      - name: Start database for API E2E tests
+        run: |
+          docker compose up -d postgres
+          for attempt in {1..15}; do
+            if docker compose exec -T postgres pg_isready -U namecard_user -d namecard_dev >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Postgres container did not become ready in time" >&2
+          docker compose logs postgres
+          exit 1
+
+      - name: Apply local migrations
+        run: pnpm run migrate:local
+
+      - name: Build shared package
+        run: pnpm --filter @namecard/shared run build
+
+      - name: Run API E2E suite
+        run: |
+          set -eo pipefail
+          pnpm run test:e2e:api:local | tee api-e2e.log
+
+      - name: Collect docker logs on failure
+        if: failure()
+        run: docker compose logs postgres > api-e2e-docker.log || true
+
+      - name: Upload API E2E artefacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-e2e-artifacts
+          path: |
+            api-e2e.log
+            api-e2e-docker.log
+
+      - name: Cleanup containers
+        if: always()
+        run: docker compose down -v
+
+  api_e2e_staging:
+    name: API E2E (Staging)
+    needs:
+      - api_e2e
+    if: ${{ (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/'))) || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_api_e2e_staging == 'true') }}
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      API_E2E_BASE_URL_STAGING_SECRET: ${{ secrets.API_E2E_BASE_URL_STAGING }}
+      API_E2E_STAGE_API_KEY_SECRET: ${{ secrets.API_E2E_STAGE_API_KEY }}
+      API_E2E_BASE_URL_STAGING_VAR: ${{ vars.API_E2E_BASE_URL_STAGING }}
+      API_E2E_STAGE_API_KEY_VAR: ${{ vars.API_E2E_STAGE_API_KEY }}
+      AWS_API_E2E_ACCESS_KEY_ID: ${{ secrets.AWS_API_E2E_ACCESS_KEY_ID }}
+      AWS_API_E2E_SECRET_ACCESS_KEY: ${{ secrets.AWS_API_E2E_SECRET_ACCESS_KEY }}
+      STAGING_BASE_URL_INPUT: ${{ inputs.staging_base_url }}
+      STAGING_BASE_URL_FALLBACK: https://frepw21wc8.execute-api.ap-southeast-1.amazonaws.com/staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Configure AWS credentials
+        if: ${{ env.AWS_API_E2E_ACCESS_KEY_ID != '' && env.AWS_API_E2E_SECRET_ACCESS_KEY != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ env.AWS_API_E2E_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.AWS_API_E2E_SECRET_ACCESS_KEY }}
+          aws-region: ap-southeast-1
+
+      - name: Run staging API E2E suite
+        env:
+          API_E2E_STAGE_API_KEY: ${{ env.API_E2E_STAGE_API_KEY_SECRET != '' && env.API_E2E_STAGE_API_KEY_SECRET || env.API_E2E_STAGE_API_KEY_VAR }}
+        run: |
+          set -eo pipefail
+
+          BASE_URL="$API_E2E_BASE_URL_STAGING_SECRET"
+          if [ -z "$BASE_URL" ]; then
+            BASE_URL="$API_E2E_BASE_URL_STAGING_VAR"
+          fi
+          if [ -z "$BASE_URL" ]; then
+            BASE_URL="$STAGING_BASE_URL_INPUT"
+          fi
+          if [ -z "$BASE_URL" ]; then
+            BASE_URL="$STAGING_BASE_URL_FALLBACK"
+          fi
+
+          if [ -z "$BASE_URL" ]; then
+            echo "API_E2E_BASE_URL_STAGING is required for staging runs" | tee api-e2e-staging.log
+            exit 1
+          fi
+
+          export API_E2E_BASE_URL_STAGING="$BASE_URL"
+          echo "Using staging base URL: $API_E2E_BASE_URL_STAGING"
+
+          pnpm run test:e2e:api:staging -- --base-url "$API_E2E_BASE_URL_STAGING" | tee api-e2e-staging.log
+
+      - name: Upload staging artefacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-e2e-staging-artifacts
+          path: api-e2e-staging.log
+
   infrastructure_dry_run:
     name: Infrastructure Dry Run
-    needs: quality
+    needs:
+      - quality
+      - api_e2e
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -153,7 +307,8 @@ jobs:
   promote:
     name: Promote Artefacts
     needs: launch_readiness
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.promote == 'true')
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.promote == 'true')
     runs-on: ubuntu-latest
     env:
       TARGET_ENVIRONMENT: ${{ github.event.inputs.environment || 'staging' }}

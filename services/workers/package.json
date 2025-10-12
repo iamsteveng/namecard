@@ -19,10 +19,10 @@
     "deploy:prod": "serverless deploy --stage prod"
   },
   "dependencies": {
-    "@aws-sdk/client-lambda": "^3.490.0",
-    "@aws-sdk/client-s3": "^3.490.0",
-    "@aws-sdk/client-sqs": "^3.490.0",
-    "@aws-sdk/client-textract": "^3.490.0",
+    "@aws-sdk/client-lambda": "^3.901.0",
+    "@aws-sdk/client-s3": "^3.901.0",
+    "@aws-sdk/client-sqs": "^3.901.0",
+    "@aws-sdk/client-textract": "^3.901.0",
     "aws-lambda": "^1.0.7",
     "axios": "^1.6.5",
     "sharp": "^0.33.2",
