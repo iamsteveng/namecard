@@ -36,8 +36,8 @@
    - [x] Action: Add boolean workflow_dispatch input (`run_api_e2e_staging`) and conditional `api_e2e_staging` job that fans out only on main/release pushes or manual runs, wiring optional AWS creds and staging env vars.
    - [x] Verification: Manual `workflow_dispatch` dry-run toggling the flag shows the staging job skip/run behaviour as expected (confirmed by 2025-10-12 run).
 3. Validate workflow logic before push.
-   - [ ] Action: Dry-run the updated workflow (e.g., `pnpm exec actionlint`, targeted script invocations) and, if Docker resources allow, optionally run `act pull_request --job quality` / `--job api_e2e` to catch orchestration issues early.
-   - [ ] Verification: Local lint/dry-run checks complete without error; if `act` is executed, it exits 0 and logs show services starting cleanly.
+   - [x] Action: Dry-run the updated workflow (e.g., `pnpm exec actionlint`, targeted script invocations) and, if Docker resources allow, optionally run `act pull_request --job quality` / `--job api_e2e` to catch orchestration issues early. (`actionlint` v1.7.8, `pnpm run ci:quality`, and manual workflow dispatch runs on 2025-10-11/12.)
+   - [x] Verification: Local lint/dry-run checks completed without error; GitHub manual dispatch confirmed green runs (`run id 18437949462`).
 4. Push feature branch and monitor GitHub Actions.
    - [ ] Action: Open PR; ensure `quality`, `api_e2e`, `infrastructure_dry_run`, `launch_readiness` jobs complete successfully.
    - [ ] Verification: Capture run URL + success screenshot in PR comments; annotate any flakes for follow-up.
