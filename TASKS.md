@@ -23,13 +23,12 @@
   - [x] Action: Hook the smoke runner into `test:e2e:web` while preserving the Cypress command under a new alias.
   - [x] Verify: Package scripts run without further configuration changes.
 
-### 3. Extend UI Flow Coverage (In Progress)
-- [ ] Task 3.1 — Registration via web UI
-  - [ ] Action: Script a Puppeteer step that navigates to `/auth/register`, submits a unique user (persist fixtures for reuse), and saves the confirmation screenshot.
-  - [ ] Verify: A follow-up API check or UI redirect confirms the account exists and is ready for login.
-- [ ] Task 3.2 — Login via web UI
-  - [ ] Action: Continue the flow to `/auth/login`, authenticate using the user from Task 3.1, and capture the post-login dashboard view.
-  - [ ] Verify: Browser reaches `/` within 10 seconds with valid session tokens stored in localStorage.
+- [x] Task 3.1 — Registration via web UI
+  - [x] Action: Script a Puppeteer step that navigates to `/auth/register`, submits a unique user (persist fixtures for reuse), and saves the confirmation screenshot.
+  - [x] Verify: A follow-up UI redirect to `/auth/login` confirms the account exists and is ready for authentication.
+- [x] Task 3.2 — Login via web UI
+  - [x] Action: Continue the flow to `/auth/login`, authenticate using the user from Task 3.1, and capture the post-login dashboard view.
+  - [x] Verify: Browser reaches `/` within 10 seconds with valid session tokens stored in localStorage.
 - [ ] Task 3.3 — Upload sample card image
   - [ ] Action: Navigate to `/scan`, upload the seeded sample image, wait for processing status, and snapshot the confirmation UI.
   - [ ] Verify: API confirms a new card record for the current user and the UI reflects successful ingestion.
