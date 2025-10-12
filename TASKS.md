@@ -2,7 +2,7 @@
 
 ## Objectives
 1. Ensure the web client is fully aligned with the new Lambda `/v1` backend APIs.
-2. Prove critical UX flows (registration, login, dashboard, cards) via automated headless browser tests with screenshot artifacts.
+2. Prove the end-to-end UX flow (registration, login, dashboard, scan/upload, cards, search) via automated headless browser tests with screenshot artifacts.
 3. Harmonize frontend E2E coverage with the existing API E2E harness so both share data seeds, assertions, and CI orchestration.
 
 ## Sequenced Task List
