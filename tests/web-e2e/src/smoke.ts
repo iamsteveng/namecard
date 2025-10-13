@@ -3,12 +3,31 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import puppeteer from 'puppeteer';
+import type { Page } from 'puppeteer';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const artifactsDir = path.resolve(__dirname, '../artifacts');
+const fixturesDir = path.resolve(__dirname, '../fixtures');
+const sampleCardPath = path.resolve(fixturesDir, 'card-sample.jpg');
 
 const sleep = (milliseconds: number) => new Promise<void>(resolve => setTimeout(resolve, milliseconds));
+
+const clickButtonByText = async (page: Page, text: string) => {
+  const clicked = await page.evaluate(targetText => {
+    const buttons = Array.from(document.querySelectorAll('button')) as HTMLButtonElement[];
+    const match = buttons.find(button => button.textContent?.trim().includes(targetText));
+    if (match) {
+      match.click();
+      return true;
+    }
+    return false;
+  }, text);
+
+  if (!clicked) {
+    throw new Error(`Button with text "${text}" not found`);
+  }
+};
 
 const baseUrl = process.env['WEB_BASE_URL'] ?? 'http://localhost:8080';
 const uniqueSuffix = Date.now();
@@ -111,6 +130,32 @@ async function run() {
       fullPage: true,
     });
 
+    log('Uploading sample card via scan UI');
+    await page.goto(buildUrl('/scan'), { waitUntil: 'networkidle2' });
+    const fileInput = await page.waitForSelector('input[type="file"]');
+    if (!fileInput) {
+      throw new Error('File input not found on scan page');
+    }
+    await fileInput.uploadFile(sampleCardPath);
+    await fileInput.dispose();
+
+    await page.waitForFunction(
+      () => document.body.innerText.toLowerCase().includes('selected') || document.body.innerText.includes('Clear'),
+      { timeout: 5_000 }
+    );
+
+    await clickButtonByText(page, 'Scan Business Card');
+
+    await page.waitForFunction(
+      () => document.body.innerText.includes('Scan Another Card'),
+      { timeout: 45_000 }
+    );
+
+    await page.screenshot({
+      path: path.join(artifactsDir, '04-scan-success.png'),
+      fullPage: true,
+    });
+
     log('Navigating to cards page');
     await page.click('a[href="/cards"]');
     await page.waitForFunction(() => window.location.pathname === '/cards', { timeout: 10_000 });
@@ -119,7 +164,7 @@ async function run() {
     });
 
     await page.screenshot({
-      path: path.join(artifactsDir, '04-cards.png'),
+      path: path.join(artifactsDir, '05-cards.png'),
       fullPage: true,
     });
 
