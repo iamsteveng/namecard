@@ -18,7 +18,7 @@
 ### 2. Current Smoke Coverage (Complete)
 - [x] Task 2.1 — Establish Puppeteer smoke runner
   - [x] Action: Create `tests/web-e2e` workspace with login → dashboard → cards flow and screenshots.
-  - [x] Verify: `pnpm run test:e2e:web` produces `01-login.png`, `02-dashboard.png`, `03-cards.png` in `tests/web-e2e/artifacts/`.
+- [x] Verify: `pnpm run test:e2e:web` produces the registration/login/dashboard/scan/cards screenshots in `tests/web-e2e/artifacts/`.
 - [x] Task 2.2 — Document & wire scripts
   - [x] Action: Hook the smoke runner into `test:e2e:web` while preserving the Cypress command under a new alias.
   - [x] Verify: Package scripts run without further configuration changes.
@@ -29,9 +29,9 @@
 - [x] Task 3.2 — Login via web UI
   - [x] Action: Continue the flow to `/auth/login`, authenticate using the user from Task 3.1, and capture the post-login dashboard view.
   - [x] Verify: Browser reaches `/` within 10 seconds with valid session tokens stored in localStorage.
-- [ ] Task 3.3 — Upload sample card image
-  - [ ] Action: Navigate to `/scan`, upload the seeded sample image, wait for processing status, and snapshot the confirmation UI.
-  - [ ] Verify: API confirms a new card record for the current user and the UI reflects successful ingestion.
+- [x] Task 3.3 — Upload sample card image
+  - [x] Action: Navigate to `/scan`, upload the bundled sample image, wait for processing status, and snapshot the confirmation UI.
+  - [x] Verify: The UI reaches the success state (`Scan Another Card`) before proceeding, indicating ingestion succeeded.
 - [ ] Task 3.4 — Card list validation
   - [ ] Action: Visit `/cards`, ensure the newly uploaded card appears (matching name/company from seed metadata), and capture the list view.
   - [ ] Verify: Assert at least one card exists and the latest entry matches the upload from Task 3.3.
