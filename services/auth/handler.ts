@@ -1,4 +1,4 @@
-import { ensureDatabaseUrl } from './runtime-shim';
+import { ensureDatabaseUrl } from './runtime-shim.js';
 
 import {
   authenticateUser,

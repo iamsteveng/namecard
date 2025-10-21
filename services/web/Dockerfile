@@ -12,6 +12,7 @@ COPY services/web/package.json services/web/
 COPY services/shared/package.json services/shared/
 COPY services/web/tsconfig.json services/web/
 COPY services/shared/tsconfig.json services/shared/
+COPY services/shared/prisma services/shared/prisma
 
 RUN pnpm install --frozen-lockfile
 

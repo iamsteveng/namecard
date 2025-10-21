@@ -32,9 +32,9 @@
 - [x] Task 3.3 — Upload sample card image
   - [x] Action: Navigate to `/scan`, upload the bundled sample image, wait for processing status, and snapshot the confirmation UI.
   - [x] Verify: The UI reaches the success state (`Scan Another Card`) before proceeding, indicating ingestion succeeded.
-- [ ] Task 3.4 — Card list validation
-  - [ ] Action: Visit `/cards`, ensure the newly uploaded card appears (matching name/company from seed metadata), and capture the list view.
-  - [ ] Verify: Assert at least one card exists and the latest entry matches the upload from Task 3.3.
+- [x] Task 3.4 — Card list validation
+  - [x] Action: Visit `/cards`, ensure the newly uploaded card appears (matching name/company from seed metadata), and capture the list view.
+  - [x] Verify: Assert at least one card exists and the latest entry matches the upload from Task 3.3.
 - [ ] Task 3.5 — Card search smoke
   - [ ] Action: Use the cards search UI to query for the uploaded card and stash the search-results screenshot.
   - [ ] Verify: Search results contain the expected card and highlight key metadata (name/company/email).

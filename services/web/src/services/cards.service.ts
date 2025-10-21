@@ -337,7 +337,7 @@ class CardsService {
     accessToken: string
   ): Promise<GetCardResponse> {
     const response = await fetch(`${this.baseUrl}/${cardId}`, {
-      method: 'PUT',
+      method: 'PATCH',
       headers: this.getAuthHeaders(accessToken),
       body: JSON.stringify(updates),
     });

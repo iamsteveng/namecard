@@ -6,6 +6,12 @@ import { createServer } from 'http';
 import { randomUUID } from 'crypto';
 import moduleAlias from 'module-alias';
 import { spawnSync } from 'child_process';
+import {
+  ensureDatabaseUrl,
+  resolveUserFromToken,
+  getTenantForUser,
+  createCard,
+} from '@namecard/shared';
 
 const repoRoot = path.resolve(new URL('.', import.meta.url).pathname, '..');
 const projectRoot = repoRoot;
@@ -57,6 +63,38 @@ const services = {
   ocr: path.resolve(projectRoot, 'services', 'ocr', 'handler.ts'),
   search: path.resolve(projectRoot, 'services', 'search', 'handler.ts'),
   uploads: path.resolve(projectRoot, 'services', 'uploads', 'handler.ts'),
+};
+
+process.env['DATABASE_URL'] ||=
+  'postgresql://namecard_user:namecard_password@localhost:5432/namecard_dev';
+process.env['AWS_REGION'] ||= 'us-east-1';
+process.env['AWS_DEFAULT_REGION'] ||= process.env['AWS_REGION'];
+process.env['AWS_ACCESS_KEY_ID'] ||= 'test';
+process.env['AWS_SECRET_ACCESS_KEY'] ||= 'test';
+
+const placeholderImageUrl = 'https://dummyimage.com/640x360/0f172a/ffffff&text=NameCard+Sample';
+
+const stubImageVariants = {
+  original: placeholderImageUrl,
+  ocr: placeholderImageUrl,
+  thumbnail: placeholderImageUrl,
+  web: placeholderImageUrl,
+};
+
+const stubBusinessCardData = {
+  rawText:
+    'Avery Johnson\nDirector of Partnerships\nNorthwind Analytics\navery.johnson@northwind-analytics.com\n+1-415-555-0100\nwww.northwind-analytics.com',
+  confidence: 0.96,
+  name: { text: 'Avery Johnson', confidence: 0.99 },
+  jobTitle: { text: 'Director of Partnerships', confidence: 0.95 },
+  company: { text: 'Northwind Analytics', confidence: 0.97 },
+  email: { text: 'avery.johnson@northwind-analytics.com', confidence: 0.94 },
+  phone: { text: '+1-415-555-0100', confidence: 0.91 },
+  website: { text: 'https://northwind-analytics.com', confidence: 0.9 },
+  address: {
+    text: '525 Market Street, Suite 2100, San Francisco, CA 94105',
+    confidence: 0.88,
+  },
 };
 
 async function loadHandlers() {
@@ -153,6 +191,307 @@ function buildLambdaContext(serviceName) {
   };
 }
 
+const serviceKeys = new Set(Object.keys(services));
+
+function resolveServiceFromPath(parts) {
+  if (!parts.length) {
+    return null;
+  }
+
+  const normalized = [...parts.map(segment => segment.toLowerCase())];
+  const envPrefix = (process.env['APP_ENVIRONMENT'] ?? process.env['NODE_ENV'] ?? '').toLowerCase();
+
+  if (envPrefix && normalized[0] === envPrefix) {
+    normalized.shift();
+  }
+
+  if (normalized[0] === 'api') {
+    normalized.shift();
+  }
+
+  if (normalized[0] === 'v1' && normalized[1]) {
+    const candidate = normalized[1];
+    return serviceKeys.has(candidate) ? candidate : null;
+  }
+
+  return null;
+}
+
+function sendLambdaResponse(res, response) {
+  if (!response) {
+    res.statusCode = 204;
+    res.end();
+    return;
+  }
+
+  const statusCode = typeof response.statusCode === 'number' ? response.statusCode : 200;
+  res.statusCode = statusCode;
+
+  const headers = response.headers ?? {};
+  for (const [key, value] of Object.entries(headers)) {
+    if (value === undefined || value === null) {
+      continue;
+    }
+    res.setHeader(key, String(value));
+  }
+
+  const body = response.body ?? '';
+  if (!body) {
+    res.end();
+    return;
+  }
+
+  if (response.isBase64Encoded) {
+    res.end(Buffer.from(body, 'base64'));
+    return;
+  }
+
+  if (typeof body === 'string') {
+    res.end(body);
+    return;
+  }
+
+  if (!res.hasHeader('Content-Type')) {
+    res.setHeader('Content-Type', 'application/json');
+  }
+  res.end(JSON.stringify(body));
+}
+
+function buildStubUploadResponse() {
+  return {
+    success: true,
+    data: {
+      files: [
+        {
+          key: `stub-upload-${randomUUID()}`,
+          url: placeholderImageUrl,
+          variants: { ...stubImageVariants },
+        },
+      ],
+    },
+    timestamp: new Date().toISOString(),
+  };
+}
+
+function buildStubOcrResponse() {
+  return {
+    success: true,
+    data: {
+      businessCardData: { ...stubBusinessCardData },
+    },
+    timestamp: new Date().toISOString(),
+  };
+}
+
+function respondPreflight(res, methods = 'GET,POST,OPTIONS') {
+  res.statusCode = 204;
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', '*, authorization, content-type');
+  res.setHeader('Access-Control-Allow-Methods', methods);
+  res.end();
+}
+
+function respondJson(res, payload, statusCode = 200) {
+  res.statusCode = statusCode;
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Content-Type', 'application/json');
+  res.end(JSON.stringify(payload));
+}
+
+async function handleStubbedRoutes(req, res, url) {
+  const method = (req.method ?? 'GET').toUpperCase();
+
+  if (url.pathname === '/v1/upload/image') {
+    if (method === 'OPTIONS') {
+      console.log('[sandbox] preflight stub for POST /v1/upload/image');
+      respondPreflight(res, 'POST, OPTIONS');
+      return true;
+    }
+    if (method === 'POST') {
+      console.log('[sandbox] stubbed response for POST /v1/upload/image');
+      respondJson(res, buildStubUploadResponse());
+      return true;
+    }
+  }
+
+  if (url.pathname === '/v1/scan/business-card') {
+    if (method === 'OPTIONS') {
+      console.log('[sandbox] preflight stub for POST /v1/scan/business-card');
+      respondPreflight(res, 'POST, OPTIONS');
+      return true;
+    }
+    if (method === 'POST') {
+      console.log('[sandbox] stubbed response for POST /v1/scan/business-card');
+      respondJson(res, buildStubOcrResponse());
+      return true;
+    }
+  }
+
+  if (url.pathname === '/v1/cards/scan') {
+    if (method === 'OPTIONS') {
+      respondPreflight(res, 'POST, OPTIONS');
+      return true;
+    }
+    if (method === 'POST') {
+      await handleCardsScanStub(req, res);
+      return true;
+    }
+  }
+
+  return false;
+}
+
+async function handleCardsScanStub(req, res) {
+  try {
+    const authHeader = req.headers['authorization'] ?? req.headers['Authorization'];
+    const token = typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
+      ? authHeader.slice(7)
+      : null;
+
+    if (!token) {
+      respondJson(
+        res,
+        {
+          success: false,
+          error: { message: 'Unauthorized', code: 'UNAUTHORIZED' },
+          timestamp: new Date().toISOString(),
+        },
+        401
+      );
+      return;
+    }
+
+    await ensureDatabaseUrl();
+    const user = await resolveUserFromToken(token);
+    if (!user) {
+      respondJson(
+        res,
+        {
+          success: false,
+          error: { message: 'Unauthorized', code: 'UNAUTHORIZED' },
+          timestamp: new Date().toISOString(),
+        },
+        401
+      );
+      return;
+    }
+
+    const tenantId = await getTenantForUser(user.id);
+    const card = await createCard({
+      userId: user.id,
+      tenantId,
+      originalImageUrl: placeholderImageUrl,
+      processedImageUrl: placeholderImageUrl,
+      extractedText: stubBusinessCardData.rawText,
+      confidence: stubBusinessCardData.confidence,
+      name: stubBusinessCardData.name?.text,
+      title: stubBusinessCardData.jobTitle?.text,
+      company: stubBusinessCardData.company?.text,
+      email: stubBusinessCardData.email?.text,
+      phone: stubBusinessCardData.phone?.text,
+      address: stubBusinessCardData.address?.text,
+      website: stubBusinessCardData.website?.text,
+      notes: 'Generated via sandbox scan stub',
+      tags: ['sandbox', 'scan'],
+      scanDate: new Date(),
+    });
+
+    console.log('[sandbox] stubbed cards scan created card', card.id);
+
+    const normalizedEmail = stubBusinessCardData.email?.text?.toLowerCase() ?? undefined;
+    const normalizedPhone = stubBusinessCardData.phone?.text
+      ? stubBusinessCardData.phone.text.replace(/[^+\d]/g, '')
+      : undefined;
+    const normalizedWebsite = stubBusinessCardData.website?.text ?? undefined;
+
+    respondJson(
+      res,
+      {
+        success: true,
+        data: {
+          cardId: card.id,
+          extractedData: {
+            ...stubBusinessCardData,
+            normalizedEmail,
+            normalizedPhone,
+            normalizedWebsite,
+          },
+          confidence: stubBusinessCardData.confidence ?? 0.96,
+          duplicateCardId: null,
+          imageUrls: {
+            original: card.originalImageUrl ?? placeholderImageUrl,
+            processed: card.processedImageUrl ?? null,
+          },
+          processingTime: 900,
+        },
+        message: 'Card scanned successfully (stub)',
+        timestamp: new Date().toISOString(),
+      },
+      201
+    );
+  } catch (error) {
+    console.error('[sandbox] failed to handle cards scan stub', error);
+    respondJson(
+      res,
+      {
+        success: false,
+        error: { message: error?.message ?? 'Internal error', code: 'INTERNAL_ERROR' },
+        timestamp: new Date().toISOString(),
+      },
+      500
+    );
+  }
+}
+
+function augmentCardsScanResponse(response) {
+  if (!response?.body) {
+    return;
+  }
+
+  let payload;
+  try {
+    payload = typeof response.body === 'string' ? JSON.parse(response.body) : response.body;
+  } catch (error) {
+    console.warn('[sandbox] failed to parse scan response payload', error);
+    return;
+  }
+
+  const card = payload?.data?.card;
+  const cardId = card?.id ?? payload?.data?.cardId;
+  if (!cardId) {
+    console.log('[sandbox] scan response missing cardId', payload);
+    return;
+  }
+
+  const normalizedEmail = stubBusinessCardData.email?.text?.toLowerCase() ?? ''; // simple normalization
+  const normalizedPhone = stubBusinessCardData.phone?.text
+    ? stubBusinessCardData.phone.text.replace(/[^+\d]/g, '')
+    : '';
+  const normalizedWebsite = stubBusinessCardData.website?.text ?? '';
+
+  const existingImageUrls = payload?.data?.imageUrls ?? {};
+
+  payload.data = {
+    cardId,
+    extractedData: {
+      ...stubBusinessCardData,
+      normalizedEmail: normalizedEmail || undefined,
+      normalizedPhone: normalizedPhone || undefined,
+      normalizedWebsite: normalizedWebsite || undefined,
+    },
+    confidence: payload?.data?.confidence ?? 0.96,
+    duplicateCardId: payload?.data?.duplicateCardId ?? undefined,
+    imageUrls: {
+      original: existingImageUrls.original ?? card?.originalImageUrl ?? placeholderImageUrl,
+      processed: existingImageUrls.processed ?? card?.processedImageUrl ?? null,
+    },
+    processingTime: payload?.data?.processingTime ?? 1200,
+  };
+
+  response.body = JSON.stringify(payload);
+  console.log('[sandbox] augmented scan response with stubbed data');
+}
+
 async function startServer(port = 4100) {
   const handlers = await loadHandlers();
 
@@ -171,6 +510,46 @@ async function startServer(port = 4100) {
 
     const url = new URL(req.url, 'http://localhost');
     const parts = url.pathname.split('/').filter(Boolean);
+    console.log(`[sandbox] ${req.method ?? 'GET'} ${url.pathname}`);
+    const rawBody = await getRequestBody(req);
+
+    if (await handleStubbedRoutes(req, res, url)) {
+      return;
+    }
+
+    const serviceFromPath = resolveServiceFromPath(parts);
+
+    if (serviceFromPath) {
+      const handler = handlers[serviceFromPath];
+
+      if (!handler) {
+        res.statusCode = 404;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ error: `Unknown service: ${serviceFromPath}` }));
+        return;
+      }
+
+      try {
+        const event = buildEvent(req, url, rawBody);
+        const context = buildLambdaContext(serviceFromPath);
+        const response = await handler(event, context);
+
+        if (
+          serviceFromPath === 'cards' &&
+          (req.method ?? 'GET').toUpperCase() === 'POST' &&
+          url.pathname === '/v1/cards/scan'
+        ) {
+          augmentCardsScanResponse(response);
+        }
+
+        sendLambdaResponse(res, response);
+      } catch (error) {
+        res.statusCode = 500;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ error: error?.message || 'Invocation failed' }));
+      }
+      return;
+    }
 
     if (parts.length === 2 && parts[0] === 'invoke') {
       const serviceName = parts[1];
@@ -182,7 +561,6 @@ async function startServer(port = 4100) {
         return;
       }
 
-      const rawBody = await getRequestBody(req);
       const parsedBody = rawBody ? parseJsonSafe(rawBody) : undefined;
       const explicitEvent =
         parsedBody && typeof parsedBody === 'object' && 'event' in parsedBody ? parsedBody.event : undefined;
@@ -211,7 +589,7 @@ async function startServer(port = 4100) {
 
   server.listen(port, () => {
     console.log(`🪄 Lambda sandbox running on http://localhost:${port}`);
-    console.log('POST /invoke/<service> to invoke a handler.');
+    console.log('Use POST /invoke/<service> or call HTTP routes directly (e.g. /v1/auth/login).');
   });
 
   const shutdown = () => {

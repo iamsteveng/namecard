@@ -8,7 +8,7 @@ import type { Page } from 'puppeteer';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const artifactsDir = path.resolve(__dirname, '../artifacts');
-const fixturesDir = path.resolve(__dirname, '../fixtures');
+const fixturesDir = path.resolve(__dirname, '../../fixtures');
 const sampleCardPath = path.resolve(fixturesDir, 'card-sample.jpg');
 
 const sleep = (milliseconds: number) => new Promise<void>(resolve => setTimeout(resolve, milliseconds));
@@ -58,6 +58,18 @@ async function run() {
   try {
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 720 });
+    await page.evaluateOnNewDocument(() => {
+      if (typeof window === 'object') {
+        // @ts-ignore -- esbuild helper shim for runtime evaluation contexts
+        if (typeof window.__name !== 'function') {
+          // @ts-ignore
+          window.__name = (target, value) => target;
+        }
+      }
+    });
+    page.on('console', message => {
+      console.log(`[browser] ${message.type()}: ${message.text()}`);
+    });
 
     if (shouldRegister) {
       log('Registering a new user via the UI');
@@ -146,6 +158,41 @@ async function run() {
 
     await clickButtonByText(page, 'Scan Business Card');
 
+    log('Waiting for scan results to render');
+    await page.waitForFunction(
+      () => document.body.innerText.includes('Business Card Extracted'),
+      { timeout: 45_000 }
+    );
+
+    log('Entering edit mode for extracted fields');
+    await clickButtonByText(page, 'Edit');
+
+    log('Waiting for Save button to become interactive');
+    await page.waitForFunction(
+      () =>
+        Array.from(document.querySelectorAll('button')).some(button => {
+          const text = button.textContent?.trim() ?? '';
+          return text === 'Save' && !button.disabled;
+        }),
+      { timeout: 45_000 }
+    );
+
+    const awaitedSaveResponse = page.waitForResponse(response => {
+      const url = response.url();
+      return (
+        url.includes('/v1/cards/') &&
+        response.request().method() === 'PATCH' &&
+        response.status() >= 200 &&
+        response.status() < 300
+      );
+    });
+
+    log('Saving validated card details');
+    await clickButtonByText(page, 'Save');
+
+    await awaitedSaveResponse;
+
+    log('Waiting for Scan Another Card call-to-action');
     await page.waitForFunction(
       () => document.body.innerText.includes('Scan Another Card'),
       { timeout: 45_000 }
@@ -156,31 +203,150 @@ async function run() {
       fullPage: true,
     });
 
+    log('Collecting scanned card summary from results view');
+    const expectedCardName = 'Avery Johnson';
+    const expectedCardCompany = 'Northwind Analytics';
+
+    await page.waitForFunction(
+      (name, company) => {
+        const text = document.body.innerText || '';
+        return text.includes(name) && text.includes(company);
+      },
+      { timeout: 10_000 },
+      expectedCardName,
+      expectedCardCompany
+    );
+
+    log(`Captured scanned card details: ${expectedCardName} @ ${expectedCardCompany}`);
+
     log('Navigating to cards page');
-    await page.click('a[href="/cards"]');
+    await page.goto(buildUrl('/cards'), { waitUntil: 'networkidle2' });
     await page.waitForFunction(() => window.location.pathname === '/cards', { timeout: 10_000 });
     await page.waitForFunction(() => document.body.innerText.includes('Business Cards'), {
       timeout: 15_000,
     });
 
+    await page.waitForFunction(
+      expected => {
+        const headers = Array.from(document.querySelectorAll('h3'));
+        return headers.some(header => {
+          const nameText = header.textContent?.replace(/\s+/g, ' ').trim().toLowerCase();
+          if (!nameText || !nameText.includes(expected.name.toLowerCase())) {
+            return false;
+          }
+
+          const container = header.closest('div.flex-1');
+          if (!container) {
+            return false;
+          }
+
+          const infoParagraphs = container.querySelectorAll('p');
+          const companyText = infoParagraphs.length > 1
+            ? infoParagraphs[1]?.textContent?.replace(/\s+/g, ' ').trim().toLowerCase()
+            : '';
+
+          return Boolean(companyText && companyText.includes(expected.company.toLowerCase()));
+        });
+      },
+      { timeout: 20_000 },
+      { name: expectedCardName, company: expectedCardCompany }
+    );
+
+    const cardsOnPage = await page.evaluate(() => {
+      const normalize = value => {
+        if (typeof value !== 'string') {
+          return '';
+        }
+        return value.replace(/\s+/g, ' ').trim();
+      };
+
+      const cards = [];
+
+      const gridContainers = Array.from(document.querySelectorAll('div.grid'));
+      for (const grid of gridContainers) {
+        const cardElements = Array.from(grid.children);
+        for (const element of cardElements) {
+          const nameElement = element.querySelector('h3');
+          if (!nameElement) {
+            continue;
+          }
+
+          const name = normalize(nameElement.textContent);
+          if (!name) {
+            continue;
+          }
+
+          const container = nameElement.closest('div.flex-1');
+          let company = '';
+          if (container) {
+            const infoParagraphs = container.querySelectorAll('p');
+            if (infoParagraphs && infoParagraphs.length > 1) {
+              company = normalize(infoParagraphs[1].textContent);
+            }
+          }
+
+          cards.push({ name, company });
+        }
+      }
+
+      if (cards.length === 0) {
+        const listContainer = document.querySelector('div.divide-y');
+        if (listContainer) {
+          const rows = Array.from(listContainer.children);
+          for (const row of rows) {
+            const nameElement = row.querySelector('h3');
+            if (!nameElement) {
+              continue;
+            }
+
+            const name = normalize(nameElement.textContent);
+            if (!name) {
+              continue;
+            }
+
+            const wrapper = nameElement.closest('div.flex-1');
+            const companyLine = wrapper ? wrapper.querySelector('p') : null;
+            const company = normalize(companyLine ? companyLine.textContent : '');
+            cards.push({ name, company });
+          }
+        }
+      }
+
+      return cards;
+    });
+
+    if (cardsOnPage.length === 0) {
+      throw new Error('No cards visible on cards page; expected at least one card after scan.');
+    }
+
+    const normalize = (value: string) => value.replace(/\s+/g, ' ').trim().toLowerCase();
+    const normalizedExpectedName = normalize(expectedCardName);
+    const normalizedExpectedCompany = normalize(expectedCardCompany);
+
+    const matchingIndex = cardsOnPage.findIndex(card => {
+      const name = normalize(card.name);
+      const company = normalize(card.company);
+      return name.includes(normalizedExpectedName) && company.includes(normalizedExpectedCompany);
+    });
+
+    if (matchingIndex === -1) {
+      throw new Error(
+        `Uploaded card (${expectedCardName} @ ${expectedCardCompany}) not found in cards list.`
+      );
+    }
+
+    if (matchingIndex !== 0) {
+      throw new Error(
+        `Uploaded card (${expectedCardName} @ ${expectedCardCompany}) not listed first; found at position ${matchingIndex + 1}.`
+      );
+    }
+
+    log('Verified uploaded card is present at the top of the cards list');
+
     await page.screenshot({
       path: path.join(artifactsDir, '05-cards.png'),
       fullPage: true,
     });
-
-    const cardsSummary = await page.evaluate(() => {
-      const summary = Array.from(document.querySelectorAll('p')).find(element =>
-        element.textContent?.toLowerCase().includes('card') &&
-        element.textContent?.toLowerCase().includes('total')
-      );
-      return summary?.textContent?.trim() ?? '';
-    });
-
-    if (cardsSummary) {
-      console.log(`✅ Cards summary detected: ${cardsSummary}`);
-    } else {
-      console.warn('⚠️  Cards summary not detected; verify seed data.');
-    }
 
     console.log(`\n✅ Smoke test completed. Screenshots stored in ${artifactsDir}.`);
   } finally {
@@ -189,6 +355,13 @@ async function run() {
 }
 
 run().catch(error => {
-  console.error(`\n❌ Smoke test failed: ${error instanceof Error ? error.message : String(error)}`);
+  if (error instanceof Error) {
+    console.error(`\n❌ Smoke test failed: ${error.message}`);
+    if (error.stack) {
+      console.error(error.stack);
+    }
+  } else {
+    console.error(`\n❌ Smoke test failed: ${String(error)}`);
+  }
   process.exit(1);
 });
