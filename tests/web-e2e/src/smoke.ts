@@ -206,6 +206,7 @@ async function run() {
     log('Collecting scanned card summary from results view');
     const expectedCardName = 'Avery Johnson';
     const expectedCardCompany = 'Northwind Analytics';
+    const expectedCardEmail = 'avery.johnson@northwind-analytics.com';
 
     await page.waitForFunction(
       (name, company) => {
@@ -345,6 +346,128 @@ async function run() {
 
     await page.screenshot({
       path: path.join(artifactsDir, '05-cards.png'),
+      fullPage: true,
+    });
+
+    await page.evaluate(() => {
+      const direct = window.localStorage.getItem('accessToken');
+      if (direct) {
+        return;
+      }
+
+      const persistedRaw = window.localStorage.getItem('namecard-auth');
+      if (!persistedRaw) {
+        return;
+      }
+
+      try {
+        const parsed = JSON.parse(persistedRaw);
+        const token =
+          parsed?.state?.session?.accessToken ?? parsed?.session?.accessToken ?? null;
+        if (typeof token === 'string' && token.length > 0) {
+          window.localStorage.setItem('accessToken', token);
+        }
+      } catch {
+        // ignore parse failures; search service will handle missing tokens gracefully
+      }
+    });
+
+    log('Searching for uploaded card in quick search input');
+    const basicSearchInput = await page.waitForSelector(
+      'input[placeholder="Search cards by name, company, or email..."]',
+      { timeout: 10_000 }
+    );
+
+    if (!basicSearchInput) {
+      throw new Error('Quick search input not found on cards page.');
+    }
+
+    await basicSearchInput.click({ clickCount: 3 });
+    await page.keyboard.down('Control');
+    await page.keyboard.press('KeyA');
+    await page.keyboard.up('Control');
+    await page.keyboard.down('Meta');
+    await page.keyboard.press('KeyA');
+    await page.keyboard.up('Meta');
+    await page.keyboard.press('Backspace');
+
+    const awaitedSearchResponse = page.waitForResponse(response => {
+      const url = response.url();
+      return (
+        url.includes('/v1/search/cards') &&
+        response.request().method() === 'POST' &&
+        response.status() >= 200 &&
+        response.status() < 300
+      );
+    });
+
+    await basicSearchInput.type(expectedCardName, { delay: 25 });
+
+    await awaitedSearchResponse;
+
+    log('Waiting for search results to render');
+    const maxAttempts = 40;
+    let searchResults: Array<{ name: string; textContent: string }> = [];
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      const currentResults = await page.evaluate(() => {
+        const normalize = (value: string | null | undefined) =>
+          typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
+
+        const lower = (value: string | null | undefined) => normalize(value).toLowerCase();
+
+        const resultCards = Array.from(
+          document.querySelectorAll<HTMLDivElement>('div.bg-white.border.border-gray-200.rounded-lg')
+        ).filter(card => card.querySelector('h3'));
+
+        return resultCards.map(card => {
+          const name = normalize(card.querySelector('h3')?.textContent ?? '');
+          const textContent = lower(card.innerText || '');
+          return { name, textContent };
+        });
+      });
+
+      if (currentResults.length > 0) {
+        searchResults = currentResults;
+        break;
+      }
+
+      if (attempt < maxAttempts - 1) {
+        // eslint-disable-next-line no-await-in-loop
+        await sleep(500);
+      }
+    }
+
+    if (!searchResults.length) {
+      throw new Error('Search results did not render any cards.');
+    }
+
+    const normalizedName = expectedCardName.toLowerCase();
+    const normalizedCompany = expectedCardCompany.toLowerCase();
+    const normalizedEmail = expectedCardEmail.toLowerCase();
+
+    const searchMatchingIndex = searchResults.findIndex(result => {
+      return (
+        result.textContent.includes(normalizedName) &&
+        result.textContent.includes(normalizedCompany) &&
+        result.textContent.includes(normalizedEmail)
+      );
+    });
+
+    if (searchMatchingIndex === -1) {
+      throw new Error('Uploaded card not found in search results for provided query.');
+    }
+
+    if (searchMatchingIndex !== 0) {
+      throw new Error(
+        `Uploaded card found in search results but not listed first (position ${searchMatchingIndex + 1}).`
+      );
+    }
+
+    log('Verified uploaded card appears first in search results with expected metadata');
+
+    await page.screenshot({
+      path: path.join(artifactsDir, '06-cards-search.png'),
       fullPage: true,
     });
 

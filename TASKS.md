@@ -35,9 +35,9 @@
 - [x] Task 3.4 — Card list validation
   - [x] Action: Visit `/cards`, ensure the newly uploaded card appears (matching name/company from seed metadata), and capture the list view.
   - [x] Verify: Assert at least one card exists and the latest entry matches the upload from Task 3.3.
-- [ ] Task 3.5 — Card search smoke
-  - [ ] Action: Use the cards search UI to query for the uploaded card and stash the search-results screenshot.
-  - [ ] Verify: Search results contain the expected card and highlight key metadata (name/company/email).
+- [x] Task 3.5 — Card search smoke
+  - [x] Action: Use the cards search UI to query for the uploaded card and stash the search-results screenshot.
+  - [x] Verify: Search results contain the expected card and highlight key metadata (name/company/email).
 
 ### 4. Harmonize With API E2E Harness (Planned)
 - [ ] Task 4.1 — Share fixtures & seeding

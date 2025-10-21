@@ -16,8 +16,39 @@ import { buildV1Url } from '../config/api';
 const SEARCH_BASE_URL = buildV1Url('/search');
 
 class SearchService {
+  private getAccessTokenFromStorage(): string | null {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+
+    const directToken = window.localStorage.getItem('accessToken');
+    if (directToken) {
+      return directToken;
+    }
+
+    const persistedAuth = window.localStorage.getItem('namecard-auth');
+    if (!persistedAuth) {
+      return null;
+    }
+
+    try {
+      const parsed = JSON.parse(persistedAuth);
+      const token =
+        parsed?.state?.session?.accessToken ?? parsed?.session?.accessToken ?? null;
+
+      if (typeof token === 'string' && token.length > 0) {
+        window.localStorage.setItem('accessToken', token);
+        return token;
+      }
+    } catch (error) {
+      console.warn('[searchService] Failed to parse persisted auth token', error);
+    }
+
+    return null;
+  }
+
   private getAuthHeaders(): HeadersInit {
-    const token = localStorage.getItem('accessToken');
+    const token = this.getAccessTokenFromStorage();
 
     return {
       'Content-Type': 'application/json',
