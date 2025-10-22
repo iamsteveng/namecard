@@ -1,1 +1,1 @@
-export * from './runtime-shim.ts';
+module.exports = require('./runtime-shim.ts');
