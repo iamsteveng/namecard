@@ -1,6 +1,7 @@
 const resolveBaseUrl = (): string => {
   const runtimeEnv = (globalThis as any)?.__ENV__?.VITE_API_URL;
-  const viteEnv = typeof import.meta !== 'undefined' ? (import.meta as any).env?.VITE_API_URL : undefined;
+  const viteEnv =
+    typeof import.meta !== 'undefined' ? (import.meta as any).env?.VITE_API_URL : undefined;
   const fallback = typeof window !== 'undefined' ? window.location.origin : '';
 
   const raw = runtimeEnv ?? viteEnv ?? fallback ?? '';

@@ -33,8 +33,7 @@ class SearchService {
 
     try {
       const parsed = JSON.parse(persistedAuth);
-      const token =
-        parsed?.state?.session?.accessToken ?? parsed?.session?.accessToken ?? null;
+      const token = parsed?.state?.session?.accessToken ?? parsed?.session?.accessToken ?? null;
 
       if (typeof token === 'string' && token.length > 0) {
         window.localStorage.setItem('accessToken', token);

@@ -9,8 +9,8 @@ import type {
   EnrichmentSource,
 } from '@namecard/shared/types/enrichment.types';
 
-import type { EnrichCardRequest, EnrichCardResponse } from '../types/enrichment.types';
 import { buildV1Url } from '../config/api';
+import type { EnrichCardRequest, EnrichCardResponse } from '../types/enrichment.types';
 
 export interface EnrichmentHealthResponse {
   status: 'healthy' | 'unhealthy';
