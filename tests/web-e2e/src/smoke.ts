@@ -6,6 +6,8 @@ import puppeteer from 'puppeteer';
 import type { Page } from 'puppeteer';
 
 import {
+  bootstrapAuthSession,
+  buildPersistedAuthState,
   cardFixturePath,
   describeSeedSummary,
   readSharedSeedState,
@@ -18,6 +20,14 @@ const artifactsDir = path.resolve(__dirname, '../artifacts');
 const sampleCardPath = cardFixturePath;
 
 const sleep = (milliseconds: number) => new Promise<void>(resolve => setTimeout(resolve, milliseconds));
+
+const parseBooleanFlag = (value: string | undefined | null): boolean => {
+  if (!value) {
+    return false;
+  }
+  const normalized = value.trim().toLowerCase();
+  return normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on';
+};
 
 const clickButtonByText = async (page: Page, text: string) => {
   const clicked = await page.evaluate(targetText => {
@@ -71,7 +81,20 @@ async function run() {
     ? `Seeded User ${seededUser.userId.slice(0, 8)}`
     : `E2E User ${uniqueSuffix}`;
 
-  const shouldRegister = !seededUser && (!envEmail || !envPassword);
+  const rawAuthMode =
+    process.env['WEB_E2E_AUTH_MODE'] ?? process.env['WEB_E2E_AUTH_STRATEGY'] ?? '';
+  const useBootstrapAuth =
+    ['bootstrap', 'api', 'session', 'bypass'].includes(rawAuthMode.trim().toLowerCase()) ||
+    parseBooleanFlag(process.env['WEB_E2E_BYPASS_LOGIN']) ||
+    parseBooleanFlag(process.env['WEB_E2E_AUTH_BYPASS']);
+
+  if (useBootstrapAuth) {
+    log('Auth mode: bootstrap session (skipping UI login flow)');
+  } else {
+    log('Auth mode: interactive UI login flow');
+  }
+
+  const shouldRegister = !useBootstrapAuth && !seededUser && (!envEmail || !envPassword);
   const shouldUploadCard = !seededCard;
 
   const expectedCardName = seededCard?.name ?? 'Avery Johnson';
@@ -105,61 +128,94 @@ async function run() {
       console.log(`[browser] ${message.type()}: ${message.text()}`);
     });
 
-    if (shouldRegister) {
-      log('Registering a new user via the UI');
-      await page.goto(buildUrl('/auth/register'), { waitUntil: 'networkidle2' });
-      await page.waitForSelector('form');
+    if (useBootstrapAuth) {
+      log('Bootstrapping auth session via shared helper');
+      const authBootstrap = await bootstrapAuthSession({
+        baseUrl: process.env['WEB_E2E_API_BASE_URL'],
+        email: envEmail ?? seededUser?.email ?? registrationEmail,
+        password: envPassword ?? seededUser?.password ?? registrationPassword,
+        name: registrationName,
+      });
 
-      await page.type('input#name', registrationName, { delay: 15 });
-      await page.type('input#email', registrationEmail, { delay: 15 });
-      await page.type('input#password', registrationPassword, { delay: 15 });
-      await page.type('input#confirmPassword', registrationPassword, { delay: 15 });
+      if (authBootstrap.meta.elapsedMs > 2_500) {
+        throw new Error(
+          `Auth bootstrap exceeded expected duration (${authBootstrap.meta.elapsedMs}ms)`
+        );
+      }
+
+      const persistedAuth = buildPersistedAuthState({
+        user: authBootstrap.user,
+        session: authBootstrap.session,
+        isAuthenticated: true,
+      });
+
+      await page.evaluateOnNewDocument(payload => {
+        window.localStorage.setItem('namecard-auth', JSON.stringify(payload));
+      }, persistedAuth);
+
+      log(
+        `Loaded API bootstrap session for ${authBootstrap.user.email} ` +
+          `(registered=${authBootstrap.meta.registered ? 'yes' : 'no'}; elapsed=${authBootstrap.meta.elapsedMs}ms)`
+      );
+
+      await page.goto(buildUrl('/'), { waitUntil: 'networkidle2' });
+    } else {
+      if (shouldRegister) {
+        log('Registering a new user via the UI');
+        await page.goto(buildUrl('/auth/register'), { waitUntil: 'networkidle2' });
+        await page.waitForSelector('form');
+
+        await page.type('input#name', registrationName, { delay: 15 });
+        await page.type('input#email', registrationEmail, { delay: 15 });
+        await page.type('input#password', registrationPassword, { delay: 15 });
+        await page.type('input#confirmPassword', registrationPassword, { delay: 15 });
+
+        await Promise.all([
+          page.click('button[type="submit"]'),
+          sleep(500),
+        ]);
+
+        await page.waitForFunction(
+          () => document.body.innerText.includes('Registration Successful!'),
+          { timeout: 10_000 }
+        );
+
+        await page.screenshot({
+          path: path.join(artifactsDir, '01-registration-success.png'),
+          fullPage: true,
+        });
+
+        console.log(`✅ Registered user: ${registrationEmail}`);
+
+        await page.waitForFunction(
+          () => window.location.pathname === '/auth/login',
+          { timeout: 15_000 }
+        );
+      } else {
+        if (seededUser) {
+          log(`Using shared seeded user ${seededUser.email}; skipping registration`);
+        } else {
+          log('Using provided credentials; skipping registration');
+        }
+        await page.goto(buildUrl('/auth/login'), { waitUntil: 'networkidle2' });
+      }
+
+      log('Opening login page');
+      await page.waitForSelector('form');
+      await page.screenshot({
+        path: path.join(artifactsDir, '02-login.png'),
+        fullPage: true,
+      });
+
+      log('Submitting login form');
+      await page.type('input#email', registrationEmail, { delay: 20 });
+      await page.type('input#password', registrationPassword, { delay: 20 });
 
       await Promise.all([
         page.click('button[type="submit"]'),
         sleep(500),
       ]);
-
-      await page.waitForFunction(
-        () => document.body.innerText.includes('Registration Successful!'),
-        { timeout: 10_000 }
-      );
-
-      await page.screenshot({
-        path: path.join(artifactsDir, '01-registration-success.png'),
-        fullPage: true,
-      });
-
-      console.log(`✅ Registered user: ${registrationEmail}`);
-
-      await page.waitForFunction(
-        () => window.location.pathname === '/auth/login',
-        { timeout: 15_000 }
-      );
-    } else {
-      if (seededUser) {
-        log(`Using shared seeded user ${seededUser.email}; skipping registration`);
-      } else {
-        log('Using provided credentials; skipping registration');
-      }
-      await page.goto(buildUrl('/auth/login'), { waitUntil: 'networkidle2' });
     }
-
-    log('Opening login page');
-    await page.waitForSelector('form');
-    await page.screenshot({
-      path: path.join(artifactsDir, '02-login.png'),
-      fullPage: true,
-    });
-
-    log('Submitting login form');
-    await page.type('input#email', registrationEmail, { delay: 20 });
-    await page.type('input#password', registrationPassword, { delay: 20 });
-
-    await Promise.all([
-      page.click('button[type="submit"]'),
-      sleep(500),
-    ]);
 
     await page.waitForFunction(
       () => window.location.pathname === '/' || window.location.pathname === '/dashboard',
@@ -172,7 +228,7 @@ async function run() {
     );
 
     if (!dashboardHeading) {
-      throw new Error('Dashboard heading not found after login');
+      throw new Error('Dashboard heading not found after authentication');
     }
 
     await page.screenshot({
