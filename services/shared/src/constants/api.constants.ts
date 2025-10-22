@@ -2,7 +2,7 @@
 export const API_ROUTES = {
   // Health and system
   HEALTH: '/health',
-  API_INFO: '/api/v1',
+  API_INFO: '/v1',
 
   // Authentication routes
   AUTH: {

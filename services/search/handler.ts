@@ -1,3 +1,6 @@
+import type { Card } from '@namecard/shared';
+import type { SearchHighlight } from '@namecard/shared/types/search.types';
+
 import {
   getLogger,
   getMetrics,
@@ -76,12 +79,23 @@ const runCardSearch = async (userId: string, tenantId: string, searchTerm: strin
     company: undefined,
   });
 
-  const highlights = listResult.items.map(card => ({
-    cardId: card.id,
-    snippet: searchTerm
-      ? `Match on ${searchTerm} in ${card.company ?? 'card details'}`
-      : 'Indexed card record',
-  }));
+  const buildHighlights = (card: Card, term: string | undefined) => {
+    if (!term) {
+      return [] as SearchHighlight[];
+    }
+
+    const safeTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const formattedCompany = card.company ? ` in ${card.company}` : '';
+
+    return [
+      {
+        field: 'summary',
+        value: `<b>${safeTerm}</b> match${formattedCompany || ' in card details'}`,
+      },
+    ] as SearchHighlight[];
+  };
+
+  const highlightSets = listResult.items.map(card => buildHighlights(card, searchTerm));
 
   const latencyMs = Math.floor(Math.random() * 30) + 35;
   await recordSearchEvent({
@@ -103,22 +117,35 @@ const runCardSearch = async (userId: string, tenantId: string, searchTerm: strin
     latencyMs: totalDuration,
   });
 
+  const totalPages = Math.max(1, Math.ceil(listResult.total / limit));
+  const hasNext = listResult.total > limit;
+
   const results = listResult.items.map((card, index) => ({
     item: card,
     rank: Number((1 - index / Math.max(listResult.items.length, 1)).toFixed(4)),
-    highlights: highlights.find(highlight => highlight.cardId === card.id)?.snippet ?? null,
+    highlights: highlightSets[index],
   }));
 
   return {
     results,
-    highlights,
+    highlights: highlightSets,
     latencyMs,
     searchMeta: {
       query: searchTerm,
+      processedQuery: searchTerm,
       totalMatches: listResult.total,
       executionTime: `${latencyMs}ms`,
+      searchMode: searchTerm ? 'simple' : 'simple',
+      hasMore: hasNext,
+      searchId: `sandbox-${Date.now()}`,
+    },
+    pagination: {
       page: 1,
       limit,
+      total: listResult.total,
+      totalPages,
+      hasNext,
+      hasPrev: false,
     },
   };
 };
@@ -200,7 +227,11 @@ const handleCardsSearch = async (event: LambdaHttpEvent, requestId: string) => {
         {
           requestId,
           results: result.results,
-          searchMeta: result.searchMeta,
+          searchMeta: {
+            ...result.searchMeta,
+            searchMode: result.searchMeta.searchMode ?? 'simple',
+          },
+          pagination: result.pagination,
           highlights: result.highlights,
           latencyMs: result.latencyMs,
         },
@@ -254,8 +285,9 @@ const handleCardsSearchPost = async (event: LambdaHttpEvent, requestId: string) 
           results: searchResult.results,
           searchMeta: {
             ...searchResult.searchMeta,
-            mode: body.searchMode ?? 'simple',
+            searchMode: body.searchMode ?? 'simple',
           },
+          pagination: searchResult.pagination,
           latencyMs: searchResult.latencyMs,
         },
         { message: 'Card search completed' }

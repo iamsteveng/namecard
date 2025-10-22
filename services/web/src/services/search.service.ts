@@ -11,11 +11,43 @@ import type {
   FilterOptions,
 } from '@namecard/shared/types/search.types';
 
-const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || '';
+import { buildV1Url } from '../config/api';
+
+const SEARCH_BASE_URL = buildV1Url('/search');
 
 class SearchService {
+  private getAccessTokenFromStorage(): string | null {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+
+    const directToken = window.localStorage.getItem('accessToken');
+    if (directToken) {
+      return directToken;
+    }
+
+    const persistedAuth = window.localStorage.getItem('namecard-auth');
+    if (!persistedAuth) {
+      return null;
+    }
+
+    try {
+      const parsed = JSON.parse(persistedAuth);
+      const token = parsed?.state?.session?.accessToken ?? parsed?.session?.accessToken ?? null;
+
+      if (typeof token === 'string' && token.length > 0) {
+        window.localStorage.setItem('accessToken', token);
+        return token;
+      }
+    } catch (error) {
+      console.warn('[searchService] Failed to parse persisted auth token', error);
+    }
+
+    return null;
+  }
+
   private getAuthHeaders(): HeadersInit {
-    const token = localStorage.getItem('accessToken');
+    const token = this.getAccessTokenFromStorage();
 
     return {
       'Content-Type': 'application/json',
@@ -38,7 +70,7 @@ class SearchService {
    * Search cards with advanced parameters
    */
   async searchCards(params: AdvancedSearchParams): Promise<SearchCardsResponse> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/search/cards`, {
+    const response = await fetch(`${SEARCH_BASE_URL}/cards`, {
       method: 'POST',
       headers: this.getAuthHeaders(),
       body: JSON.stringify(params),
@@ -51,7 +83,7 @@ class SearchService {
    * Search companies
    */
   async searchCompanies(params: FullTextSearchParams): Promise<SearchCompaniesResponse> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/search/companies`, {
+    const response = await fetch(`${SEARCH_BASE_URL}/companies`, {
       method: 'POST',
       headers: this.getAuthHeaders(),
       body: JSON.stringify(params),
@@ -70,7 +102,7 @@ class SearchService {
       ...(params.maxSuggestions && { maxSuggestions: params.maxSuggestions.toString() }),
     });
 
-    const response = await fetch(`${API_BASE_URL}/api/v1/search/suggestions?${searchParams}`, {
+    const response = await fetch(`${SEARCH_BASE_URL}/suggestions?${searchParams}`, {
       method: 'GET',
       headers: this.getAuthHeaders(),
     });
@@ -87,7 +119,7 @@ class SearchService {
       searchParams.set('q', baseQuery);
     }
 
-    const response = await fetch(`${API_BASE_URL}/api/v1/search/filters?${searchParams}`, {
+    const response = await fetch(`${SEARCH_BASE_URL}/filters?${searchParams}`, {
       method: 'GET',
       headers: this.getAuthHeaders(),
     });
@@ -218,7 +250,7 @@ class SearchService {
    * Get search analytics (if available)
    */
   async getSearchAnalytics(): Promise<any> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/search/analytics`, {
+    const response = await fetch(`${SEARCH_BASE_URL}/analytics`, {
       method: 'GET',
       headers: this.getAuthHeaders(),
     });
@@ -230,7 +262,7 @@ class SearchService {
    * Get search system health
    */
   async getSearchHealth(): Promise<any> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/search/health`, {
+    const response = await fetch(`${SEARCH_BASE_URL}/health`, {
       method: 'GET',
       headers: this.getAuthHeaders(),
     });
@@ -242,7 +274,7 @@ class SearchService {
    * Trigger search index rebuild
    */
   async triggerReindex(table: 'cards' | 'companies' | 'all' = 'all'): Promise<any> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/search/reindex`, {
+    const response = await fetch(`${SEARCH_BASE_URL}/reindex`, {
       method: 'POST',
       headers: this.getAuthHeaders(),
       body: JSON.stringify({ table }),

@@ -11,7 +11,7 @@ export default function LoginPage() {
   const [localError, setLocalError] = useState<string | null>(null);
 
   // Redirect to intended page after login
-  const from = location.state?.from?.pathname || '/dashboard';
+  const from = location.state?.from?.pathname || '/';
 
   useEffect(() => {
     clearError();

@@ -7,10 +7,10 @@ import type {
   UpdateUserProfileResponse,
 } from '@namecard/shared';
 
-const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || '';
+import { buildV1Url } from '../config/api';
 
 class AuthService {
-  private baseUrl = `${API_BASE_URL}/api/v1/auth`;
+  private baseUrl = buildV1Url('/auth');
 
   /**
    * Register a new user

@@ -1,8 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { promises as fs } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
+import { ensureCardFixture, seedStatePath } from '@namecard/e2e-shared';
 import { z } from 'zod';
 
 import { createApiClient } from './api-client.js';
@@ -12,6 +10,7 @@ const optionsSchema = z.object({
   env: z.enum(['local', 'staging']).default('local'),
   dryRun: z.boolean().default(false),
   baseUrl: z.string().url().optional(),
+  shareSeed: z.boolean().default(false),
 });
 
 const MAX_CARD_IMAGE_BYTES = 200 * 1024; // 200 KB ceiling per plan guardrail
@@ -32,17 +31,13 @@ export async function createHarnessContext(
 ): Promise<HarnessInitResult> {
   const options = optionsSchema.parse(rawOptions);
 
-  const moduleDir = dirname(fileURLToPath(import.meta.url));
-  const packageRoot = resolve(moduleDir, '..');
-  const fixturesDir = resolve(packageRoot, '../fixtures');
-  const cardImagePath = resolve(fixturesDir, 'card-sample.jpg');
+  const fixture = await ensureCardFixture();
+  const cardImagePath = fixture.path;
 
-  const stats = await ensureFixture(cardImagePath);
-
-  if (stats.size > MAX_CARD_IMAGE_BYTES) {
+  if (fixture.size > MAX_CARD_IMAGE_BYTES) {
     throw new Error(
       `Fixture ${cardImagePath} exceeds ${formatBytes(MAX_CARD_IMAGE_BYTES)} (actual: ${formatBytes(
-        stats.size
+        fixture.size
       )}).`
     );
   }
@@ -64,6 +59,10 @@ export async function createHarnessContext(
   });
   const state = {
     runId: randomUUID(),
+    sharedSeed: {
+      enabled: options.shareSeed,
+      seedStatePath,
+    },
   };
 
   const context: ScenarioContext = {
@@ -85,22 +84,9 @@ export async function createHarnessContext(
     context,
     fixtures: {
       cardImagePath,
-      cardImageSize: stats.size,
+      cardImageSize: fixture.size,
     },
   };
-}
-
-async function ensureFixture(path: string) {
-  try {
-    const stats = await fs.stat(path);
-    if (!stats.isFile()) {
-      throw new Error(`${path} exists but is not a file.`);
-    }
-    return stats;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Required fixture missing: ${path} (${message})`);
-  }
 }
 
 export function formatBytes(bytes: number): string {

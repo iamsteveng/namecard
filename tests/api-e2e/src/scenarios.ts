@@ -2,6 +2,8 @@ import { createHash, randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import { setTimeout as delay } from 'node:timers/promises';
 
+import { writeSharedSeedState } from '@namecard/e2e-shared';
+import type { SharedSeedState } from '@namecard/e2e-shared';
 import { Client } from 'pg';
 
 import type {
@@ -195,6 +197,78 @@ async function searchCardsScenario(context: ScenarioContext): Promise<ScenarioOu
   throw new Error(`Card ${card.id} not found via search query '${query}'`);
 }
 
+async function persistSharedSeedScenario(context: ScenarioContext): Promise<ScenarioOutcome> {
+  if (context.dryRun) {
+    return {
+      status: 'skipped',
+      notes: DRY_RUN_NOTE,
+    };
+  }
+
+  const sharedSeed = context.state.sharedSeed;
+  if (!sharedSeed?.enabled) {
+    return {
+      status: 'skipped',
+      notes: 'Shared seed persistence disabled',
+    };
+  }
+
+  const user = context.state.user;
+  if (!user) {
+    return {
+      status: 'skipped',
+      notes: 'User context unavailable; nothing to persist',
+    };
+  }
+
+  const card = context.state.card;
+  const upload = context.state.upload;
+
+  const payload: SharedSeedState = {
+    version: 1,
+    source: 'api-e2e',
+    env: context.env,
+    runId: context.state.runId,
+    user: {
+      userId: user.userId,
+      email: user.email,
+      password: user.password,
+    },
+    card: card
+      ? {
+          id: card.id,
+          name: card.name ?? null,
+          company: card.company ?? null,
+          email: card.email ?? null,
+          tags: card.tags ?? [],
+          searchQuery: context.state.searchQuery ?? null,
+        }
+      : undefined,
+    upload: upload
+      ? {
+          id: upload.id,
+          tag: upload.tag,
+          fileName: upload.fileName,
+          checksum: upload.checksum,
+          cdnUrl: upload.cdnUrl,
+        }
+      : undefined,
+    notes: 'Persisted for UI E2E reuse',
+  };
+
+  await writeSharedSeedState(payload);
+  context.log(`shared seed written to ${sharedSeed.seedStatePath}`);
+  context.state.sharedSeed = {
+    ...sharedSeed,
+    persisted: true,
+  };
+
+  return {
+    status: 'passed',
+    notes: `Seed persisted to ${sharedSeed.seedStatePath}`,
+  };
+}
+
 export const scenarios: ScenarioDefinition[] = [
   {
     id: 'register-new-user',
@@ -220,6 +294,11 @@ export const scenarios: ScenarioDefinition[] = [
     id: 'search-cards',
     description: 'Search index includes newly created card',
     execute: searchCardsScenario,
+  },
+  {
+    id: 'persist-shared-seed-state',
+    description: 'Persist seeded user/card details for downstream harnesses',
+    execute: persistSharedSeedScenario,
   },
   {
     id: 'tear-down-user',
@@ -261,6 +340,7 @@ function toCardSnapshot(card: CardRecord) {
     id: card.id,
     name: card.name ?? null,
     company: card.company ?? null,
+    email: card.email ?? null,
     tags: card.tags ?? [],
   };
 }
@@ -270,6 +350,14 @@ async function tearDownScenario(context: ScenarioContext): Promise<ScenarioOutco
     return {
       status: 'skipped',
       notes: DRY_RUN_NOTE,
+    };
+  }
+
+  const sharedSeed = context.state.sharedSeed;
+  if (sharedSeed?.enabled) {
+    return {
+      status: 'skipped',
+      notes: 'Shared seed mode active; preserving seeded data for UI harness reuse',
     };
   }
 

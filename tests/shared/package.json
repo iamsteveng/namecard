@@ -1,0 +1,15 @@
+{
+  "name": "@namecard/e2e-shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./e2e-seed.js",
+  "types": "./e2e-seed.js.d.ts",
+  "exports": {
+    ".": {
+      "types": "./e2e-seed.js.d.ts",
+      "import": "./e2e-seed.js",
+      "default": "./e2e-seed.js"
+    }
+  }
+}

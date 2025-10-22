@@ -1,0 +1,21 @@
+{
+  "name": "@namecard/web-e2e",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "pnpm run test:smoke",
+    "test:smoke": "tsx src/smoke.ts"
+  },
+  "dependencies": {
+    "@namecard/e2e-shared": "workspace:*",
+    "esbuild-register": "^3.6.0",
+    "module-alias": "^2.2.3",
+    "puppeteer": "^23.5.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+}

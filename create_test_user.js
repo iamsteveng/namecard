@@ -7,17 +7,25 @@ const prisma = new PrismaClient({
   datasourceUrl: 'postgresql://namecard_user:namecard_password@localhost:5432/namecard_dev',
 });
 
-const TEST_USER_ID = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+async function getSeedDefaults() {
+  return import('@namecard/e2e-shared');
+}
 
 async function createTestUser() {
   try {
+    const {
+      DEFAULT_SEED_USER_ID: seedUserId,
+      DEFAULT_SEED_USER_EMAIL: seedUserEmail,
+      DEFAULT_SEED_USER_PASSWORD: seedUserPassword,
+    } = await getSeedDefaults();
+
     console.log('🔍 Checking for test user...');
 
     // Check if test user exists using raw SQL to handle schema mismatch
     const existingUser = await prisma.$queryRaw`
       SELECT id, email, first_name, last_name 
       FROM users 
-      WHERE id = ${TEST_USER_ID}::uuid
+      WHERE id = ${seedUserId}::uuid
     `;
 
     if (existingUser && existingUser.length > 0) {
@@ -31,8 +39,8 @@ async function createTestUser() {
     const newUser = await prisma.$executeRaw`
       INSERT INTO users (id, email, first_name, last_name, cognito_user_id, created_at, updated_at)
       VALUES (
-        ${TEST_USER_ID}::uuid,
-        'test@namecard.app',
+        ${seedUserId}::uuid,
+        ${seedUserEmail},
         'Test',
         'User', 
         'dev-bypass-cognito-id',
@@ -48,11 +56,12 @@ async function createTestUser() {
     const verifyUser = await prisma.$queryRaw`
       SELECT id, email, first_name, last_name 
       FROM users 
-      WHERE id = ${TEST_USER_ID}::uuid
+      WHERE id = ${seedUserId}::uuid
     `;
 
     console.log('📊 Created user:', verifyUser[0]);
-    
+    console.log(`🔐 Seed password hint: ${seedUserPassword}`);
+
     return verifyUser[0];
 
   } catch (error) {

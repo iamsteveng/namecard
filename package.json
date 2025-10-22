@@ -16,7 +16,8 @@
     "test:watch": "pnpm -r run test:watch",
     "test:coverage": "pnpm -r run test:coverage",
     "test:e2e": "pnpm run test:e2e:web && pnpm run test:e2e:api",
-    "test:e2e:web": "pnpm exec cypress run",
+    "test:e2e:web": "pnpm --filter @namecard/web-e2e run test:smoke",
+    "test:e2e:web:cypress": "pnpm exec cypress run",
     "test:e2e:open": "pnpm exec cypress open",
     "test:e2e:dev": "start-server-and-test \"pnpm run dev\" http://localhost:3000 \"pnpm run test:e2e\"",
     "test:e2e:api": "pnpm --filter @namecard/api-e2e run test:dry-run",
@@ -54,6 +55,7 @@
     "lambda:sandbox": "node scripts/lambda-sandbox.mjs",
     "smoke:local": "node scripts/smoke-local.mjs",
     "onboard:local": "node scripts/onboard-local.mjs",
+    "e2e:seed:clear": "node scripts/clear-e2e-seed.mjs",
     "prepare": "husky install || echo 'Husky install failed, continuing...'",
     "postinstall": "pnpm --filter @namecard/shared run prisma:generate"
   },
@@ -63,6 +65,7 @@
     "tests/*"
   ],
   "devDependencies": {
+    "@namecard/e2e-shared": "workspace:*",
     "@cypress/webpack-preprocessor": "^6.0.4",
     "@jest/types": "^30.0.1",
     "@testing-library/jest-dom": "^6.6.3",
