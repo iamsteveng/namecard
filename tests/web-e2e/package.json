@@ -9,6 +9,8 @@
   },
   "dependencies": {
     "@namecard/e2e-shared": "workspace:*",
+    "esbuild-register": "^3.6.0",
+    "module-alias": "^2.2.3",
     "puppeteer": "^23.5.1"
   },
   "devDependencies": {

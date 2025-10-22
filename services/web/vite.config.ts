@@ -3,6 +3,9 @@ import path from 'path';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
+const resolvedPort = Number.parseInt(process.env['VITE_PORT'] ?? process.env['PORT'] ?? '3000', 10);
+const serverPort = Number.isFinite(resolvedPort) ? resolvedPort : 3000;
+
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -12,7 +15,7 @@ export default defineConfig({
     },
   },
   server: {
-    port: 3000,
+    port: serverPort,
     host: true,
     proxy: {
       '/api': {
