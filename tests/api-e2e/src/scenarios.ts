@@ -2,10 +2,10 @@ import { createHash, randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import { setTimeout as delay } from 'node:timers/promises';
 
-import { Client } from 'pg';
-
 import { writeSharedSeedState } from '@namecard/e2e-shared';
 import type { SharedSeedState } from '@namecard/e2e-shared';
+import { Client } from 'pg';
+
 import type {
   ScenarioContext,
   ScenarioDefinition,

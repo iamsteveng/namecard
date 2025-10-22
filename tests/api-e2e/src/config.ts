@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
+import { ensureCardFixture, seedStatePath } from '@namecard/e2e-shared';
 import { z } from 'zod';
 
-import { ensureCardFixture, seedStatePath } from '@namecard/e2e-shared';
 import { createApiClient } from './api-client.js';
 import type { RunEnvironment, ScenarioContext } from './types.js';
 
