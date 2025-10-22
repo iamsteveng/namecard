@@ -23,4 +23,16 @@ pnpm run test:e2e:web
 Environment overrides:
 - `WEB_BASE_URL` – URL of the frontend (defaults to `http://localhost:8080`).
 - `E2E_EMAIL` / `E2E_PASSWORD` – credentials, if you want the suite to reuse an existing account instead of creating a new one.
+
+## Shared seed reuse
+
+When you run the API harness (`pnpm --filter @namecard/api-e2e run test:local`) with seed sharing enabled, it writes the seeded user/card into `out/e2e-seed-state.json`. The Puppeteer smoke test will automatically read this file and skip the registration + upload steps, reusing the already-seeded data and asserting it is visible in the UI.
+
+To discard the shared seed and force a fresh UI flow, clear the state:
+
+```bash
+pnpm run e2e:seed:clear
+```
+
+The next API or web E2E run will reseed as needed.
 ```

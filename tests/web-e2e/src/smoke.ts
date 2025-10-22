@@ -5,11 +5,17 @@ import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer';
 import type { Page } from 'puppeteer';
 
+import {
+  cardFixturePath,
+  describeSeedSummary,
+  readSharedSeedState,
+} from '@namecard/e2e-shared';
+import type { SharedSeedState } from '@namecard/e2e-shared';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const artifactsDir = path.resolve(__dirname, '../artifacts');
-const fixturesDir = path.resolve(__dirname, '../../fixtures');
-const sampleCardPath = path.resolve(fixturesDir, 'card-sample.jpg');
+const sampleCardPath = cardFixturePath;
 
 const sleep = (milliseconds: number) => new Promise<void>(resolve => setTimeout(resolve, milliseconds));
 
@@ -30,14 +36,6 @@ const clickButtonByText = async (page: Page, text: string) => {
 };
 
 const baseUrl = process.env['WEB_BASE_URL'] ?? 'http://localhost:8080';
-const uniqueSuffix = Date.now();
-const providedEmail = process.env['E2E_EMAIL'];
-const providedPassword = process.env['E2E_PASSWORD'];
-const shouldRegister = !providedEmail || !providedPassword;
-const registrationEmail = providedEmail ?? `e2e-user-${uniqueSuffix}@example.com`;
-const registrationPassword = providedPassword ?? 'E2ePass!123';
-const registrationName = `E2E User ${uniqueSuffix}`;
-
 const log = (message: string) => {
   console.log(`➡️  ${message}`);
 };
@@ -49,6 +47,42 @@ const buildUrl = (pathname: string) => {
 
 async function run() {
   await mkdir(artifactsDir, { recursive: true });
+
+  const sharedSeed: SharedSeedState | null = await readSharedSeedState().catch(() => null);
+  if (sharedSeed) {
+    log(`Shared seed detected: ${describeSeedSummary(sharedSeed)}`);
+  } else {
+    log('No shared seed detected; full UI flow will seed data');
+  }
+
+  const seededUser = sharedSeed?.user ?? null;
+  const seededCard = sharedSeed?.card ?? null;
+  const seededSearchQuery =
+    sharedSeed?.card?.searchQuery ?? sharedSeed?.upload?.tag ?? null;
+
+  const uniqueSuffix = Date.now();
+  const envEmail = process.env['E2E_EMAIL'] ?? undefined;
+  const envPassword = process.env['E2E_PASSWORD'] ?? undefined;
+
+  const registrationEmail = envEmail ?? seededUser?.email ?? `e2e-user-${uniqueSuffix}@example.com`;
+  const registrationPassword =
+    envPassword ?? seededUser?.password ?? 'E2ePass!123';
+  const registrationName = seededUser
+    ? `Seeded User ${seededUser.userId.slice(0, 8)}`
+    : `E2E User ${uniqueSuffix}`;
+
+  const shouldRegister = !seededUser && (!envEmail || !envPassword);
+  const shouldUploadCard = !seededCard;
+
+  const expectedCardName = seededCard?.name ?? 'Avery Johnson';
+  const expectedCardCompany = seededCard?.company ?? 'Northwind Analytics';
+  const expectedCardEmail = seededCard?.email ?? 'avery.johnson@northwind-analytics.com';
+  const effectiveSearchQuery =
+    seededSearchQuery ??
+    seededCard?.company ??
+    seededCard?.name ??
+    expectedCardCompany ??
+    expectedCardName;
 
   const browser = await puppeteer.launch({
     headless: true,
@@ -103,7 +137,11 @@ async function run() {
         { timeout: 15_000 }
       );
     } else {
-      log('Using provided credentials; skipping registration');
+      if (seededUser) {
+        log(`Using shared seeded user ${seededUser.email}; skipping registration`);
+      } else {
+        log('Using provided credentials; skipping registration');
+      }
       await page.goto(buildUrl('/auth/login'), { waitUntil: 'networkidle2' });
     }
 
@@ -142,83 +180,80 @@ async function run() {
       fullPage: true,
     });
 
-    log('Uploading sample card via scan UI');
-    await page.goto(buildUrl('/scan'), { waitUntil: 'networkidle2' });
-    const fileInput = await page.waitForSelector('input[type="file"]');
-    if (!fileInput) {
-      throw new Error('File input not found on scan page');
-    }
-    await fileInput.uploadFile(sampleCardPath);
-    await fileInput.dispose();
+    if (shouldUploadCard) {
+      log('Uploading sample card via scan UI');
+      await page.goto(buildUrl('/scan'), { waitUntil: 'networkidle2' });
+      const fileInput = await page.waitForSelector('input[type="file"]');
+      if (!fileInput) {
+        throw new Error('File input not found on scan page');
+      }
+      await fileInput.uploadFile(sampleCardPath);
+      await fileInput.dispose();
 
-    await page.waitForFunction(
-      () => document.body.innerText.toLowerCase().includes('selected') || document.body.innerText.includes('Clear'),
-      { timeout: 5_000 }
-    );
-
-    await clickButtonByText(page, 'Scan Business Card');
-
-    log('Waiting for scan results to render');
-    await page.waitForFunction(
-      () => document.body.innerText.includes('Business Card Extracted'),
-      { timeout: 45_000 }
-    );
-
-    log('Entering edit mode for extracted fields');
-    await clickButtonByText(page, 'Edit');
-
-    log('Waiting for Save button to become interactive');
-    await page.waitForFunction(
-      () =>
-        Array.from(document.querySelectorAll('button')).some(button => {
-          const text = button.textContent?.trim() ?? '';
-          return text === 'Save' && !button.disabled;
-        }),
-      { timeout: 45_000 }
-    );
-
-    const awaitedSaveResponse = page.waitForResponse(response => {
-      const url = response.url();
-      return (
-        url.includes('/v1/cards/') &&
-        response.request().method() === 'PATCH' &&
-        response.status() >= 200 &&
-        response.status() < 300
+      await page.waitForFunction(
+        () =>
+          document.body.innerText.toLowerCase().includes('selected') ||
+          document.body.innerText.includes('Clear'),
+        { timeout: 5_000 }
       );
-    });
 
-    log('Saving validated card details');
-    await clickButtonByText(page, 'Save');
+      await clickButtonByText(page, 'Scan Business Card');
 
-    await awaitedSaveResponse;
+      log('Waiting for scan results to render');
+      await page.waitForFunction(
+        () => document.body.innerText.includes('Business Card Extracted'),
+        { timeout: 45_000 }
+      );
 
-    log('Waiting for Scan Another Card call-to-action');
-    await page.waitForFunction(
-      () => document.body.innerText.includes('Scan Another Card'),
-      { timeout: 45_000 }
-    );
+      log('Entering edit mode for extracted fields');
+      await clickButtonByText(page, 'Edit');
 
-    await page.screenshot({
-      path: path.join(artifactsDir, '04-scan-success.png'),
-      fullPage: true,
-    });
+      log('Waiting for Save button to become interactive');
+      await page.waitForFunction(
+        () =>
+          Array.from(document.querySelectorAll('button')).some(button => {
+            const text = button.textContent?.trim() ?? '';
+            return text === 'Save' && !button.disabled;
+          }),
+        { timeout: 45_000 }
+      );
 
-    log('Collecting scanned card summary from results view');
-    const expectedCardName = 'Avery Johnson';
-    const expectedCardCompany = 'Northwind Analytics';
-    const expectedCardEmail = 'avery.johnson@northwind-analytics.com';
+      const awaitedSaveResponse = page.waitForResponse(response => {
+        const url = response.url();
+        return (
+          url.includes('/v1/cards/') &&
+          response.request().method() === 'PATCH' &&
+          response.status() >= 200 &&
+          response.status() < 300
+        );
+      });
 
-    await page.waitForFunction(
-      (name, company) => {
-        const text = document.body.innerText || '';
-        return text.includes(name) && text.includes(company);
-      },
-      { timeout: 10_000 },
-      expectedCardName,
-      expectedCardCompany
-    );
+      log('Saving validated card details');
+      await clickButtonByText(page, 'Save');
 
-    log(`Captured scanned card details: ${expectedCardName} @ ${expectedCardCompany}`);
+      await awaitedSaveResponse;
+
+      log('Waiting for Scan Another Card call-to-action');
+      await page.waitForFunction(
+        () => document.body.innerText.includes('Scan Another Card'),
+        { timeout: 45_000 }
+      );
+
+      await page.screenshot({
+        path: path.join(artifactsDir, '04-scan-success.png'),
+        fullPage: true,
+      });
+
+      log(`Captured scanned card details: ${expectedCardName} @ ${expectedCardCompany}`);
+    } else {
+      log('Skipping card upload; reusing seeded card from API harness');
+      await page.goto(buildUrl('/scan'), { waitUntil: 'networkidle2' });
+      await page.waitForSelector('main');
+      await page.screenshot({
+        path: path.join(artifactsDir, '04-scan-success.png'),
+        fullPage: true,
+      });
+    }
 
     log('Navigating to cards page');
     await page.goto(buildUrl('/cards'), { waitUntil: 'networkidle2' });
@@ -336,13 +371,17 @@ async function run() {
       );
     }
 
-    if (matchingIndex !== 0) {
+    if (matchingIndex !== 0 && shouldUploadCard) {
       throw new Error(
         `Uploaded card (${expectedCardName} @ ${expectedCardCompany}) not listed first; found at position ${matchingIndex + 1}.`
       );
     }
 
-    log('Verified uploaded card is present at the top of the cards list');
+    if (shouldUploadCard) {
+      log('Verified uploaded card is present at the top of the cards list');
+    } else {
+      log('Verified seeded card is present in the cards list');
+    }
 
     await page.screenshot({
       path: path.join(artifactsDir, '05-cards.png'),
@@ -401,7 +440,8 @@ async function run() {
       );
     });
 
-    await basicSearchInput.type(expectedCardName, { delay: 25 });
+    log(`Executing search with query: ${effectiveSearchQuery}`);
+    await basicSearchInput.type(effectiveSearchQuery, { delay: 25 });
 
     await awaitedSearchResponse;
 
@@ -442,29 +482,32 @@ async function run() {
       throw new Error('Search results did not render any cards.');
     }
 
-    const normalizedName = expectedCardName.toLowerCase();
-    const normalizedCompany = expectedCardCompany.toLowerCase();
-    const normalizedEmail = expectedCardEmail.toLowerCase();
+    const normalizedName = (expectedCardName ?? '').toLowerCase();
+    const normalizedCompany = (expectedCardCompany ?? '').toLowerCase();
+    const normalizedEmail = (expectedCardEmail ?? '').toLowerCase();
 
     const searchMatchingIndex = searchResults.findIndex(result => {
-      return (
-        result.textContent.includes(normalizedName) &&
-        result.textContent.includes(normalizedCompany) &&
-        result.textContent.includes(normalizedEmail)
-      );
+      const hasName = normalizedName ? result.textContent.includes(normalizedName) : true;
+      const hasCompany = normalizedCompany ? result.textContent.includes(normalizedCompany) : true;
+      const hasEmail = normalizedEmail ? result.textContent.includes(normalizedEmail) : true;
+      return hasName && hasCompany && hasEmail;
     });
 
     if (searchMatchingIndex === -1) {
       throw new Error('Uploaded card not found in search results for provided query.');
     }
 
-    if (searchMatchingIndex !== 0) {
+    if (searchMatchingIndex !== 0 && shouldUploadCard) {
       throw new Error(
         `Uploaded card found in search results but not listed first (position ${searchMatchingIndex + 1}).`
       );
     }
 
-    log('Verified uploaded card appears first in search results with expected metadata');
+    if (shouldUploadCard) {
+      log('Verified uploaded card appears first in search results with expected metadata');
+    } else {
+      log('Verified seeded card appears in search results with expected metadata');
+    }
 
     await page.screenshot({
       path: path.join(artifactsDir, '06-cards-search.png'),

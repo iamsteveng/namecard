@@ -11,6 +11,12 @@ export interface ScenarioContext {
   state: ScenarioState;
 }
 
+export interface SharedSeedTracking {
+  enabled: boolean;
+  seedStatePath: string;
+  persisted?: boolean;
+}
+
 export type ScenarioStatus = 'passed' | 'failed' | 'skipped';
 
 export interface ScenarioOutcome {
@@ -81,6 +87,7 @@ export interface ScenarioState {
   card?: CardSnapshot;
   ocrJobId?: string;
   searchQuery?: string;
+  sharedSeed?: SharedSeedTracking;
 }
 
 export interface UploadRecord {
@@ -120,5 +127,6 @@ export interface CardSnapshot {
   id: string;
   name?: string | null;
   company?: string | null;
+  email?: string | null;
   tags?: string[];
 }

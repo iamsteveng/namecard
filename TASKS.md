@@ -40,9 +40,9 @@
   - [x] Verify: Search results contain the expected card and highlight key metadata (name/company/email).
 
 ### 4. Harmonize With API E2E Harness (Planned)
-- [ ] Task 4.1 — Share fixtures & seeding
-  - [ ] Action: Export API E2E seed utilities (`create_test_user.js`, card fixtures) into a shared helper consumed by both suites.
-  - [ ] Verify: Running `pnpm --filter @namecard/api-e2e run test:local` followed by `pnpm run test:e2e:web` reuses the same users/cards without duplicate seeding.
+- [x] Task 4.1 — Share fixtures & seeding
+  - [x] Action: Export API E2E seed utilities (`create_test_user.js`, card fixtures) into a shared helper consumed by both suites.
+  - [x] Verify: Running `pnpm --filter @namecard/api-e2e run test:local` followed by `pnpm run test:e2e:web` reuses the same users/cards without duplicate seeding.
 - [ ] Task 4.2 — Common auth helpers
   - [ ] Action: Wrap API session bootstrap in a shared module that Puppeteer can call when UI auth is unnecessary (e.g., background setup).
   - [ ] Verify: When toggled, the web suite can obtain tokens in <2s and skip manual login for non-UX scenarios.

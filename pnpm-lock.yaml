@@ -14,6 +14,9 @@ importers:
       '@jest/types':
         specifier: ^30.0.1
         version: 30.0.5
+      '@namecard/e2e-shared':
+        specifier: workspace:*
+        version: link:tests/shared
       '@testing-library/jest-dom':
         specifier: ^6.6.3
         version: 6.8.0
@@ -374,6 +377,9 @@ importers:
 
   tests/api-e2e:
     dependencies:
+      '@namecard/e2e-shared':
+        specifier: workspace:*
+        version: link:../shared
       '@prisma/client':
         specifier: ^6.16.2
         version: 6.16.2(prisma@6.16.2)(typescript@5.6.3)
@@ -424,8 +430,13 @@ importers:
         specifier: ^5.3.3
         version: 5.6.3
 
+  tests/shared: {}
+
   tests/web-e2e:
     dependencies:
+      '@namecard/e2e-shared':
+        specifier: workspace:*
+        version: link:../shared
       puppeteer:
         specifier: ^23.5.1
         version: 23.11.1(typescript@5.6.3)

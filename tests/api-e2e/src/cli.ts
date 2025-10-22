@@ -30,6 +30,11 @@ async function main() {
       string: true,
       describe: 'Run a subset of scenarios by id',
     })
+    .option('share-seed', {
+      type: 'boolean',
+      default: undefined,
+      describe: 'Persist seeded user/card data for reuse by other test suites',
+    })
     .strict()
     .help()
     .parse();
@@ -44,10 +49,25 @@ async function main() {
 
   const dryRunFlag = Boolean(dryRunCandidate);
 
+  const shareSeedCandidate =
+    typeof argvRecord['shareSeed'] === 'boolean'
+      ? (argvRecord['shareSeed'] as boolean)
+      : typeof argvRecord['share-seed'] === 'boolean'
+        ? (argvRecord['share-seed'] as boolean)
+        : undefined;
+
+  const shareSeedEnv = process.env['API_E2E_SHARE_SEED'];
+  const shareSeedFlag =
+    shareSeedCandidate ??
+    (typeof shareSeedEnv === 'string'
+      ? ['1', 'true', 'yes', 'on'].includes(shareSeedEnv.toLowerCase())
+      : false);
+
   const { options, context, fixtures } = await createHarnessContext({
     env: argv.env as 'local' | 'staging',
     dryRun: Boolean(dryRunFlag),
     baseUrl: (argvRecord['base-url'] as string | undefined) ?? undefined,
+    shareSeed: shareSeedFlag,
   });
 
   const scenarioFilterArg = (argvRecord['scenario'] as string[] | undefined) ?? [];
@@ -59,6 +79,12 @@ async function main() {
   console.log(`Environment: ${chalk.cyan(options.env)}`);
   if (options.baseUrl) {
     console.log(`Base URL: ${chalk.cyan(options.baseUrl)}`);
+  }
+  console.log(
+    `Shared seed: ${options.shareSeed ? chalk.green('enabled') : chalk.gray('disabled')}`
+  );
+  if (options.shareSeed && context.state.sharedSeed?.seedStatePath) {
+    console.log(`Seed file: ${chalk.cyan(context.state.sharedSeed.seedStatePath)}`);
   }
   console.log(
     `Card fixture: ${chalk.cyan(fixtures.cardImagePath)} (${formatBytes(fixtures.cardImageSize)})`

@@ -8,6 +8,7 @@
     "test:smoke": "tsx src/smoke.ts"
   },
   "dependencies": {
+    "@namecard/e2e-shared": "workspace:*",
     "puppeteer": "^23.5.1"
   },
   "devDependencies": {
