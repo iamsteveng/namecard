@@ -59,6 +59,7 @@
 - [x] Task 4.6 — Local CI bootstrap script
   - [x] Action: Add a helper script that provisions dependencies, boots postgres_test, and runs the smoke suite with CI flags.
   - [x] Verify: `pnpm run ci:smoke:local` (new script) completes end-to-end on a clean checkout.
+  - Signed off: gpt-5-codex (2025-10-23)
 - [ ] Task 4.7 — Sandbox bootstrap hardening
   - [ ] Action: Fortify `tests/web-e2e/src/smoke.ts` (port handling, /health waits, cleanup) and add targeted tests for runtime shim imports.
   - [ ] Verify: `pnpm --filter @namecard/web-e2e run test:smoke` and `pnpm --filter @namecard/shared run test` both pass after the changes.
