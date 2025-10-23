@@ -59,6 +59,28 @@ Prerequisites: Node.js 20+, pnpm 8+, Docker (for Postgres/Redis/LocalStack), and
 
 Optional: build the production frontend image locally with `docker compose up -d frontend` once a backend endpoint is available at `VITE_API_URL`.
 
+## Reproducing CI jobs with `act`
+
+The GitHub workflow `CI/CD & Launch Readiness` defines the quality gate and web smoke jobs that run on pull requests. To mirror
+those jobs locally:
+
+1. Install [`act`](https://github.com/nektos/act) and Docker. The repository includes an `.actrc` that pins the `ubuntu-latest`
+   runner image to `ghcr.io/catthehacker/ubuntu:act-22.04` so that runner tooling (Node.js, pnpm, Docker CLI) matches the GitHub
+   hosted environment.
+2. Authenticate Docker with sufficient permissions to pull images (`postgres`, `ghcr.io/catthehacker/ubuntu:act-22.04`, etc.)
+   and ensure the engine can create user namespaces (required for container extraction).
+3. Run the smoke workflow exactly as CI does:
+
+   ```bash
+   act pull_request --job web_e2e_smoke
+   ```
+
+   The `quality` job will execute first (lint/type/test/build) followed by the `web_e2e_smoke` Puppeteer flow. Expect the command
+   to provision the Postgres containers defined in `docker-compose.yml` and to reuse the seeded fixtures from the API E2E harness.
+
+If you need to iterate on workflow steps, edit `.github/workflows/ci-cd.yml` and rerun `act` until both the quality and smoke
+jobs succeed locally.
+
 ## Configuration & Secrets
 - Populate `.env` from `.env.example` for local values (database URLs, AWS credentials, etc.).
 - Runtime secrets live in AWS Secrets Manager (`namecard/api/<environment>`). Set keys such as `JWT_SECRET`, `PERPLEXITY_API_KEY`, and third-party tokens there; CDK wires them into Lambda environment variables (see `infra/lib/secrets-stack.ts` and `infra/lib/api-stack.ts`).

@@ -52,9 +52,10 @@
 - [ ] Task 4.4 — Unified CI orchestration
   - [ ] Action: Update pipeline scripts/docs so API + web suites share setup/teardown steps (DB reset, seed) and run sequentially.
   - [ ] Verify: CI pipeline finishes both suites without manual intervention, emitting combined artifacts (logs + screenshots).
-- [ ] Task 4.5 — CI smoke stability
-  - [ ] Action: Reproduce smoke + quality gate jobs locally using GitHub Actions tooling (e.g., `act`) to mirror runner behaviour.
-  - [ ] Verify: `act pull_request --job web_e2e_smoke` succeeds without manual fixes.
+- [x] Task 4.5 — CI smoke stability
+  - [x] Action: Reproduce smoke + quality gate jobs locally using GitHub Actions tooling (e.g., `act`) to mirror runner behaviour.
+  - [x] Verify: `act pull_request --job web_e2e_smoke` succeeds without manual fixes.
+  - Signed off: gpt-5-codex (2025-10-22)
 - [ ] Task 4.6 — Local CI bootstrap script
   - [ ] Action: Add a helper script that provisions dependencies, boots postgres_test, and runs the smoke suite with CI flags.
   - [ ] Verify: `pnpm run ci:smoke:local` (new script) completes end-to-end on a clean checkout.
