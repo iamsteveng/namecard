@@ -63,9 +63,10 @@
   - [x] Verify: A fresh `pnpm run ci:quality` succeeds locally and the subsequent GitHub run is green.
   - Signed off: gpt-5-codex (2025-10-24)
 ### 5. Operational Follow-Ups (Planned)
-- [ ] Task 5.1 — Capture artifacts in CI
-  - [ ] Action: Archive Puppeteer screenshots and console logs as build artifacts.
-  - [ ] Verify: CI job exposes downloadable evidence for each run.
+- [x] Task 5.1 — Capture artifacts in CI
+  - [x] Action: Archive Puppeteer screenshots and console logs as build artifacts via the `web_e2e_smoke` job.
+  - [x] Verify: `WEB_E2E_AUTOSTART_DEV_SERVER=1 WEB_E2E_AUTOSTART_API_SANDBOX=1 pnpm --filter @namecard/web-e2e run test:smoke` produces refreshed screenshots and `tests/web-e2e/artifacts/smoke.log`; GitHub uploads `web-e2e-smoke-artifacts`.
+  - Signed off: gpt-5-codex (2025-10-24)
 - [ ] Task 5.2 — Health-check the stack prior to UI tests
   - [ ] Action: Add a pre-test hook that pings `/health` endpoints and aborts early on failure.
   - [ ] Verify: Failing health checks stop the web suite before browser launch.

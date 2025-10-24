@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { createServer } from 'node:net';
-import { existsSync } from 'node:fs';
+import { createWriteStream, existsSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,7 +21,74 @@ import type { SharedSeedState } from '@namecard/e2e-shared';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const artifactsDir = path.resolve(__dirname, '../artifacts');
+const smokeLogPath = path.join(artifactsDir, 'smoke.log');
 const sampleCardPath = cardFixturePath;
+
+let logStream: ReturnType<typeof createWriteStream> | null = null;
+
+const originalConsole = {
+  log: console.log.bind(console) as typeof console.log,
+  info: console.info.bind(console) as typeof console.info,
+  warn: console.warn.bind(console) as typeof console.warn,
+  error: console.error.bind(console) as typeof console.error,
+};
+
+let consolePatched = false;
+
+const serializeArg = (value: unknown): string => {
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (value instanceof Error) {
+    return value.stack ?? value.message;
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+};
+
+const appendLog = (level: string, args: ReadonlyArray<unknown>) => {
+  if (!logStream) {
+    return;
+  }
+  const serialized = args.map(serializeArg).join(' ');
+  logStream.write(`[${new Date().toISOString()}] [${level}] ${serialized}\n`);
+};
+
+const createPatchedMethod = <T extends (...args: any[]) => void>(
+  level: string,
+  emitter: T
+): T => {
+  const patched = ((...args: Parameters<T>) => {
+    emitter(...args);
+    appendLog(level, args as ReadonlyArray<unknown>);
+  }) as T;
+  return patched;
+};
+
+const patchConsole = () => {
+  if (consolePatched) {
+    return;
+  }
+  console.log = createPatchedMethod('INFO', originalConsole.log);
+  console.info = createPatchedMethod('INFO', originalConsole.info);
+  console.warn = createPatchedMethod('WARN', originalConsole.warn);
+  console.error = createPatchedMethod('ERROR', originalConsole.error);
+  consolePatched = true;
+};
+
+const restoreConsole = () => {
+  if (!consolePatched) {
+    return;
+  }
+  console.log = originalConsole.log;
+  console.info = originalConsole.info;
+  console.warn = originalConsole.warn;
+  console.error = originalConsole.error;
+  consolePatched = false;
+};
 
 let baseUrl = process.env['WEB_BASE_URL'] ?? 'http://localhost:8080';
 let apiBaseUrl =
@@ -474,6 +541,10 @@ const stopApiSandbox = async (): Promise<void> => {
 
 async function run() {
   await mkdir(artifactsDir, { recursive: true });
+
+  logStream = createWriteStream(smokeLogPath, { flags: 'w' });
+  patchConsole();
+  log(`Writing smoke artefacts to ${artifactsDir}`);
 
   await startApiSandboxIfNeeded();
   await startDevServerIfNeeded();
@@ -1025,6 +1096,27 @@ async function run() {
     await browser.close();
     await stopApiSandbox();
     await stopDevServer();
+
+    const activeStream = logStream;
+    logStream = null;
+
+    try {
+      if (activeStream) {
+        await new Promise<void>((resolve, reject) => {
+          activeStream.end(error => {
+            if (error) {
+              reject(error);
+              return;
+            }
+            resolve();
+          });
+        });
+      }
+    } catch (error) {
+      originalConsole.warn('Failed to close smoke artefact log stream', error);
+    } finally {
+      restoreConsole();
+    }
   }
 }
 
