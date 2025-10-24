@@ -46,12 +46,6 @@
 - [x] Task 4.2 — Common auth helpers
   - [x] Action: Wrap API session bootstrap in a shared module that Puppeteer can call when UI auth is unnecessary (e.g., background setup).
   - [x] Verify: When toggled, the web suite can obtain tokens in <2s and skip manual login for non-UX scenarios.
-- [ ] Task 4.3 — Scenario parity
-  - [ ] Action: Map API E2E scenarios (card CRUD, search, enrichment health) to equivalent UI interactions and assertions.
-  - [ ] Verify: Pass/fail states match between API and web suites for the selected scenarios.
-- [ ] Task 4.4 — Unified CI orchestration
-  - [ ] Action: Update pipeline scripts/docs so API + web suites share setup/teardown steps (DB reset, seed) and run sequentially.
-  - [ ] Verify: CI pipeline finishes both suites without manual intervention, emitting combined artifacts (logs + screenshots).
 - [x] Task 4.5 — CI smoke stability
   - [x] Action: Reproduce smoke + quality gate jobs locally using GitHub Actions tooling (e.g., `act`) to mirror runner behaviour.
   - [x] Verify: `act pull_request --job web_e2e_smoke` succeeds without manual fixes.
@@ -68,10 +62,6 @@
   - [x] Action: Land a dedicated “CI restore” commit that replays the full local pipeline before merging feature work.
   - [x] Verify: A fresh `pnpm run ci:quality` succeeds locally and the subsequent GitHub run is green.
   - Signed off: gpt-5-codex (2025-10-24)
-- [ ] Task 4.9 — Transitional safeguard
-  - [ ] Action: Temporarily mark `web_e2e_smoke` as non-blocking while stabilising, then re-enable once stable.
-  - [ ] Verify: Workflow YAML updated, smoke job rerun confirms desired gating behaviour.
-
 ### 5. Operational Follow-Ups (Planned)
 - [ ] Task 5.1 — Capture artifacts in CI
   - [ ] Action: Archive Puppeteer screenshots and console logs as build artifacts.
