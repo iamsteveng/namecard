@@ -6,15 +6,18 @@ import { createServer } from 'http';
 import { randomUUID } from 'crypto';
 import moduleAlias from 'module-alias';
 import { spawnSync } from 'child_process';
-import {
-  ensureDatabaseUrl,
-  resolveUserFromToken,
-  getTenantForUser,
-  createCard,
-} from '@namecard/shared';
+import { createRequire } from 'module';
 
 const repoRoot = path.resolve(new URL('.', import.meta.url).pathname, '..');
 const projectRoot = repoRoot;
+
+let ensureDatabaseUrl;
+let resolveUserFromToken;
+let getTenantForUser;
+let createCard;
+let sharedModulePromise = null;
+
+const require = createRequire(import.meta.url);
 
 const tsconfigPath = path.resolve(projectRoot, 'tsconfig.json');
 const tsconfigRaw = fs.existsSync(tsconfigPath)
@@ -30,30 +33,46 @@ const { unregister } = register({
 const sharedDistDir = path.resolve(projectRoot, 'services', 'shared', 'dist');
 const sharedDistIndex = path.join(sharedDistDir, 'index.js');
 
-if (!fs.existsSync(sharedDistIndex)) {
-  console.log('ℹ️  Building @namecard/shared before starting sandbox...');
-  const result = spawnSync('pnpm', ['--filter', '@namecard/shared', 'run', 'build'], {
-    cwd: projectRoot,
-    stdio: 'inherit',
-  });
-  if (result.status !== 0) {
-    throw new Error('Failed to build @namecard/shared before launching sandbox');
+function ensureSharedModule() {
+  if (sharedModulePromise) {
+    return sharedModulePromise;
   }
-}
 
-moduleAlias.addAlias('@namecard/shared', sharedDistIndex);
-moduleAlias.addAlias('@namecard/shared/*', sharedDistDir);
+  sharedModulePromise = (async () => {
+    if (!fs.existsSync(sharedDistIndex)) {
+      console.log('ℹ️  Building @namecard/shared before starting sandbox...');
+      const result = spawnSync('pnpm', ['--filter', '@namecard/shared', 'run', 'build'], {
+        cwd: projectRoot,
+        stdio: 'inherit',
+      });
+      if (result.status !== 0) {
+        throw new Error('Failed to build @namecard/shared before launching sandbox');
+      }
+    }
 
-const nodeModules = path.resolve(projectRoot, 'node_modules', '@namecard');
-try {
-  fs.mkdirSync(nodeModules, { recursive: true });
-  const linkPath = path.join(nodeModules, 'shared');
-  try {
-    fs.unlinkSync(linkPath);
-  } catch {}
-  fs.symlinkSync(sharedDistDir, linkPath, 'dir');
-} catch (error) {
-  console.warn('⚠️  Failed to establish @namecard/shared symlink for sandbox:', error.message);
+    moduleAlias.addAlias('@namecard/shared', sharedDistDir);
+    moduleAlias.addAlias('@namecard/shared/*', `${sharedDistDir}/*`);
+
+    const nodeModules = path.resolve(projectRoot, 'node_modules', '@namecard');
+    try {
+      fs.mkdirSync(nodeModules, { recursive: true });
+      const linkPath = path.join(nodeModules, 'shared');
+      try {
+        fs.unlinkSync(linkPath);
+      } catch {}
+      fs.symlinkSync(sharedDistDir, linkPath, 'dir');
+    } catch (error) {
+      console.warn('⚠️  Failed to establish @namecard/shared symlink for sandbox:', error.message);
+    }
+
+    const sharedModule = await import(sharedDistIndex);
+    ({ ensureDatabaseUrl, resolveUserFromToken, getTenantForUser, createCard } = sharedModule);
+  })().catch(error => {
+    sharedModulePromise = null;
+    throw error;
+  });
+
+  return sharedModulePromise;
 }
 
 const services = {
@@ -98,15 +117,13 @@ const stubBusinessCardData = {
 };
 
 async function loadHandlers() {
-  const entries = await Promise.all(
-    Object.entries(services).map(async ([name, filePath]) => {
-      const module = await import(filePath);
-      if (!module?.handler) {
-        throw new Error(`Service ${name} at ${filePath} does not export a handler`);
-      }
-      return [name, module.handler];
-    })
-  );
+  const entries = Object.entries(services).map(([name, filePath]) => {
+    const module = require(filePath);
+    if (!module?.handler) {
+      throw new Error(`Service ${name} at ${filePath} does not export a handler`);
+    }
+    return [name, module.handler];
+  });
 
   return Object.fromEntries(entries);
 }
@@ -343,6 +360,7 @@ async function handleStubbedRoutes(req, res, url) {
 
 async function handleCardsScanStub(req, res) {
   try {
+    await ensureSharedModule();
     const authHeader = req.headers['authorization'] ?? req.headers['Authorization'];
     const token = typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
       ? authHeader.slice(7)
@@ -607,8 +625,10 @@ async function startServer(port = 4100) {
 const portArg = process.argv.find(arg => arg.startsWith('--port='));
 const port = portArg ? Number(portArg.split('=')[1]) : Number(process.env.LAMBDA_SANDBOX_PORT || 4100);
 
-startServer(port).catch(error => {
-  console.error('Failed to start lambda sandbox:', error);
-  unregister();
-  process.exit(1);
-});
+ensureSharedModule()
+  .then(() => startServer(port))
+  .catch(error => {
+    console.error('Failed to start lambda sandbox:', error);
+    unregister();
+    process.exit(1);
+  });
