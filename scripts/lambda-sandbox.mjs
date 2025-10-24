@@ -65,6 +65,32 @@ function ensureSharedModule() {
       console.warn('⚠️  Failed to establish @namecard/shared symlink for sandbox:', error.message);
     }
 
+    const migrationEnv = {
+      ...process.env,
+      DB_HOST: process.env.DB_HOST ?? '127.0.0.1',
+      DB_PORT: process.env.DB_PORT ?? '5433',
+      DB_NAME: process.env.DB_NAME ?? 'namecard_test',
+      DB_USER: process.env.DB_USER ?? 'namecard_user',
+      DB_PASSWORD: process.env.DB_PASSWORD ?? 'namecard_password',
+      DB_SSL: process.env.DB_SSL ?? 'false',
+    };
+
+    if (!migrationEnv.DATABASE_URL) {
+      migrationEnv.DATABASE_URL =
+        process.env.DATABASE_URL ??
+        'postgresql://namecard_user:namecard_password@127.0.0.1:5433/namecard_test';
+    }
+
+    const migrateResult = spawnSync('pnpm', ['run', 'migrate:local'], {
+      cwd: projectRoot,
+      stdio: 'inherit',
+      env: migrationEnv,
+    });
+
+    if (migrateResult.status !== 0) {
+      throw new Error('Failed to apply database migrations before launching sandbox');
+    }
+
     const sharedModule = await import(sharedDistIndex);
     ({ ensureDatabaseUrl, resolveUserFromToken, getTenantForUser, createCard } = sharedModule);
   })().catch(error => {
