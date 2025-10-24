@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { createServer } from 'node:net';
+import { existsSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -524,9 +525,25 @@ async function run() {
     expectedCardCompany ??
     expectedCardName;
 
+  const chromePathCandidates = [
+    process.env['PUPPETEER_EXECUTABLE_PATH'],
+    process.env['CHROME_PATH'],
+    '/usr/bin/google-chrome',
+    '/usr/bin/chromium-browser',
+  ].filter(Boolean) as string[];
+
+  let executablePath: string | undefined;
+  for (const candidate of chromePathCandidates) {
+    if (existsSync(candidate)) {
+      executablePath = candidate;
+      break;
+    }
+  }
+
   const browser = await puppeteer.launch({
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    executablePath,
   });
 
   try {
