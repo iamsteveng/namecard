@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import { createServer } from 'node:net';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -36,6 +37,81 @@ let apiSandboxStarted = false;
 const sleep = (milliseconds: number) =>
   new Promise<void>(resolve => setTimeout(resolve, milliseconds));
 
+const isPortAvailable = async (host: string, port: number): Promise<boolean> =>
+  new Promise((resolve, reject) => {
+    const server = createServer();
+    server.unref();
+
+    server.once('error', error => {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === 'EADDRINUSE') {
+        resolve(false);
+        return;
+      }
+      reject(error);
+    });
+
+    server.once('listening', () => {
+      server.close(closeError => {
+        if (closeError) {
+          reject(closeError);
+          return;
+        }
+        resolve(true);
+      });
+    });
+
+    try {
+      server.listen(port, host);
+    } catch (error) {
+      reject(error);
+    }
+  });
+
+const allocatePort = async (
+  host: string,
+  preferredPort: number,
+  maxOffset = 10
+): Promise<number> => {
+  for (let offset = 0; offset <= maxOffset; offset += 1) {
+    const candidate = preferredPort + offset;
+    try {
+      const available = await isPortAvailable(host, candidate);
+      if (available) {
+        return candidate;
+      }
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === 'EACCES') {
+        throw new Error(
+          `Insufficient permissions to bind to ${host}:${candidate} while preparing smoke runner.`
+        );
+      }
+      // Fall back to next candidate on transient failures.
+    }
+  }
+
+  throw new Error(
+    `Unable to find an available port near ${host}:${preferredPort} for smoke runner processes.`
+  );
+};
+
+const waitForProcessSpawn = async (child: ReturnType<typeof spawn>): Promise<void> =>
+  new Promise((resolve, reject) => {
+    const handleError = (error: Error) => {
+      child.off('spawn', handleSpawn);
+      reject(error);
+    };
+
+    const handleSpawn = () => {
+      child.off('error', handleError);
+      resolve();
+    };
+
+    child.once('error', handleError);
+    child.once('spawn', handleSpawn);
+  });
+
 const parseBooleanFlag = (value: string | undefined | null): boolean => {
   if (!value) {
     return false;
@@ -69,7 +145,11 @@ const buildUrl = (pathname: string) => {
   return new URL(normalized, baseUrl).toString();
 };
 
-const probeBaseUrl = async (target: string, timeoutMs = 2_000): Promise<boolean> => {
+const probeBaseUrl = async (
+  target: string,
+  timeoutMs = 2_000,
+  options?: { expectOk?: boolean }
+): Promise<boolean> => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -78,7 +158,13 @@ const probeBaseUrl = async (target: string, timeoutMs = 2_000): Promise<boolean>
       redirect: 'manual',
       signal: controller.signal,
     }).catch(() => null);
-    return response !== null;
+    if (!response) {
+      return false;
+    }
+    if (options?.expectOk) {
+      return response.ok;
+    }
+    return true;
   } catch {
     return false;
   } finally {
@@ -99,7 +185,7 @@ const waitForBaseUrl = async (attempts: number, delayMs: number): Promise<boolea
 
 const waitForEndpoint = async (url: string, attempts: number, delayMs: number): Promise<boolean> => {
   for (let attempt = 0; attempt < attempts; attempt += 1) {
-    if (await probeBaseUrl(url)) {
+    if (await probeBaseUrl(url, 2_000, { expectOk: true })) {
       return true;
     }
     await sleep(delayMs);
@@ -132,10 +218,16 @@ const startDevServerIfNeeded = async (): Promise<void> => {
   }
 
   const devHost = process.env['WEB_E2E_DEV_HOST'] ?? '127.0.0.1';
-  const devPort = Number.parseInt(process.env['WEB_E2E_DEV_PORT'] ?? '4173', 10);
+  const preferredPort = Number.parseInt(process.env['WEB_E2E_DEV_PORT'] ?? '4173', 10);
+  const resolvedPort = await allocatePort(devHost, preferredPort, 20);
 
-  baseUrl = `http://${devHost}:${devPort}`;
+  if (resolvedPort !== preferredPort) {
+    log(`Dev server port ${preferredPort} busy; using fallback ${resolvedPort}.`);
+  }
+
+  baseUrl = `http://${devHost}:${resolvedPort}`;
   process.env['WEB_BASE_URL'] = baseUrl;
+  process.env['WEB_E2E_DEV_PORT'] = String(resolvedPort);
 
   log(`Starting @namecard/web dev server at ${baseUrl}`);
 
@@ -151,15 +243,15 @@ const startDevServerIfNeeded = async (): Promise<void> => {
       '--host',
       devHost,
       '--port',
-      String(devPort),
+      String(resolvedPort),
       '--strictPort',
     ],
     {
       cwd: repoRoot,
       env: {
         ...process.env,
-        PORT: String(devPort),
-        VITE_PORT: String(devPort),
+        PORT: String(resolvedPort),
+        VITE_PORT: String(resolvedPort),
       },
       stdio: 'inherit',
       detached: true,
@@ -169,10 +261,16 @@ const startDevServerIfNeeded = async (): Promise<void> => {
   devServerStarted = true;
   devServerPid = devServerProcess.pid ?? null;
 
-  const ready = await waitForBaseUrl(45, 1_000);
-  if (!ready) {
+  try {
+    await waitForProcessSpawn(devServerProcess);
+
+    const ready = await waitForBaseUrl(45, 1_000);
+    if (!ready) {
+      throw new Error('Dev server did not become ready in time.');
+    }
+  } catch (error) {
     await stopDevServer();
-    throw new Error('Dev server did not become ready in time.');
+    throw error instanceof Error ? error : new Error(String(error));
   }
 
   process.on('exit', () => {
@@ -238,7 +336,7 @@ const stopDevServer = async (): Promise<void> => {
 const startApiSandboxIfNeeded = async (): Promise<void> => {
   const normalizedApiBase = apiBaseUrl.replace(/\/+$/, '');
   const healthUrl = `${normalizedApiBase}/health`;
-  const isReachable = await probeBaseUrl(healthUrl);
+  const isReachable = await probeBaseUrl(healthUrl, 2_000, { expectOk: true });
 
   const autostartFlag = parseBooleanFlag(process.env['WEB_E2E_AUTOSTART_API_SANDBOX']);
   const skipAutostart = parseBooleanFlag(process.env['WEB_E2E_SKIP_AUTOSTART_API_SANDBOX']);
@@ -256,16 +354,27 @@ const startApiSandboxIfNeeded = async (): Promise<void> => {
   }
 
   const sandboxHost = process.env['WEB_E2E_API_SANDBOX_HOST'] ?? '127.0.0.1';
-  const sandboxPort = Number.parseInt(process.env['WEB_E2E_API_SANDBOX_PORT'] ?? '4100', 10);
+  const preferredSandboxPort = Number.parseInt(
+    process.env['WEB_E2E_API_SANDBOX_PORT'] ?? '4100',
+    10
+  );
+  const resolvedSandboxPort = await allocatePort(sandboxHost, preferredSandboxPort, 20);
 
-  if (isReachable && shouldAutostart) {
+  if (resolvedSandboxPort !== preferredSandboxPort) {
     log(
-      `API base reachable at ${normalizedApiBase}, but autostart is enabled; starting local API sandbox at http://${sandboxHost}:${sandboxPort}.`
+      `API sandbox port ${preferredSandboxPort} busy; using fallback ${resolvedSandboxPort}.`
     );
   }
 
-  apiBaseUrl = `http://${sandboxHost}:${sandboxPort}`;
+  if (isReachable && shouldAutostart) {
+    log(
+      `API base reachable at ${normalizedApiBase}, but autostart is enabled; starting local API sandbox at http://${sandboxHost}:${resolvedSandboxPort}.`
+    );
+  }
+
+  apiBaseUrl = `http://${sandboxHost}:${resolvedSandboxPort}`;
   process.env['WEB_E2E_API_BASE_URL'] = apiBaseUrl;
+  process.env['WEB_E2E_API_SANDBOX_PORT'] = String(resolvedSandboxPort);
 
   const repoRoot = path.resolve(__dirname, '../..');
   const databaseUrl =
@@ -275,12 +384,12 @@ const startApiSandboxIfNeeded = async (): Promise<void> => {
 
   log(`Starting lambda sandbox API server at ${apiBaseUrl}`);
 
-  apiSandboxProcess = spawn('pnpm', ['run', 'lambda:sandbox', '--', `--port=${sandboxPort}`], {
+  apiSandboxProcess = spawn('pnpm', ['run', 'lambda:sandbox', '--', `--port=${resolvedSandboxPort}`], {
     cwd: repoRoot,
     env: {
       ...process.env,
       DATABASE_URL: databaseUrl,
-      LAMBDA_SANDBOX_PORT: String(sandboxPort),
+      LAMBDA_SANDBOX_PORT: String(resolvedSandboxPort),
     },
     stdio: 'inherit',
     detached: true,
@@ -289,10 +398,16 @@ const startApiSandboxIfNeeded = async (): Promise<void> => {
   apiSandboxStarted = true;
   apiSandboxPid = apiSandboxProcess.pid ?? null;
 
-  const ready = await waitForEndpoint(`${apiBaseUrl}/health`, 60, 1_000);
-  if (!ready) {
+  try {
+    await waitForProcessSpawn(apiSandboxProcess);
+
+    const ready = await waitForEndpoint(`${apiBaseUrl}/health`, 60, 1_000);
+    if (!ready) {
+      throw new Error('API sandbox did not become ready in time.');
+    }
+  } catch (error) {
     await stopApiSandbox();
-    throw new Error('API sandbox did not become ready in time.');
+    throw error instanceof Error ? error : new Error(String(error));
   }
 
   process.on('exit', () => {
