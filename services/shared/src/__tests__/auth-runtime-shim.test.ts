@@ -18,7 +18,6 @@ describe('auth runtime shim exports', () => {
   });
 
   it('exposes ensureDatabaseUrl via CommonJS require', () => {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const shim = require(runtimeShimPath);
     expect(typeof shim.ensureDatabaseUrl).toBe('function');
   });

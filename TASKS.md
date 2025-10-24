@@ -64,9 +64,10 @@
   - [x] Action: Fortify `tests/web-e2e/src/smoke.ts` (port handling, /health waits, cleanup) and add targeted tests for runtime shim imports.
   - [x] Verify: `pnpm --filter @namecard/web-e2e run test:smoke` and `pnpm --filter @namecard/shared run test` both pass after the changes.
   - Signed off: gpt-5-codex (2025-10-23)
-- [ ] Task 4.8 — CI freeze & validation
-  - [ ] Action: Land a dedicated “CI restore” commit that replays the full local pipeline before merging feature work.
-  - [ ] Verify: A fresh `pnpm run ci:quality` succeeds locally and the subsequent GitHub run is green.
+- [x] Task 4.8 — CI freeze & validation
+  - [x] Action: Land a dedicated “CI restore” commit that replays the full local pipeline before merging feature work.
+  - [x] Verify: A fresh `pnpm run ci:quality` succeeds locally and the subsequent GitHub run is green.
+  - Signed off: gpt-5-codex (2025-10-24)
 - [ ] Task 4.9 — Transitional safeguard
   - [ ] Action: Temporarily mark `web_e2e_smoke` as non-blocking while stabilising, then re-enable once stable.
   - [ ] Verify: Workflow YAML updated, smoke job rerun confirms desired gating behaviour.
@@ -81,5 +82,6 @@
 
 ## Quick Reference
 - Full stack bootstrap: `pnpm run fullstack:up`
+- CI quality gates: `pnpm run ci:quality:local`
 - Web smoke runner: `pnpm run test:e2e:web`
 - API E2E harness: `pnpm --filter @namecard/api-e2e run test:local`

@@ -27,6 +27,7 @@
     "ci:quality": "pnpm run lint:all && pnpm run type-check:all && pnpm run test:core && pnpm run build:core",
     "ci:infra-dry-run": "pnpm run migrate:local && pnpm run migrate:validate && node scripts/launch/verify-readiness.cjs plan",
     "ci:smoke:local": "node scripts/ci-smoke-local.mjs",
+    "ci:quality:local": "node scripts/ci-quality-local.mjs",
     "launch:verify": "node scripts/launch/verify-readiness.cjs verify",
     "launch:plan": "node scripts/launch/verify-readiness.cjs plan",
     "launch:record": "node scripts/launch/verify-readiness.cjs record",
