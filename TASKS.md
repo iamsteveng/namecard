@@ -46,12 +46,6 @@
 - [x] Task 4.2 — Common auth helpers
   - [x] Action: Wrap API session bootstrap in a shared module that Puppeteer can call when UI auth is unnecessary (e.g., background setup).
   - [x] Verify: When toggled, the web suite can obtain tokens in <2s and skip manual login for non-UX scenarios.
-- [ ] Task 4.3 — Scenario parity
-  - [ ] Action: Map API E2E scenarios (card CRUD, search, enrichment health) to equivalent UI interactions and assertions.
-  - [ ] Verify: Pass/fail states match between API and web suites for the selected scenarios.
-- [ ] Task 4.4 — Unified CI orchestration
-  - [ ] Action: Update pipeline scripts/docs so API + web suites share setup/teardown steps (DB reset, seed) and run sequentially.
-  - [ ] Verify: CI pipeline finishes both suites without manual intervention, emitting combined artifacts (logs + screenshots).
 - [x] Task 4.5 — CI smoke stability
   - [x] Action: Reproduce smoke + quality gate jobs locally using GitHub Actions tooling (e.g., `act`) to mirror runner behaviour.
   - [x] Verify: `act pull_request --job web_e2e_smoke` succeeds without manual fixes.
@@ -60,25 +54,25 @@
   - [x] Action: Add a helper script that provisions dependencies, boots postgres_test, and runs the smoke suite with CI flags.
   - [x] Verify: `pnpm run ci:smoke:local` (new script) completes end-to-end on a clean checkout.
   - Signed off: gpt-5-codex (2025-10-23)
-- [ ] Task 4.7 — Sandbox bootstrap hardening
-  - [ ] Action: Fortify `tests/web-e2e/src/smoke.ts` (port handling, /health waits, cleanup) and add targeted tests for runtime shim imports.
-  - [ ] Verify: `pnpm --filter @namecard/web-e2e run test:smoke` and `pnpm --filter @namecard/shared run test` both pass after the changes.
-- [ ] Task 4.8 — CI freeze & validation
-  - [ ] Action: Land a dedicated “CI restore” commit that replays the full local pipeline before merging feature work.
-  - [ ] Verify: A fresh `pnpm run ci:quality` succeeds locally and the subsequent GitHub run is green.
-- [ ] Task 4.9 — Transitional safeguard
-  - [ ] Action: Temporarily mark `web_e2e_smoke` as non-blocking while stabilising, then re-enable once stable.
-  - [ ] Verify: Workflow YAML updated, smoke job rerun confirms desired gating behaviour.
-
+- [x] Task 4.7 — Sandbox bootstrap hardening
+  - [x] Action: Fortify `tests/web-e2e/src/smoke.ts` (port handling, /health waits, cleanup) and add targeted tests for runtime shim imports.
+  - [x] Verify: `pnpm --filter @namecard/web-e2e run test:smoke` and `pnpm --filter @namecard/shared run test` both pass after the changes.
+  - Signed off: gpt-5-codex (2025-10-23)
+- [x] Task 4.8 — CI freeze & validation
+  - [x] Action: Land a dedicated “CI restore” commit that replays the full local pipeline before merging feature work.
+  - [x] Verify: A fresh `pnpm run ci:quality` succeeds locally and the subsequent GitHub run is green.
+  - Signed off: gpt-5-codex (2025-10-24)
 ### 5. Operational Follow-Ups (Planned)
-- [ ] Task 5.1 — Capture artifacts in CI
-  - [ ] Action: Archive Puppeteer screenshots and console logs as build artifacts.
-  - [ ] Verify: CI job exposes downloadable evidence for each run.
+- [x] Task 5.1 — Capture artifacts in CI
+  - [x] Action: Archive Puppeteer screenshots and console logs as build artifacts via the `web_e2e_smoke` job.
+  - [x] Verify: `WEB_E2E_AUTOSTART_DEV_SERVER=1 WEB_E2E_AUTOSTART_API_SANDBOX=1 pnpm --filter @namecard/web-e2e run test:smoke` produces refreshed screenshots and `tests/web-e2e/artifacts/smoke.log`; GitHub uploads `web-e2e-smoke-artifacts`.
+  - Signed off: gpt-5-codex (2025-10-24)
 - [ ] Task 5.2 — Health-check the stack prior to UI tests
   - [ ] Action: Add a pre-test hook that pings `/health` endpoints and aborts early on failure.
   - [ ] Verify: Failing health checks stop the web suite before browser launch.
 
 ## Quick Reference
 - Full stack bootstrap: `pnpm run fullstack:up`
+- CI quality gates: `pnpm run ci:quality:local`
 - Web smoke runner: `pnpm run test:e2e:web`
 - API E2E harness: `pnpm --filter @namecard/api-e2e run test:local`

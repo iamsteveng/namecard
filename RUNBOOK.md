@@ -37,8 +37,9 @@ playbooks introduced in Task 8.
   orchestrates quality checks, migration dry-run, launch verification, and
   promotion.
 - **Pre-flight checks (local or in CI):**
-  1. `pnpm run ci:quality` — runs lint, type-check, shared service tests, and
-     builds. The job starts the `postgres_test` container automatically in CI.
+  1. `pnpm run ci:quality:local` — recreates the Quality Gates bootstrap (installs
+     dependencies, ensures `postgres_test` is healthy on port 5433) and runs
+     `pnpm run ci:quality` end-to-end.
   2. `DB_PORT=5433 DB_NAME=namecard_test pnpm run ci:infra-dry-run` — validates
      migrations against the ledger without applying changes.
   3. `pnpm run launch:verify` — asserts budgets, checklist headings, and
