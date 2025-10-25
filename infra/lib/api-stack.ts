@@ -200,11 +200,26 @@ export class ApiStack extends cdk.Stack {
       DB_SECRET_ARN: props.dbSecret.secretArn,
     } satisfies Record<string, string>;
 
+    const copyPrismaScript = path.join(__dirname, '../../scripts/copy-prisma-assets.mjs');
+
     const lambdaBundling: BundlingOptions = {
       format: OutputFormat.ESM,
       target: 'node20',
       minify: envKey !== 'dev',
       sourceMap: true,
+      commandHooks: {
+        beforeBundling() {
+          return [];
+        },
+        afterBundling(_inputDir, outputDir) {
+          const bundleArg = shellQuotePath(outputDir);
+          const scriptArg = shellQuotePath(copyPrismaScript);
+          return [`node ${scriptArg} --bundle ${bundleArg}`];
+        },
+        beforeInstall() {
+          return [];
+        },
+      },
     };
 
     const lambdaSecurityGroup =

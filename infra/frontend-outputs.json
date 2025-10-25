@@ -21,6 +21,14 @@
     "S3CdnDomainEnvVar": "d3pbmzui8ousng.cloudfront.net",
     "StackSummary": "{\"environment\":\"staging\",\"bucketName\":\"namecard-images-staging-145006476362\",\"cdnDomain\":\"d3pbmzui8ousng.cloudfront.net\",\"region\":\"ap-southeast-1\"}"
   },
+  "NameCardFrontend-staging": {
+    "FrontendBucketArn": "arn:aws:s3:::namecard-frontend-staging-145006476362",
+    "FrontendBucketName": "namecard-frontend-staging-145006476362",
+    "FrontendDistributionId": "E11B2B5JS0PO7N",
+    "FrontendDomainName": "d11ofb8v2c3wun.cloudfront.net",
+    "FrontendUrl": "https://d11ofb8v2c3wun.cloudfront.net",
+    "FrontendDeploymentSummary": "{\"environment\":\"staging\",\"frontendUrl\":\"https://d11ofb8v2c3wun.cloudfront.net\",\"apiUrl\":\"https://frepw21wc8.execute-api.ap-southeast-1.amazonaws.com\",\"bucketName\":\"namecard-frontend-staging-145006476362\",\"region\":\"ap-southeast-1\"}"
+  },
   "NameCardProd-staging": {
     "RedisEndpoint": "namecard-redis-staging.wt8vz5.0001.apse1.cache.amazonaws.com",
     "DatabasePort": "5432",

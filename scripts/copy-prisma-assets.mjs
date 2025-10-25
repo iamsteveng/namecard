@@ -27,21 +27,33 @@ if (!fs.existsSync(packageRoot) || !fs.existsSync(binaryRoot)) {
   process.exit(1);
 }
 
-const cdkOut = path.join(repoRoot, 'infra/cdk.out');
-const manifestPath = path.join(cdkOut, 'NameCardApi-staging.assets.json');
-if (!fs.existsSync(manifestPath)) {
-  console.error('[copy-prisma-assets] Asset manifest not found at', manifestPath);
-  process.exit(1);
-}
+const args = process.argv.slice(2);
+const targetFlagIndex = args.findIndex((value) => value === '--bundle' || value === '--target');
+const singleTarget = targetFlagIndex !== -1 ? args[targetFlagIndex + 1] : undefined;
 
-const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-const codeAssets = Object.entries(manifest.files)
-  .filter(([, value]) => value.displayName?.endsWith('ServiceFunction/Code'))
-  .map(([, value]) => path.join(cdkOut, value.source.path));
+const collectedTargets = [];
 
-if (!codeAssets.length) {
-  console.error('[copy-prisma-assets] No Lambda code assets found in manifest');
-  process.exit(1);
+if (singleTarget) {
+  collectedTargets.push(path.resolve(process.cwd(), singleTarget));
+} else {
+    const cdkOut = path.join(repoRoot, 'infra/cdk.out');
+    const manifestPath = path.join(cdkOut, 'NameCardApi-staging.assets.json');
+    if (!fs.existsSync(manifestPath)) {
+      console.error('[copy-prisma-assets] Asset manifest not found at', manifestPath);
+      process.exit(1);
+    }
+
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    const codeAssets = Object.entries(manifest.files)
+      .filter(([, value]) => value.displayName?.endsWith('ServiceFunction/Code'))
+      .map(([, value]) => path.join(cdkOut, value.source.path));
+
+    if (!codeAssets.length) {
+      console.error('[copy-prisma-assets] No Lambda code assets found in manifest');
+      process.exit(1);
+    }
+
+    collectedTargets.push(...codeAssets);
 }
 
 function ensureRequirePrelude(assetPath) {
@@ -62,41 +74,48 @@ function ensureRequirePrelude(assetPath) {
   if (isModule) {
     preludeLines.push(
       'import { createRequire as __createRequire } from "module";',
-      'const require = globalThis.require ?? __createRequire(import.meta.url);'
+      'import { fileURLToPath as __fileURLToPath } from "url";',
+      'import path from "path";',
+      'const __bundledRequire = globalThis.require ?? __createRequire(import.meta.url);',
+      'if (typeof globalThis.require !== "function") {',
+      '  globalThis.require = __bundledRequire;',
+      '}',
+      'const __currentFilename = __fileURLToPath(import.meta.url);',
+      'if (typeof globalThis.__filename !== "string") {',
+      '  globalThis.__filename = __currentFilename;',
+      '}',
+      'const __currentDirname = path.dirname(__currentFilename);',
+      'if (typeof globalThis.__dirname !== "string") {',
+      '  globalThis.__dirname = __currentDirname;',
+      '}'
     );
   } else {
     preludeLines.push(
       'const { createRequire: __createRequire } = require("module");',
-      'const require = globalThis.require ?? __createRequire(__filename);'
+      'const path = require("path");',
+      'const __bundledRequire = globalThis.require ?? __createRequire(__filename);',
+      'if (typeof globalThis.require !== "function") {',
+      '  globalThis.require = __bundledRequire;',
+      '}',
+      'if (typeof globalThis.__dirname !== "string") {',
+      '  globalThis.__dirname = path.dirname(__filename);',
+      '}'
     );
   }
 
-  preludeLines.push(
-    'if (typeof globalThis.require !== "function") {',
-    '  globalThis.require = require;',
-    '  try {',
-    '    (0, eval)("var require = globalThis.require;");',
-    '  } catch {',
-    '    // ignore if eval is restricted',
-    '  }',
-    '}',
-    ''
-  );
+  preludeLines.push('');
 
   const prelude = preludeLines.join('\n');
   const contents = fs.readFileSync(entryPath, 'utf8');
+  const stripped = contents.startsWith(injectedMarker)
+    ? contents.replace(/^\/\/ -- injected-require-prelude --[\s\S]*?\n\n/, '')
+    : contents;
 
-  if (contents.startsWith(injectedMarker)) {
-    const rest = contents.split('\n').slice(preludeLines.length).join('\n');
-    fs.writeFileSync(entryPath, prelude + rest, 'utf8');
-    return;
-  }
-
-  fs.writeFileSync(entryPath, prelude + contents, 'utf8');
+  fs.writeFileSync(entryPath, prelude + stripped, 'utf8');
   console.log('[copy-prisma-assets] Injected require prelude into', entryPath);
 }
 
-for (const assetPath of codeAssets) {
+for (const assetPath of collectedTargets) {
   ensureRequirePrelude(assetPath);
   const packageDest = path.join(assetPath, 'node_modules/@prisma/client');
   const binaryDest = path.join(assetPath, 'node_modules/.prisma/client');

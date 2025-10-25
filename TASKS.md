@@ -62,6 +62,7 @@
   - [x] Action: Land a dedicated “CI restore” commit that replays the full local pipeline before merging feature work.
   - [x] Verify: A fresh `pnpm run ci:quality` succeeds locally and the subsequent GitHub run is green.
   - Signed off: gpt-5-codex (2025-10-24)
+
 ### 5. Operational Follow-Ups (Planned)
 - [x] Task 5.1 — Capture artifacts in CI
   - [x] Action: Archive Puppeteer screenshots and console logs as build artifacts via the `web_e2e_smoke` job.
@@ -70,6 +71,29 @@
 - [ ] Task 5.2 — Health-check the stack prior to UI tests
   - [ ] Action: Add a pre-test hook that pings `/health` endpoints and aborts early on failure.
   - [ ] Verify: Failing health checks stop the web suite before browser launch.
+
+### 6. Hosted Smoke Automation (In Progress)
+- [x] Task 6.1 — Pre-flight endpoint check
+  - [x] Action: `curl -I https://d11ofb8v2c3wun.cloudfront.net` and `curl https://frepw21wc8.execute-api.ap-southeast-1.amazonaws.com/staging/v1/auth/health` before hosted runs.
+  - [x] Verify: CloudFront responds `200` and the API health endpoint returns `200`, confirming the remote stack is reachable (HEAD requests to `/health` are disallowed, as expected).
+- [x] Task 6.2 — Configure remote environment toggles
+  - [x] Action: Export `WEB_BASE_URL`, `WEB_E2E_API_BASE_URL`, `WEB_E2E_SKIP_AUTOSTART=true`, and `WEB_E2E_SKIP_AUTOSTART_API_SANDBOX=true` to prevent local service autostart.
+  - [x] Verify: `printenv`/runtime logs reflect the hosted values and no local bootstrap processes spawn during the run.
+- [x] Task 6.3 — Hosted authentication strategy
+  - [x] Action: Provide `E2E_EMAIL`, `E2E_PASSWORD`, and set `WEB_E2E_AUTH_MODE=bootstrap` (with optional `E2E_NAME`) to reuse the staged account.
+  - [x] Verify: `pnpm run e2e:seed:online` registers/logs in successfully and writes the shared seed state for the hosted suite.
+- [x] Task 6.4 — Execute hosted smoke suite
+  - [x] Action: Run `pnpm run test:e2e:web` with the hosted environment variables.
+  - [x] Verify: Command exits successfully, console output logs hosted navigation/search assertions, and quick-search validations pass.
+- [x] Task 6.5 — Review hosted artifacts
+  - [x] Action: Inspect `tests/web-e2e/artifacts` after the run.
+  - [x] Verify: Screens capture registration/login/dashboard/scan/cards/search states from the deployed web.
+- [x] Task 6.6 — Restore quick-search coverage
+  - [x] Action: Update the CloudFront routing (`api/*`, `v1/*`) and harden `smoke.ts` polling/logging for hosted latency.
+  - [x] Verify: Hosted smoke succeeds against `https://d11ofb8v2c3wun.cloudfront.net` with quick-search enabled.
+- [x] Task 6.7 — Wire hosted smoke into CI
+  - [x] Action: Add the `web_e2e_online` job to `.github/workflows/ci-cd.yml` so it seeds staging data and runs after `promote`.
+  - [ ] Verify: Workflow run uploads the latest `tests/web-e2e/artifacts` screenshots and fails deployment if the hosted smoke fails.
 
 ## Quick Reference
 - Full stack bootstrap: `pnpm run fullstack:up`
