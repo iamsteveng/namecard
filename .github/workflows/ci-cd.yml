@@ -133,11 +133,22 @@ jobs:
         run: |
           docker compose exec -T postgres_test psql -U namecard_user -d namecard_test -c 'select 1'
 
+      - name: Prepare smoke artefacts directory
+        run: mkdir -p tests/web-e2e/artifacts
+
       - name: Run web smoke suite
         env:
           WEB_E2E_AUTOSTART_DEV_SERVER: '1'
           WEB_E2E_AUTOSTART_API_SANDBOX: '1'
         run: pnpm --filter @namecard/web-e2e run test:smoke
+
+      - name: Upload web smoke artefacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-e2e-smoke-artifacts
+          path: tests/web-e2e/artifacts
+          if-no-files-found: warn
 
   api_e2e:
     name: API E2E

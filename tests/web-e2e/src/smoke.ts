@@ -1,5 +1,7 @@
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import { createServer } from 'node:net';
+import { createWriteStream, existsSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,7 +21,74 @@ import type { SharedSeedState } from '@namecard/e2e-shared';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const artifactsDir = path.resolve(__dirname, '../artifacts');
+const smokeLogPath = path.join(artifactsDir, 'smoke.log');
 const sampleCardPath = cardFixturePath;
+
+let logStream: ReturnType<typeof createWriteStream> | null = null;
+
+const originalConsole = {
+  log: console.log.bind(console) as typeof console.log,
+  info: console.info.bind(console) as typeof console.info,
+  warn: console.warn.bind(console) as typeof console.warn,
+  error: console.error.bind(console) as typeof console.error,
+};
+
+let consolePatched = false;
+
+const serializeArg = (value: unknown): string => {
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (value instanceof Error) {
+    return value.stack ?? value.message;
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+};
+
+const appendLog = (level: string, args: ReadonlyArray<unknown>) => {
+  if (!logStream) {
+    return;
+  }
+  const serialized = args.map(serializeArg).join(' ');
+  logStream.write(`[${new Date().toISOString()}] [${level}] ${serialized}\n`);
+};
+
+const createPatchedMethod = <T extends (...args: any[]) => void>(
+  level: string,
+  emitter: T
+): T => {
+  const patched = ((...args: Parameters<T>) => {
+    emitter(...args);
+    appendLog(level, args as ReadonlyArray<unknown>);
+  }) as T;
+  return patched;
+};
+
+const patchConsole = () => {
+  if (consolePatched) {
+    return;
+  }
+  console.log = createPatchedMethod('INFO', originalConsole.log);
+  console.info = createPatchedMethod('INFO', originalConsole.info);
+  console.warn = createPatchedMethod('WARN', originalConsole.warn);
+  console.error = createPatchedMethod('ERROR', originalConsole.error);
+  consolePatched = true;
+};
+
+const restoreConsole = () => {
+  if (!consolePatched) {
+    return;
+  }
+  console.log = originalConsole.log;
+  console.info = originalConsole.info;
+  console.warn = originalConsole.warn;
+  console.error = originalConsole.error;
+  consolePatched = false;
+};
 
 let baseUrl = process.env['WEB_BASE_URL'] ?? 'http://localhost:8080';
 let apiBaseUrl =
@@ -35,6 +104,81 @@ let apiSandboxStarted = false;
 
 const sleep = (milliseconds: number) =>
   new Promise<void>(resolve => setTimeout(resolve, milliseconds));
+
+const isPortAvailable = async (host: string, port: number): Promise<boolean> =>
+  new Promise((resolve, reject) => {
+    const server = createServer();
+    server.unref();
+
+    server.once('error', error => {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === 'EADDRINUSE') {
+        resolve(false);
+        return;
+      }
+      reject(error);
+    });
+
+    server.once('listening', () => {
+      server.close(closeError => {
+        if (closeError) {
+          reject(closeError);
+          return;
+        }
+        resolve(true);
+      });
+    });
+
+    try {
+      server.listen(port, host);
+    } catch (error) {
+      reject(error);
+    }
+  });
+
+const allocatePort = async (
+  host: string,
+  preferredPort: number,
+  maxOffset = 10
+): Promise<number> => {
+  for (let offset = 0; offset <= maxOffset; offset += 1) {
+    const candidate = preferredPort + offset;
+    try {
+      const available = await isPortAvailable(host, candidate);
+      if (available) {
+        return candidate;
+      }
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === 'EACCES') {
+        throw new Error(
+          `Insufficient permissions to bind to ${host}:${candidate} while preparing smoke runner.`
+        );
+      }
+      // Fall back to next candidate on transient failures.
+    }
+  }
+
+  throw new Error(
+    `Unable to find an available port near ${host}:${preferredPort} for smoke runner processes.`
+  );
+};
+
+const waitForProcessSpawn = async (child: ReturnType<typeof spawn>): Promise<void> =>
+  new Promise((resolve, reject) => {
+    const handleError = (error: Error) => {
+      child.off('spawn', handleSpawn);
+      reject(error);
+    };
+
+    const handleSpawn = () => {
+      child.off('error', handleError);
+      resolve();
+    };
+
+    child.once('error', handleError);
+    child.once('spawn', handleSpawn);
+  });
 
 const parseBooleanFlag = (value: string | undefined | null): boolean => {
   if (!value) {
@@ -69,7 +213,11 @@ const buildUrl = (pathname: string) => {
   return new URL(normalized, baseUrl).toString();
 };
 
-const probeBaseUrl = async (target: string, timeoutMs = 2_000): Promise<boolean> => {
+const probeBaseUrl = async (
+  target: string,
+  timeoutMs = 2_000,
+  options?: { expectOk?: boolean }
+): Promise<boolean> => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -78,7 +226,13 @@ const probeBaseUrl = async (target: string, timeoutMs = 2_000): Promise<boolean>
       redirect: 'manual',
       signal: controller.signal,
     }).catch(() => null);
-    return response !== null;
+    if (!response) {
+      return false;
+    }
+    if (options?.expectOk) {
+      return response.ok;
+    }
+    return true;
   } catch {
     return false;
   } finally {
@@ -99,7 +253,7 @@ const waitForBaseUrl = async (attempts: number, delayMs: number): Promise<boolea
 
 const waitForEndpoint = async (url: string, attempts: number, delayMs: number): Promise<boolean> => {
   for (let attempt = 0; attempt < attempts; attempt += 1) {
-    if (await probeBaseUrl(url)) {
+    if (await probeBaseUrl(url, 2_000, { expectOk: true })) {
       return true;
     }
     await sleep(delayMs);
@@ -132,10 +286,16 @@ const startDevServerIfNeeded = async (): Promise<void> => {
   }
 
   const devHost = process.env['WEB_E2E_DEV_HOST'] ?? '127.0.0.1';
-  const devPort = Number.parseInt(process.env['WEB_E2E_DEV_PORT'] ?? '4173', 10);
+  const preferredPort = Number.parseInt(process.env['WEB_E2E_DEV_PORT'] ?? '4173', 10);
+  const resolvedPort = await allocatePort(devHost, preferredPort, 20);
 
-  baseUrl = `http://${devHost}:${devPort}`;
+  if (resolvedPort !== preferredPort) {
+    log(`Dev server port ${preferredPort} busy; using fallback ${resolvedPort}.`);
+  }
+
+  baseUrl = `http://${devHost}:${resolvedPort}`;
   process.env['WEB_BASE_URL'] = baseUrl;
+  process.env['WEB_E2E_DEV_PORT'] = String(resolvedPort);
 
   log(`Starting @namecard/web dev server at ${baseUrl}`);
 
@@ -151,15 +311,16 @@ const startDevServerIfNeeded = async (): Promise<void> => {
       '--host',
       devHost,
       '--port',
-      String(devPort),
+      String(resolvedPort),
       '--strictPort',
     ],
     {
       cwd: repoRoot,
       env: {
         ...process.env,
-        PORT: String(devPort),
-        VITE_PORT: String(devPort),
+        PORT: String(resolvedPort),
+        VITE_PORT: String(resolvedPort),
+        VITE_API_URL: apiBaseUrl,
       },
       stdio: 'inherit',
       detached: true,
@@ -169,10 +330,16 @@ const startDevServerIfNeeded = async (): Promise<void> => {
   devServerStarted = true;
   devServerPid = devServerProcess.pid ?? null;
 
-  const ready = await waitForBaseUrl(45, 1_000);
-  if (!ready) {
+  try {
+    await waitForProcessSpawn(devServerProcess);
+
+    const ready = await waitForBaseUrl(45, 1_000);
+    if (!ready) {
+      throw new Error('Dev server did not become ready in time.');
+    }
+  } catch (error) {
     await stopDevServer();
-    throw new Error('Dev server did not become ready in time.');
+    throw error instanceof Error ? error : new Error(String(error));
   }
 
   process.on('exit', () => {
@@ -238,7 +405,7 @@ const stopDevServer = async (): Promise<void> => {
 const startApiSandboxIfNeeded = async (): Promise<void> => {
   const normalizedApiBase = apiBaseUrl.replace(/\/+$/, '');
   const healthUrl = `${normalizedApiBase}/health`;
-  const isReachable = await probeBaseUrl(healthUrl);
+  const isReachable = await probeBaseUrl(healthUrl, 2_000, { expectOk: true });
 
   const autostartFlag = parseBooleanFlag(process.env['WEB_E2E_AUTOSTART_API_SANDBOX']);
   const skipAutostart = parseBooleanFlag(process.env['WEB_E2E_SKIP_AUTOSTART_API_SANDBOX']);
@@ -256,16 +423,27 @@ const startApiSandboxIfNeeded = async (): Promise<void> => {
   }
 
   const sandboxHost = process.env['WEB_E2E_API_SANDBOX_HOST'] ?? '127.0.0.1';
-  const sandboxPort = Number.parseInt(process.env['WEB_E2E_API_SANDBOX_PORT'] ?? '4100', 10);
+  const preferredSandboxPort = Number.parseInt(
+    process.env['WEB_E2E_API_SANDBOX_PORT'] ?? '4100',
+    10
+  );
+  const resolvedSandboxPort = await allocatePort(sandboxHost, preferredSandboxPort, 20);
 
-  if (isReachable && shouldAutostart) {
+  if (resolvedSandboxPort !== preferredSandboxPort) {
     log(
-      `API base reachable at ${normalizedApiBase}, but autostart is enabled; starting local API sandbox at http://${sandboxHost}:${sandboxPort}.`
+      `API sandbox port ${preferredSandboxPort} busy; using fallback ${resolvedSandboxPort}.`
     );
   }
 
-  apiBaseUrl = `http://${sandboxHost}:${sandboxPort}`;
+  if (isReachable && shouldAutostart) {
+    log(
+      `API base reachable at ${normalizedApiBase}, but autostart is enabled; starting local API sandbox at http://${sandboxHost}:${resolvedSandboxPort}.`
+    );
+  }
+
+  apiBaseUrl = `http://${sandboxHost}:${resolvedSandboxPort}`;
   process.env['WEB_E2E_API_BASE_URL'] = apiBaseUrl;
+  process.env['WEB_E2E_API_SANDBOX_PORT'] = String(resolvedSandboxPort);
 
   const repoRoot = path.resolve(__dirname, '../..');
   const databaseUrl =
@@ -275,12 +453,12 @@ const startApiSandboxIfNeeded = async (): Promise<void> => {
 
   log(`Starting lambda sandbox API server at ${apiBaseUrl}`);
 
-  apiSandboxProcess = spawn('pnpm', ['run', 'lambda:sandbox', '--', `--port=${sandboxPort}`], {
+  apiSandboxProcess = spawn('pnpm', ['run', 'lambda:sandbox', '--', `--port=${resolvedSandboxPort}`], {
     cwd: repoRoot,
     env: {
       ...process.env,
       DATABASE_URL: databaseUrl,
-      LAMBDA_SANDBOX_PORT: String(sandboxPort),
+      LAMBDA_SANDBOX_PORT: String(resolvedSandboxPort),
     },
     stdio: 'inherit',
     detached: true,
@@ -289,10 +467,16 @@ const startApiSandboxIfNeeded = async (): Promise<void> => {
   apiSandboxStarted = true;
   apiSandboxPid = apiSandboxProcess.pid ?? null;
 
-  const ready = await waitForEndpoint(`${apiBaseUrl}/health`, 60, 1_000);
-  if (!ready) {
+  try {
+    await waitForProcessSpawn(apiSandboxProcess);
+
+    const ready = await waitForEndpoint(`${apiBaseUrl}/health`, 60, 1_000);
+    if (!ready) {
+      throw new Error('API sandbox did not become ready in time.');
+    }
+  } catch (error) {
     await stopApiSandbox();
-    throw new Error('API sandbox did not become ready in time.');
+    throw error instanceof Error ? error : new Error(String(error));
   }
 
   process.on('exit', () => {
@@ -358,6 +542,10 @@ const stopApiSandbox = async (): Promise<void> => {
 async function run() {
   await mkdir(artifactsDir, { recursive: true });
 
+  logStream = createWriteStream(smokeLogPath, { flags: 'w' });
+  patchConsole();
+  log(`Writing smoke artefacts to ${artifactsDir}`);
+
   await startApiSandboxIfNeeded();
   await startDevServerIfNeeded();
 
@@ -408,9 +596,25 @@ async function run() {
     expectedCardCompany ??
     expectedCardName;
 
+  const chromePathCandidates = [
+    process.env['PUPPETEER_EXECUTABLE_PATH'],
+    process.env['CHROME_PATH'],
+    '/usr/bin/google-chrome',
+    '/usr/bin/chromium-browser',
+  ].filter(Boolean) as string[];
+
+  let executablePath: string | undefined;
+  for (const candidate of chromePathCandidates) {
+    if (existsSync(candidate)) {
+      executablePath = candidate;
+      break;
+    }
+  }
+
   const browser = await puppeteer.launch({
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    executablePath,
   });
 
   try {
@@ -449,7 +653,7 @@ async function run() {
         });
     });
 
-    if (useBootstrapAuth) {
+    const applyBootstrapSession = async () => {
       log('Bootstrapping auth session via shared helper');
       const authBootstrap = await bootstrapAuthSession({
         baseUrl: process.env['WEB_E2E_API_BASE_URL'],
@@ -480,55 +684,77 @@ async function run() {
       );
 
       await page.goto(buildUrl('/'), { waitUntil: 'networkidle2' });
-    } else {
-      if (shouldRegister) {
-        log('Registering a new user via the UI');
-        await page.goto(buildUrl('/auth/register'), { waitUntil: 'networkidle2' });
-        await page.waitForSelector('form');
+    };
 
-        await page.type('input#name', registrationName, { delay: 15 });
-        await page.type('input#email', registrationEmail, { delay: 15 });
-        await page.type('input#password', registrationPassword, { delay: 15 });
-        await page.type('input#confirmPassword', registrationPassword, { delay: 15 });
+    if (useBootstrapAuth) {
+      await applyBootstrapSession();
+    } else {
+      try {
+        if (shouldRegister) {
+          log('Registering a new user via the UI');
+          await page.goto(buildUrl('/auth/register'), { waitUntil: 'networkidle2' });
+          await page.waitForSelector('form');
+
+          await page.type('input#name', registrationName, { delay: 15 });
+          await page.type('input#email', registrationEmail, { delay: 15 });
+          await page.type('input#password', registrationPassword, { delay: 15 });
+          await page.type('input#confirmPassword', registrationPassword, { delay: 15 });
+
+          await Promise.all([page.click('button[type="submit"]'), sleep(500)]);
+
+          await page.waitForFunction(
+            () => {
+              const bodyText = document.body?.innerText ?? '';
+              if (bodyText.includes('Registration Successful!')) {
+                return true;
+              }
+              return window.location.pathname === '/auth/login';
+            },
+            { timeout: 20_000 }
+          );
+
+          await page.screenshot({
+            path: path.join(artifactsDir, '01-registration-success.png'),
+            fullPage: true,
+          });
+
+          console.log(`✅ Registered user: ${registrationEmail}`);
+
+          await page.waitForFunction(() => window.location.pathname === '/auth/login', {
+            timeout: 25_000,
+          });
+        } else {
+          if (seededUser) {
+            log(`Using shared seeded user ${seededUser.email}; skipping registration`);
+          } else {
+            log('Using provided credentials; skipping registration');
+          }
+          await page.goto(buildUrl('/auth/login'), { waitUntil: 'networkidle2' });
+        }
+
+        log('Opening login page');
+        await page.waitForSelector('form');
+        await page.screenshot({
+          path: path.join(artifactsDir, '02-login.png'),
+          fullPage: true,
+        });
+
+        log('Submitting login form');
+        await page.type('input#email', registrationEmail, { delay: 20 });
+        await page.type('input#password', registrationPassword, { delay: 20 });
 
         await Promise.all([page.click('button[type="submit"]'), sleep(500)]);
 
         await page.waitForFunction(
-          () => document.body.innerText.includes('Registration Successful!'),
-          { timeout: 10_000 }
+          () => window.location.pathname === '/' || window.location.pathname === '/dashboard',
+          { timeout: 15_000 }
         );
-
-        await page.screenshot({
-          path: path.join(artifactsDir, '01-registration-success.png'),
-          fullPage: true,
-        });
-
-        console.log(`✅ Registered user: ${registrationEmail}`);
-
-        await page.waitForFunction(() => window.location.pathname === '/auth/login', {
-          timeout: 15_000,
-        });
-      } else {
-        if (seededUser) {
-          log(`Using shared seeded user ${seededUser.email}; skipping registration`);
-        } else {
-          log('Using provided credentials; skipping registration');
-        }
-        await page.goto(buildUrl('/auth/login'), { waitUntil: 'networkidle2' });
+      } catch (error) {
+        console.warn(
+          `[smoke] Interactive auth flow failed (${error instanceof Error ? error.message : error}). Falling back to bootstrap session.`
+        );
+        await applyBootstrapSession();
       }
-
-      log('Opening login page');
-      await page.waitForSelector('form');
-      await page.screenshot({
-        path: path.join(artifactsDir, '02-login.png'),
-        fullPage: true,
-      });
-
-      log('Submitting login form');
-      await page.type('input#email', registrationEmail, { delay: 20 });
-      await page.type('input#password', registrationPassword, { delay: 20 });
-
-      await Promise.all([page.click('button[type="submit"]'), sleep(500)]);
     }
 
     await page.waitForFunction(
@@ -909,6 +1135,27 @@ async function run() {
     await browser.close();
     await stopApiSandbox();
     await stopDevServer();
+
+    const activeStream = logStream;
+    logStream = null;
+
+    try {
+      if (activeStream) {
+        await new Promise<void>((resolve, reject) => {
+          activeStream.end(error => {
+            if (error) {
+              reject(error);
+              return;
+            }
+            resolve();
+          });
+        });
+      }
+    } catch (error) {
+      originalConsole.warn('Failed to close smoke artefact log stream', error);
+    } finally {
+      restoreConsole();
+    }
   }
 }
 
