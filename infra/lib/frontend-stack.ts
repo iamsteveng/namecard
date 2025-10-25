@@ -9,6 +9,7 @@ import { Construct } from 'constructs';
 export interface FrontendStackProps extends cdk.StackProps {
   environment: string;
   apiUrl: string;
+  apiStage?: string;
   domainName?: string;
   certificateArn?: string;
 }
@@ -22,7 +23,7 @@ export class FrontendStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: FrontendStackProps) {
     super(scope, id, props);
 
-    const { environment, apiUrl, domainName, certificateArn } = props;
+    const { environment, apiUrl, apiStage, domainName, certificateArn } = props;
 
     // Generate bucket name for frontend
     this.bucketName = `namecard-frontend-${environment}-${this.account}`;
@@ -68,8 +69,7 @@ export class FrontendStack extends cdk.Stack {
     const hostAndStage = cdk.Fn.select(1, cdk.Fn.split('://', apiUrl));
     const hostSegments = cdk.Fn.split('/', hostAndStage);
     const apiDomain = cdk.Fn.select(0, hostSegments);
-    const apiStage = cdk.Fn.select(1, hostSegments);
-    const stagePath = cdk.Fn.join('', ['/', apiStage]);
+    const stagePath = apiStage ? `/${apiStage}` : '';
 
     const apiOrigin = new origins.HttpOrigin(apiDomain, {
       originPath: stagePath,
@@ -101,6 +101,14 @@ export class FrontendStack extends cdk.Stack {
       // API proxy behavior - forward all API requests to the backend
       additionalBehaviors: {
         '/api/*': {
+          origin: apiOrigin,
+          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
+          cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD_OPTIONS,
+          cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
+          originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER,
+        },
+        '/v1/*': {
           origin: apiOrigin,
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,

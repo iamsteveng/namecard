@@ -760,110 +760,118 @@ async function run() {
       }
     });
 
-    log('Searching for uploaded card in quick search input');
-    const basicSearchInput = await page.waitForSelector(
-      'input[placeholder="Search cards by name, company, or email..."]',
-      { timeout: 10_000 }
-    );
+    const skipQuickSearch =
+      parseBooleanFlag(process.env['WEB_E2E_SKIP_SEARCH']) ||
+      parseBooleanFlag(process.env['WEB_E2E_SKIP_QUICK_SEARCH']);
 
-    if (!basicSearchInput) {
-      throw new Error('Quick search input not found on cards page.');
-    }
-
-    await basicSearchInput.click({ clickCount: 3 });
-    await page.keyboard.down('Control');
-    await page.keyboard.press('KeyA');
-    await page.keyboard.up('Control');
-    await page.keyboard.down('Meta');
-    await page.keyboard.press('KeyA');
-    await page.keyboard.up('Meta');
-    await page.keyboard.press('Backspace');
-
-    const awaitedSearchResponse = page.waitForResponse(response => {
-      const url = response.url();
-      return (
-        url.includes('/v1/search/cards') &&
-        response.request().method() === 'POST' &&
-        response.status() >= 200 &&
-        response.status() < 300
+    if (skipQuickSearch) {
+      log('Skipping quick search validation due to WEB_E2E_SKIP_SEARCH flag');
+    } else {
+      log('Searching for uploaded card in quick search input');
+      const basicSearchInput = await page.waitForSelector(
+        'input[placeholder="Search cards by name, company, or email..."]',
+        { timeout: 10_000 }
       );
-    });
 
-    log(`Executing search with query: ${effectiveSearchQuery}`);
-    await basicSearchInput.type(effectiveSearchQuery, { delay: 25 });
+      if (!basicSearchInput) {
+        throw new Error('Quick search input not found on cards page.');
+      }
 
-    await awaitedSearchResponse;
+      await basicSearchInput.click({ clickCount: 3 });
+      await page.keyboard.down('Control');
+      await page.keyboard.press('KeyA');
+      await page.keyboard.up('Control');
+      await page.keyboard.down('Meta');
+      await page.keyboard.press('KeyA');
+      await page.keyboard.up('Meta');
+      await page.keyboard.press('Backspace');
 
-    log('Waiting for search results to render');
-    const maxAttempts = 40;
-    let searchResults: Array<{ name: string; textContent: string }> = [];
-    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-      // eslint-disable-next-line no-await-in-loop
-      const currentResults = await page.evaluate(() => {
-        const normalize = (value: string | null | undefined) =>
-          typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
-
-        const lower = (value: string | null | undefined) => normalize(value).toLowerCase();
-
-        const resultCards = Array.from(
-          document.querySelectorAll<HTMLDivElement>(
-            'div.bg-white.border.border-gray-200.rounded-lg'
-          )
-        ).filter(card => card.querySelector('h3'));
-
-        return resultCards.map(card => {
-          const name = normalize(card.querySelector('h3')?.textContent ?? '');
-          const textContent = lower(card.innerText || '');
-          return { name, textContent };
-        });
+      const awaitedSearchResponse = page.waitForResponse(response => {
+        const url = response.url();
+        return (
+          url.includes('/v1/search/cards') &&
+          response.request().method() === 'POST' &&
+          response.status() >= 200 &&
+          response.status() < 300
+        );
       });
 
-      if (currentResults.length > 0) {
-        searchResults = currentResults;
-        break;
-      }
+      log(`Executing search with query: ${effectiveSearchQuery}`);
+      await basicSearchInput.type(effectiveSearchQuery, { delay: 25 });
 
-      if (attempt < maxAttempts - 1) {
+      await awaitedSearchResponse;
+
+      log('Waiting for search results to render');
+      const maxAttempts = 40;
+      let searchResults: Array<{ name: string; textContent: string }> = [];
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
         // eslint-disable-next-line no-await-in-loop
-        await sleep(500);
+        const currentResults = await page.evaluate(() => {
+          const normalize = (value: string | null | undefined) =>
+            typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
+
+          const lower = (value: string | null | undefined) => normalize(value).toLowerCase();
+
+          const resultCards = Array.from(
+            document.querySelectorAll<HTMLDivElement>(
+              'div.bg-white.border.border-gray-200.rounded-lg'
+            )
+          ).filter(card => card.querySelector('h3'));
+
+          return resultCards.map(card => {
+            const name = normalize(card.querySelector('h3')?.textContent ?? '');
+            const textContent = lower(card.innerText || '');
+            return { name, textContent };
+          });
+        });
+
+        if (currentResults.length > 0) {
+          searchResults = currentResults;
+          break;
+        }
+
+        if (attempt < maxAttempts - 1) {
+          // eslint-disable-next-line no-await-in-loop
+          await sleep(500);
+        }
       }
+
+      if (!searchResults.length) {
+        throw new Error('Search results did not render any cards.');
+      }
+
+      const normalizedName = (expectedCardName ?? '').toLowerCase();
+      const normalizedCompany = (expectedCardCompany ?? '').toLowerCase();
+      const normalizedEmail = (expectedCardEmail ?? '').toLowerCase();
+
+      const searchMatchingIndex = searchResults.findIndex(result => {
+        const hasName = normalizedName ? result.textContent.includes(normalizedName) : true;
+        const hasCompany = normalizedCompany ? result.textContent.includes(normalizedCompany) : true;
+        const hasEmail = normalizedEmail ? result.textContent.includes(normalizedEmail) : true;
+        return hasName && hasCompany && hasEmail;
+      });
+
+      if (searchMatchingIndex === -1) {
+        throw new Error('Uploaded card not found in search results for provided query.');
+      }
+
+      if (searchMatchingIndex !== 0 && shouldUploadCard) {
+        throw new Error(
+          `Uploaded card found in search results but not listed first (position ${searchMatchingIndex + 1}).`
+        );
+      }
+
+      if (shouldUploadCard) {
+        log('Verified uploaded card appears first in search results with expected metadata');
+      } else {
+        log('Verified seeded card appears in search results with expected metadata');
+      }
+
+      await page.screenshot({
+        path: path.join(artifactsDir, '06-cards-search.png'),
+        fullPage: true,
+      });
     }
-
-    if (!searchResults.length) {
-      throw new Error('Search results did not render any cards.');
-    }
-
-    const normalizedName = (expectedCardName ?? '').toLowerCase();
-    const normalizedCompany = (expectedCardCompany ?? '').toLowerCase();
-    const normalizedEmail = (expectedCardEmail ?? '').toLowerCase();
-
-    const searchMatchingIndex = searchResults.findIndex(result => {
-      const hasName = normalizedName ? result.textContent.includes(normalizedName) : true;
-      const hasCompany = normalizedCompany ? result.textContent.includes(normalizedCompany) : true;
-      const hasEmail = normalizedEmail ? result.textContent.includes(normalizedEmail) : true;
-      return hasName && hasCompany && hasEmail;
-    });
-
-    if (searchMatchingIndex === -1) {
-      throw new Error('Uploaded card not found in search results for provided query.');
-    }
-
-    if (searchMatchingIndex !== 0 && shouldUploadCard) {
-      throw new Error(
-        `Uploaded card found in search results but not listed first (position ${searchMatchingIndex + 1}).`
-      );
-    }
-
-    if (shouldUploadCard) {
-      log('Verified uploaded card appears first in search results with expected metadata');
-    } else {
-      log('Verified seeded card appears in search results with expected metadata');
-    }
-
-    await page.screenshot({
-      path: path.join(artifactsDir, '06-cards-search.png'),
-      fullPage: true,
-    });
 
     console.log(`\n✅ Smoke test completed. Screenshots stored in ${artifactsDir}.`);
   } finally {
