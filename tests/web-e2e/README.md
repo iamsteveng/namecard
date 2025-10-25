@@ -27,6 +27,27 @@ Environment overrides:
 - `WEB_E2E_BYPASS_LOGIN` / `WEB_E2E_AUTH_BYPASS` – truthy flag equivalents for toggling bootstrap behaviour without changing the mode string.
 - `WEB_E2E_API_BASE_URL` – API origin to use when bootstrapping auth (defaults to `http://localhost:3001`).
 
+## Running against staging
+```bash
+# Seed the remote environment (idempotent)
+WEB_E2E_API_BASE_URL="https://<api-host>/staging" \
+E2E_EMAIL="staging-smoke@example.com" \
+E2E_PASSWORD="StrongHostedPassword!" \
+pnpm run e2e:seed:online
+
+# Execute the smoke test in bootstrap mode against the hosted site
+WEB_E2E_AUTH_MODE=bootstrap \
+WEB_BASE_URL="https://<web-host>" \
+WEB_E2E_API_BASE_URL="https://<api-host>/staging" \
+WEB_E2E_SKIP_AUTOSTART=true \
+WEB_E2E_SKIP_AUTOSTART_API_SANDBOX=true \
+E2E_EMAIL="staging-smoke@example.com" \
+E2E_PASSWORD="StrongHostedPassword!" \
+pnpm run test:e2e:web
+```
+
+Set `WEB_E2E_SKIP_SEARCH=true` if you need to temporarily bypass the quick-search assertion.
+
 ## Shared seed reuse
 
 When you run the API harness (`pnpm --filter @namecard/api-e2e run test:local`) with seed sharing enabled, it writes the seeded user/card into `out/e2e-seed-state.json`. The Puppeteer smoke test will automatically read this file and skip the registration + upload steps, reusing the already-seeded data and asserting it is visible in the UI. In bootstrap mode, the suite also reuses these seed credentials when requesting tokens directly from the API.

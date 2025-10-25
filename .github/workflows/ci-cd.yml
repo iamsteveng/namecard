@@ -439,3 +439,66 @@ jobs:
 
       - name: Record deployment metadata
         run: pnpm run launch:record -- --environment=${{ env.TARGET_ENVIRONMENT }} --commit=${GITHUB_SHA} --run-migrations=${{ env.RUN_MIGRATIONS }}
+
+  web_e2e_online:
+    name: Hosted Web E2E Smoke
+    needs: promote
+    if: needs.promote.result == 'success'
+    runs-on: ubuntu-latest
+    env:
+      NODE_VERSION: '20'
+      PNPM_VERSION: '8.15.4'
+      HOSTED_WEB_BASE_URL: ${{ secrets.HOSTED_WEB_BASE_URL }}
+      HOSTED_API_BASE_URL: ${{ secrets.HOSTED_API_BASE_URL }}
+      HOSTED_E2E_EMAIL: ${{ secrets.HOSTED_E2E_EMAIL }}
+      HOSTED_E2E_PASSWORD: ${{ secrets.HOSTED_E2E_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @namecard/shared run prisma:generate
+
+      - name: Seed hosted smoke fixtures
+        env:
+          WEB_E2E_API_BASE_URL: ${{ env.HOSTED_API_BASE_URL }}
+          E2E_EMAIL: ${{ env.HOSTED_E2E_EMAIL }}
+          E2E_PASSWORD: ${{ env.HOSTED_E2E_PASSWORD }}
+        run: pnpm run e2e:seed:online
+
+      - name: Clean previous artifacts
+        run: |
+          rm -f tests/web-e2e/artifacts/*.png || true
+          rm -f tests/web-e2e/artifacts/*.log || true
+
+      - name: Run hosted smoke suite
+        env:
+          WEB_E2E_AUTH_MODE: bootstrap
+          WEB_E2E_SKIP_AUTOSTART: 'true'
+          WEB_E2E_SKIP_AUTOSTART_API_SANDBOX: 'true'
+          WEB_E2E_API_BASE_URL: ${{ env.HOSTED_API_BASE_URL }}
+          WEB_BASE_URL: ${{ env.HOSTED_WEB_BASE_URL }}
+          E2E_EMAIL: ${{ env.HOSTED_E2E_EMAIL }}
+          E2E_PASSWORD: ${{ env.HOSTED_E2E_PASSWORD }}
+        run: pnpm --filter @namecard/web-e2e run test:smoke
+
+      - name: Upload smoke artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-e2e-online-artifacts
+          path: tests/web-e2e/artifacts
+          if-no-files-found: warn

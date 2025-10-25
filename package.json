@@ -57,6 +57,7 @@
     "smoke:local": "node scripts/smoke-local.mjs",
     "onboard:local": "node scripts/onboard-local.mjs",
     "e2e:seed:clear": "node scripts/clear-e2e-seed.mjs",
+    "e2e:seed:online": "node tests/web-e2e/scripts/seed-online-smoke.mjs",
     "prepare": "husky install || echo 'Husky install failed, continuing...'",
     "postinstall": "pnpm --filter @namecard/shared run prisma:generate"
   },

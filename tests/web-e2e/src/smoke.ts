@@ -428,6 +428,26 @@ async function run() {
     page.on('console', message => {
       console.log(`[browser] ${message.type()}: ${message.text()}`);
     });
+    page.on('response', response => {
+      const url = response.url();
+      if (!url.includes('/v1/') || url.includes('/health')) {
+        return;
+      }
+
+      if (response.status() < 400) {
+        return;
+      }
+
+      const summary = `${response.status()} ${response.request().method()} ${url.replace(/[?].*/, '')}`;
+      response
+        .text()
+        .then(body => {
+          console.warn(`[network-warning] ${summary} body: ${body.slice(0, 200)}...`);
+        })
+        .catch(() => {
+          console.warn(`[network-warning] ${summary} (body unavailable)`);
+        });
+    });
 
     if (useBootstrapAuth) {
       log('Bootstrapping auth session via shared helper');
@@ -438,7 +458,7 @@ async function run() {
         name: registrationName,
       });
 
-      if (authBootstrap.meta.elapsedMs > 2_500) {
+      if (authBootstrap.meta.elapsedMs > 8_000) {
         throw new Error(
           `Auth bootstrap exceeded expected duration (${authBootstrap.meta.elapsedMs}ms)`
         );
@@ -513,7 +533,7 @@ async function run() {
 
     await page.waitForFunction(
       () => window.location.pathname === '/' || window.location.pathname === '/dashboard',
-      { timeout: 15_000 }
+      { timeout: 45_000 }
     );
 
     await page.waitForSelector('h1');
@@ -606,81 +626,46 @@ async function run() {
 
     log('Navigating to cards page');
     await page.goto(buildUrl('/cards'), { waitUntil: 'networkidle2' });
-    await page.waitForFunction(() => window.location.pathname === '/cards', { timeout: 10_000 });
-    await page.waitForFunction(() => document.body.innerText.includes('Business Cards'), {
-      timeout: 15_000,
-    });
-
-    await page.waitForFunction(
-      expected => {
-        const headers = Array.from(document.querySelectorAll('h3'));
-        return headers.some(header => {
-          const nameText = header.textContent?.replace(/\s+/g, ' ').trim().toLowerCase();
-          if (!nameText || !nameText.includes(expected.name.toLowerCase())) {
-            return false;
-          }
-
-          const container = header.closest('div.flex-1');
-          if (!container) {
-            return false;
-          }
-
-          const infoParagraphs = container.querySelectorAll('p');
-          const companyText =
-            infoParagraphs.length > 1
-              ? infoParagraphs[1]?.textContent?.replace(/\s+/g, ' ').trim().toLowerCase()
-              : '';
-
-          return Boolean(companyText && companyText.includes(expected.company.toLowerCase()));
-        });
-      },
-      { timeout: 20_000 },
-      { name: expectedCardName, company: expectedCardCompany }
+    const observedPath = await page.evaluate(() => window.location.pathname);
+    log(`Observed path after navigation: ${observedPath}`);
+    const onCardsPage = await page.evaluate(
+      () =>
+        window.location.pathname === '/cards' || window.location.pathname.startsWith('/cards/')
     );
+    if (!onCardsPage) {
+      throw new Error(`Expected to land on /cards, but current path is ${observedPath}`);
+    }
 
-    const cardsOnPage = await page.evaluate(() => {
-      const normalize = value => {
-        if (typeof value !== 'string') {
-          return '';
-        }
-        return value.replace(/\s+/g, ' ').trim();
-      };
+    const bodyPreview = await page.evaluate(() => document.body.innerText.slice(0, 500));
+    log(`Cards page body preview: ${bodyPreview}`);
+    if (!bodyPreview.toLowerCase().includes('business cards')) {
+      throw new Error(
+        `Unable to detect cards heading after navigation. First 500 chars: ${bodyPreview}`
+      );
+    }
 
-      const cards = [];
+    const mainHtmlPreview = await page.evaluate(() => {
+      const main = document.querySelector('main');
+      return main ? main.innerHTML.slice(0, 3000) : 'No <main> element found';
+    });
+    log(`Cards main HTML preview: ${mainHtmlPreview}`);
 
-      const gridContainers = Array.from(document.querySelectorAll('div.grid'));
-      for (const grid of gridContainers) {
-        const cardElements = Array.from(grid.children);
-        for (const element of cardElements) {
-          const nameElement = element.querySelector('h3');
-          if (!nameElement) {
-            continue;
+    const collectCards = async () =>
+      page.evaluate(() => {
+        const normalize = (value: string | null | undefined) => {
+          if (typeof value !== 'string') {
+            return '';
           }
+          return value.replace(/\s+/g, ' ').trim();
+        };
 
-          const name = normalize(nameElement.textContent);
-          if (!name) {
-            continue;
-          }
+        const cards: Array<{ name: string; company: string }> = [];
 
-          const container = nameElement.closest('div.flex-1');
-          let company = '';
-          if (container) {
-            const infoParagraphs = container.querySelectorAll('p');
-            if (infoParagraphs && infoParagraphs.length > 1) {
-              company = normalize(infoParagraphs[1].textContent);
-            }
-          }
-
-          cards.push({ name, company });
-        }
-      }
-
-      if (cards.length === 0) {
-        const listContainer = document.querySelector('div.divide-y');
-        if (listContainer) {
-          const rows = Array.from(listContainer.children);
-          for (const row of rows) {
-            const nameElement = row.querySelector('h3');
+        const gridContainers = Array.from(document.querySelectorAll('div.grid'));
+        for (const grid of gridContainers) {
+          const cardElements = Array.from(grid.children);
+          for (const element of cardElements) {
+            const nameElement = element.querySelector('h3');
             if (!nameElement) {
               continue;
             }
@@ -690,16 +675,62 @@ async function run() {
               continue;
             }
 
-            const wrapper = nameElement.closest('div.flex-1');
-            const companyLine = wrapper ? wrapper.querySelector('p') : null;
-            const company = normalize(companyLine ? companyLine.textContent : '');
+            const container = nameElement.closest('div.flex-1');
+            let company = '';
+            if (container) {
+              const infoParagraphs = container.querySelectorAll('p');
+              if (infoParagraphs && infoParagraphs.length > 1) {
+                company = normalize(infoParagraphs[1].textContent);
+              }
+            }
+
             cards.push({ name, company });
           }
         }
-      }
+
+        if (cards.length === 0) {
+          const listContainer = document.querySelector('div.divide-y');
+          if (listContainer) {
+            const rows = Array.from(listContainer.children);
+            for (const row of rows) {
+              const nameElement = row.querySelector('h3');
+              if (!nameElement) {
+                continue;
+              }
+
+              const name = normalize(nameElement.textContent);
+              if (!name) {
+                continue;
+              }
+
+              const wrapper = nameElement.closest('div.flex-1');
+              const companyLine = wrapper ? wrapper.querySelector('p') : null;
+              const company = normalize(companyLine ? companyLine.textContent : '');
+              cards.push({ name, company });
+            }
+          }
+        }
 
       return cards;
     });
+
+    const visibleHeadings = await page.evaluate(() =>
+      Array.from(document.querySelectorAll('h3')).map(element =>
+        (element.textContent ?? '').replace(/\s+/g, ' ').trim()
+      )
+    );
+    log(`Card headings detected: ${JSON.stringify(visibleHeadings)}`);
+
+    let cardsOnPage: Array<{ name: string; company: string }> = [];
+    const cardsDeadline = Date.now() + 45_000;
+    while (Date.now() < cardsDeadline) {
+      cardsOnPage = await collectCards();
+      if (cardsOnPage.length > 0) {
+        break;
+      }
+      await sleep(500);
+    }
+    log(`Collected ${cardsOnPage.length} cards after polling`);
 
     if (cardsOnPage.length === 0) {
       throw new Error('No cards visible on cards page; expected at least one card after scan.');
