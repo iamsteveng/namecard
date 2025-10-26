@@ -251,9 +251,14 @@ const waitForBaseUrl = async (attempts: number, delayMs: number): Promise<boolea
   return false;
 };
 
-const waitForEndpoint = async (url: string, attempts: number, delayMs: number): Promise<boolean> => {
+const waitForEndpoint = async (
+  url: string,
+  attempts: number,
+  delayMs: number,
+  options?: { expectOk?: boolean }
+): Promise<boolean> => {
   for (let attempt = 0; attempt < attempts; attempt += 1) {
-    if (await probeBaseUrl(url, 2_000, { expectOk: true })) {
+    if (await probeBaseUrl(url, 2_000, options)) {
       return true;
     }
     await sleep(delayMs);
@@ -404,8 +409,15 @@ const stopDevServer = async (): Promise<void> => {
 
 const startApiSandboxIfNeeded = async (): Promise<void> => {
   const normalizedApiBase = apiBaseUrl.replace(/\/+$/, '');
-  const healthUrl = `${normalizedApiBase}/health`;
-  let isReachable = await probeBaseUrl(healthUrl, 2_000, { expectOk: true });
+  const healthPath = process.env['WEB_E2E_API_HEALTH_PATH'] ?? '/health';
+  const normalizedHealthPath =
+    healthPath.length === 0 ? '' : healthPath.startsWith('/') ? healthPath : `/${healthPath}`;
+  const healthExpectOk = process.env['WEB_E2E_API_HEALTH_EXPECT_OK'];
+  const requireHealthyStatus =
+    healthExpectOk === undefined ? true : parseBooleanFlag(healthExpectOk);
+  const healthUrl = `${normalizedApiBase}${normalizedHealthPath}`;
+
+  let isReachable = await probeBaseUrl(healthUrl, 2_000, { expectOk: requireHealthyStatus });
 
   const autostartFlag = parseBooleanFlag(process.env['WEB_E2E_AUTOSTART_API_SANDBOX']);
   const skipAutostart = parseBooleanFlag(process.env['WEB_E2E_SKIP_AUTOSTART_API_SANDBOX']);
@@ -430,7 +442,9 @@ const startApiSandboxIfNeeded = async (): Promise<void> => {
       log(
         `API base ${normalizedApiBase} not reachable yet; waiting for readiness (${waitAttempts} attempts, ${waitDelayMs}ms interval).`
       );
-      isReachable = await waitForEndpoint(healthUrl, waitAttempts, waitDelayMs);
+      isReachable = await waitForEndpoint(healthUrl, waitAttempts, waitDelayMs, {
+        expectOk: requireHealthyStatus,
+      });
     }
 
     if (!isReachable) {
@@ -491,7 +505,7 @@ const startApiSandboxIfNeeded = async (): Promise<void> => {
   try {
     await waitForProcessSpawn(apiSandboxProcess);
 
-    const ready = await waitForEndpoint(`${apiBaseUrl}/health`, 60, 1_000);
+    const ready = await waitForEndpoint(`${apiBaseUrl}/health`, 60, 1_000, { expectOk: true });
     if (!ready) {
       throw new Error('API sandbox did not become ready in time.');
     }

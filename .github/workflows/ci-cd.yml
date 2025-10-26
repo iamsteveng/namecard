@@ -501,6 +501,7 @@ jobs:
           WEB_E2E_AUTH_MODE: bootstrap
           WEB_E2E_SKIP_AUTOSTART: 'true'
           WEB_E2E_SKIP_AUTOSTART_API_SANDBOX: 'true'
+          WEB_E2E_API_HEALTH_PATH: '/v1/auth/health'
           WEB_E2E_API_BASE_URL: ${{ env.HOSTED_API_BASE_URL }}
           WEB_BASE_URL: ${{ env.HOSTED_WEB_BASE_URL }}
           E2E_EMAIL: ${{ env.HOSTED_E2E_EMAIL }}
