@@ -151,7 +151,7 @@ export const extractBusinessCardData = async (
 
   const response = await client.send(command);
 
-  const thresholdRaw = options.minConfidence ?? 70;
+  const thresholdRaw = options.minConfidence ?? 0.5;
   const confidenceThreshold = (() => {
     if (Number.isNaN(thresholdRaw)) {
       return 0.5;
