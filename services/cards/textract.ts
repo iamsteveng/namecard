@@ -151,14 +151,26 @@ export const extractBusinessCardData = async (
 
   const response = await client.send(command);
 
-  const minConfidence = options.minConfidence ?? 70;
+  const thresholdRaw = options.minConfidence ?? 70;
+  const confidenceThreshold = (() => {
+    if (Number.isNaN(thresholdRaw)) {
+      return 0.5;
+    }
+    if (thresholdRaw > 1) {
+      return Math.min(1, Math.max(0, thresholdRaw / 100));
+    }
+    if (thresholdRaw < 0) {
+      return 0;
+    }
+    return thresholdRaw;
+  })();
   const lines: TextractLine[] = (response.Blocks ?? [])
     .filter(block => block.BlockType === 'LINE' && (block.Text ?? '').trim())
     .map(block => ({
       text: normalizeWhitespace(block.Text ?? ''),
       confidence: Math.min(1, Math.max(0, (block.Confidence ?? 0) / 100)),
     }))
-    .filter(line => line.confidence >= minConfidence)
+    .filter(line => line.confidence >= confidenceThreshold)
     .map(line => ({
       text: line.text,
       confidence: Number(line.confidence.toFixed(4)),
