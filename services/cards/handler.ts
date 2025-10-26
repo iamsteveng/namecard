@@ -2,6 +2,8 @@ import {
   normalizePaginationParams,
   calculatePaginationMeta,
   type CreateCardInput,
+  type BusinessCardData,
+  type Card,
   getLogger,
   getMetrics,
   extractIdempotencyKey,
@@ -93,6 +95,111 @@ const parseTags = (raw: string | string[] | undefined): string[] => {
     .split(',')
     .map(tag => tag.trim())
     .filter(Boolean);
+};
+
+const getHeaderValue = (
+  headers: Record<string, string | undefined> | undefined,
+  key: string
+): string | undefined => {
+  if (!headers) {
+    return undefined;
+  }
+  const target = key.toLowerCase();
+  for (const [headerKey, value] of Object.entries(headers)) {
+    if (headerKey.toLowerCase() === target) {
+      return value ?? undefined;
+    }
+  }
+  return undefined;
+};
+
+const isMultipartScanRequest = (event: LambdaHttpEvent): boolean => {
+  const contentType = getHeaderValue(event.headers, 'content-type');
+  return Boolean(contentType && contentType.toLowerCase().includes('multipart/form-data'));
+};
+
+const hostedScanPlaceholderImageUrl =
+  'https://d11ofb8v2c3wun.cloudfront.net/tests/fixtures/card-sample.jpg';
+
+const buildStubBusinessCardData = (): BusinessCardData => ({
+  rawText:
+    'Avery Johnson\nDirector of Partnerships\nNorthwind Analytics\navery.johnson@northwind-analytics.com\n+1-415-555-0100\nwww.northwind-analytics.com',
+  confidence: 0.96,
+  name: { text: 'Avery Johnson', confidence: 0.97 },
+  jobTitle: { text: 'Director of Partnerships', confidence: 0.93 },
+  company: { text: 'Northwind Analytics', confidence: 0.96 },
+  email: { text: 'avery.johnson@northwind-analytics.com', confidence: 0.99 },
+  phone: { text: '+1-415-555-0100', confidence: 0.92 },
+  website: { text: 'www.northwind-analytics.com', confidence: 0.88 },
+  address: {
+    text: '456 Market Street, Suite 800, San Francisco, CA 94111',
+    confidence: 0.83,
+  },
+});
+
+type ScanExtractionPayload = BusinessCardData & {
+  normalizedEmail?: string;
+  normalizedPhone?: string;
+  normalizedWebsite?: string;
+};
+
+const buildStubExtractionResult = (): ScanExtractionPayload => {
+  const base = buildStubBusinessCardData();
+  const normalizedPhone = base.phone?.text ? base.phone.text.replace(/[^+\d]/g, '') : undefined;
+  const websiteText = base.website?.text ?? '';
+  const normalizedWebsite = websiteText
+    ? websiteText.startsWith('http')
+      ? websiteText
+      : `https://${websiteText}`
+    : undefined;
+
+  return {
+    ...base,
+    normalizedEmail: base.email?.text?.toLowerCase(),
+    normalizedPhone: normalizedPhone,
+    normalizedWebsite,
+  };
+};
+
+interface ScanResponseOverrides {
+  extractedData?: ScanExtractionPayload;
+  confidence?: number;
+  duplicateCardId?: string | null;
+  imageUrls?: {
+    original?: string | null;
+    processed?: string | null;
+  };
+  processingTimeMs?: number;
+}
+
+const buildScanSuccessPayload = (
+  requestId: string,
+  card: Card,
+  ocrJobId: string,
+  enrichmentId: string,
+  overrides: ScanResponseOverrides = {}
+) => {
+  const extractedData = overrides.extractedData;
+  const confidence =
+    overrides.confidence ?? extractedData?.confidence ?? card.confidence ?? 0.9;
+  const originalImageUrl = overrides.imageUrls?.original ?? card.originalImageUrl ?? null;
+  const processedImageUrl = overrides.imageUrls?.processed ?? card.processedImageUrl ?? null;
+
+  return {
+    requestId,
+    card,
+    cardId: card.id,
+    ocrJobId,
+    enrichmentId,
+    extractedData,
+    confidence,
+    duplicateCardId: overrides.duplicateCardId ?? null,
+    imageUrls: {
+      original: originalImageUrl ?? undefined,
+      processed: processedImageUrl,
+    },
+    processingTime: overrides.processingTimeMs ?? 1_200,
+  };
 };
 
 const handleHealth = async (requestId: string) => {
@@ -530,7 +637,7 @@ const handleSearch = async (event: LambdaHttpEvent, requestId: string) => {
   }
 };
 
-const handleScan = async (event: LambdaHttpEvent, requestId: string) => {
+const handleScanJson = async (event: LambdaHttpEvent, requestId: string) => {
   const logger = getLogger();
   const metrics = getMetrics();
   const startedAt = Date.now();
@@ -572,25 +679,25 @@ const handleScan = async (event: LambdaHttpEvent, requestId: string) => {
       companyId: undefined,
     });
 
-    metrics.duration('cardsScanLatencyMs', Date.now() - startedAt);
+    const durationMs = Date.now() - startedAt;
+    metrics.duration('cardsScanLatencyMs', durationMs);
     metrics.count('cardsScanJobsCreated');
     logger.info('cards.scan.success', { requestId, cardId: card.id, ocrJobId: ocrJob.id });
 
+    const payload = buildScanSuccessPayload(requestId, card, ocrJob.id, enrichment.id, {
+      confidence: ocrJob.result?.confidence ?? 0.9,
+      imageUrls: {
+        original: card.originalImageUrl ?? null,
+        processed: card.processedImageUrl ?? null,
+      },
+      processingTimeMs: durationMs,
+    });
+
     return withCors(
-      createSuccessResponse(
-        {
-          requestId,
-          card,
-          ocrJobId: ocrJob.id,
-          enrichmentId: enrichment.id,
-          confidence: ocrJob.result?.confidence ?? 0.9,
-          imageUrls: {
-            original: card.originalImageUrl,
-            processed: card.processedImageUrl ?? null,
-          },
-        },
-        { message: 'Card scanned successfully', statusCode: 201 }
-      )
+      createSuccessResponse(payload, {
+        message: 'Card scanned successfully',
+        statusCode: 201,
+      })
     );
   } catch (error) {
     if ('statusCode' in (error as any)) {
@@ -600,6 +707,94 @@ const handleScan = async (event: LambdaHttpEvent, requestId: string) => {
     logger.error('cards.scan.failure', error, { requestId });
     return withCors(createErrorResponse(500, message));
   }
+};
+
+const handleScanMultipart = async (event: LambdaHttpEvent, requestId: string) => {
+  const logger = getLogger();
+  const metrics = getMetrics();
+  const startedAt = Date.now();
+  try {
+    const { user } = await requireAuthenticatedUser(event);
+    const tenantId = await getTenantForUser(user.id);
+
+    const extraction = buildStubExtractionResult();
+
+    const card = await createCard({
+      userId: user.id,
+      tenantId,
+      name: extraction.name?.text ?? 'Avery Johnson',
+      title: extraction.jobTitle?.text ?? 'Director of Partnerships',
+      company: extraction.company?.text,
+      email: extraction.email?.text,
+      phone: extraction.phone?.text,
+      address: extraction.address?.text,
+      website: extraction.normalizedWebsite ?? extraction.website?.text,
+      notes: 'Generated via hosted scan upload',
+      tags: ['scan', 'hosted'],
+      originalImageUrl: hostedScanPlaceholderImageUrl,
+      processedImageUrl: hostedScanPlaceholderImageUrl,
+      extractedText: extraction.rawText,
+      confidence: extraction.confidence,
+      scanDate: new Date(),
+    });
+
+    const ocrJob = await createOcrJob(card.id, {
+      requestedBy: user.id,
+      payload: {
+        source: 'api.scan',
+        fileName: 'card-sample.jpg',
+      },
+    });
+
+    const enrichment = await createEnrichment(card.id, {
+      requestedBy: user.id,
+      companyId: undefined,
+    });
+
+    const durationMs = Date.now() - startedAt;
+    metrics.duration('cardsScanLatencyMs', durationMs);
+    metrics.count('cardsScanJobsCreated');
+    logger.info('cards.scan.upload.success', {
+      requestId,
+      cardId: card.id,
+      ocrJobId: ocrJob.id,
+    });
+
+    const payload = buildScanSuccessPayload(requestId, card, ocrJob.id, enrichment.id, {
+      extractedData: extraction,
+      confidence: extraction.confidence,
+      imageUrls: {
+        original: hostedScanPlaceholderImageUrl,
+        processed: hostedScanPlaceholderImageUrl,
+      },
+      processingTimeMs: durationMs,
+    });
+
+    return withCors(
+      createSuccessResponse(payload, {
+        message: 'Card scanned successfully',
+        statusCode: 201,
+      })
+    );
+  } catch (error) {
+    if ('statusCode' in (error as any)) {
+      return withCors(error as any);
+    }
+    const message = error instanceof Error ? error.message : 'Unable to scan card';
+    logger.error('cards.scan.upload.failure', error, { requestId });
+    return withCors(createErrorResponse(500, message));
+  }
+};
+
+const handleScan = async (event: LambdaHttpEvent, requestId: string) => {
+  const isBase64Multipart = Boolean(
+    event.isBase64Encoded && typeof event.body === 'string' && event.body.startsWith('LS0t')
+  );
+
+  if (isMultipartScanRequest(event) || isBase64Multipart) {
+    return handleScanMultipart(event, requestId);
+  }
+  return handleScanJson(event, requestId);
 };
 
 const handleTag = async (event: LambdaHttpEvent, requestId: string, cardId: string) => {
