@@ -828,6 +828,13 @@ const handleScanMultipart = async (event: LambdaHttpEvent, requestId: string) =>
       cardId: card.id,
       ocrJobId: ocrJob.id,
       storedImageKey: storedImage?.key,
+      extractionSummary: {
+        name: extractionPayload.name?.text,
+        company: extractionPayload.company?.text,
+        email: extractionPayload.email?.text,
+        phone: extractionPayload.phone?.text,
+        website: extractionPayload.website?.text,
+      },
     });
 
     const payload = buildScanSuccessPayload(requestId, card, ocrJob.id, enrichment.id, {
