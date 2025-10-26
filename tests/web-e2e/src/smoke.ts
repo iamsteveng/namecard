@@ -405,7 +405,7 @@ const stopDevServer = async (): Promise<void> => {
 const startApiSandboxIfNeeded = async (): Promise<void> => {
   const normalizedApiBase = apiBaseUrl.replace(/\/+$/, '');
   const healthUrl = `${normalizedApiBase}/health`;
-  const isReachable = await probeBaseUrl(healthUrl, 2_000, { expectOk: true });
+  let isReachable = await probeBaseUrl(healthUrl, 2_000, { expectOk: true });
 
   const autostartFlag = parseBooleanFlag(process.env['WEB_E2E_AUTOSTART_API_SANDBOX']);
   const skipAutostart = parseBooleanFlag(process.env['WEB_E2E_SKIP_AUTOSTART_API_SANDBOX']);
@@ -417,9 +417,30 @@ const startApiSandboxIfNeeded = async (): Promise<void> => {
   }
 
   if (!isReachable && !shouldAutostart) {
-    throw new Error(
-      `Unable to reach API base URL ${normalizedApiBase} and API sandbox autostart is disabled.`
+    const waitAttempts = Number.parseInt(
+      process.env['WEB_E2E_API_WAIT_ATTEMPTS'] ?? '12',
+      10
     );
+    const waitDelayMs = Number.parseInt(
+      process.env['WEB_E2E_API_WAIT_DELAY_MS'] ?? '5000',
+      10
+    );
+
+    if (waitAttempts > 0 && waitDelayMs > 0) {
+      log(
+        `API base ${normalizedApiBase} not reachable yet; waiting for readiness (${waitAttempts} attempts, ${waitDelayMs}ms interval).`
+      );
+      isReachable = await waitForEndpoint(healthUrl, waitAttempts, waitDelayMs);
+    }
+
+    if (!isReachable) {
+      throw new Error(
+        `Unable to reach API base URL ${normalizedApiBase} and API sandbox autostart is disabled.`
+      );
+    }
+
+    log(`API base reachable at ${normalizedApiBase}`);
+    return;
   }
 
   const sandboxHost = process.env['WEB_E2E_API_SANDBOX_HOST'] ?? '127.0.0.1';
