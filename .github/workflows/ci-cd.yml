@@ -434,11 +434,19 @@ jobs:
       - name: Build infrastructure package
         run: pnpm --filter @namecard/infra run build
 
-      - name: Deploy API stack with migrations
+      - name: Deploy application stacks
         run: |
+          stacks=(
+            "NameCardDb-${STACK_ENVIRONMENT}"
+            "NameCardApi-${STACK_ENVIRONMENT}"
+          )
+
+          if [ "${STACK_ENVIRONMENT}" = "staging" ] || [ "${STACK_ENVIRONMENT}" = "production" ]; then
+            stacks+=("NameCardFrontend-${STACK_ENVIRONMENT}")
+          fi
+
           pnpm --filter @namecard/infra exec cdk deploy \
-            NameCardDb-${STACK_ENVIRONMENT} \
-            NameCardApi-${STACK_ENVIRONMENT} \
+            "${stacks[@]}" \
             --require-approval never \
             --context environment=${CONFIG_ENVIRONMENT} \
             --context migrationsVersion=${GITHUB_SHA}
