@@ -745,9 +745,16 @@ const handleScanMultipart = async (event: LambdaHttpEvent, requestId: string) =>
       });
     }
 
-    const sanitizedPhone = extraction.phone
-      ? extraction.phone.replace(/[^+\d]/g, '')
-      : undefined;
+    const sanitizedPhone = (() => {
+      if (!extraction.phone) {
+        return undefined;
+      }
+      const digits = extraction.phone.replace(/\D+/g, '');
+      if (!digits) {
+        return undefined;
+      }
+      return extraction.phone.trim().startsWith('+') ? `+${digits}` : `+${digits}`;
+    })();
     const normalizedEmail = extraction.email?.toLowerCase();
     const normalizedWebsite = extraction.website;
 
@@ -767,6 +774,8 @@ const handleScanMultipart = async (event: LambdaHttpEvent, requestId: string) =>
           }
         : undefined;
 
+    const phoneFieldValue = sanitizedPhone ?? extraction.phone;
+
     const extractionPayload = {
       rawText: extraction.rawText,
       confidence: extraction.confidence,
@@ -774,7 +783,7 @@ const handleScanMultipart = async (event: LambdaHttpEvent, requestId: string) =>
       jobTitle: fieldToPayload(extraction.jobTitle),
       company: fieldToPayload(extraction.company),
       email: fieldToPayload(extraction.email),
-      phone: fieldToPayload(extraction.phone),
+      phone: fieldToPayload(phoneFieldValue),
       website: fieldToPayload(extraction.website),
       address: fieldToPayload(extraction.address),
       normalizedEmail,
@@ -792,7 +801,7 @@ const handleScanMultipart = async (event: LambdaHttpEvent, requestId: string) =>
       title: extraction.jobTitle ?? undefined,
       company: extraction.company ?? undefined,
       email: extraction.email ?? normalizedEmail ?? undefined,
-      phone: extraction.phone ?? sanitizedPhone ?? undefined,
+      phone: sanitizedPhone ?? extraction.phone ?? undefined,
       address: extraction.address ?? undefined,
       website: extraction.website ?? normalizedWebsite ?? undefined,
       notes: 'Generated via hosted scan upload',

@@ -97,21 +97,22 @@ const seed = async () => {
   }
 
   const targetCard = listResult.payload.data.cards.find(
-    card => card.name === 'Avery Johnson' && card.company === 'Northwind Analytics'
+    card => card.name === 'David W. L. Ng' && card.company === 'Sino Land Company Limited'
   );
 
   if (!targetCard) {
     const cardPayload = {
       originalImageUrl: 'https://d11ofb8v2c3wun.cloudfront.net/tests/fixtures/card-sample.jpg',
-      extractedText: 'Avery Johnson\nHead of Partnerships\nNorthwind Analytics',
-      confidence: 0.88,
-      name: 'Avery Johnson',
-      title: 'Head of Partnerships',
-      company: 'Northwind Analytics',
-      email: 'avery.johnson@northwind-analytics.com',
-      phone: '+1-555-0123',
-      address: '123 Market Street, Singapore',
-      website: 'https://northwind-analytics.com',
+      extractedText:
+        'SINO GROUP\nDavid W. L. Ng\nGroup Associate Director\nSino Land Company Limited\n11 - 12/F, Tsim Sha Tsui Centre, Salisbury Road\nTsim Sha Tsui, Kowloon, Hong Kong\nT: (852) 2721 8388\nDL : (852) 2132 8222\nE : davidng@sino.com\nwww.sino.com',
+      confidence: 0.9,
+      name: 'David W. L. Ng',
+      title: 'Group Associate Director',
+      company: 'Sino Land Company Limited',
+      email: 'davidng@sino.com',
+      phone: '+852-2721-8388',
+      address: '11 - 12/F, Tsim Sha Tsui Centre, Salisbury Road, Tsim Sha Tsui, Kowloon, Hong Kong',
+      website: 'https://www.sino.com',
       notes: 'Seeded via smoke automation',
       tags: ['priority', 'vip'],
       scanDate: new Date().toISOString(),
@@ -145,11 +146,11 @@ const seed = async () => {
     },
     card: {
       id: targetCard?.id,
-      name: 'Avery Johnson',
-      company: 'Northwind Analytics',
-      email: 'avery.johnson@northwind-analytics.com',
+      name: 'David W. L. Ng',
+      company: 'Sino Land Company Limited',
+      email: 'davidng@sino.com',
       tags: ['priority', 'vip'],
-      searchQuery: 'Northwind',
+      searchQuery: 'Sino',
     },
   });
 

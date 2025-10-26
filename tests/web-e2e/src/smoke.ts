@@ -290,7 +290,7 @@ const warmHostedSearchEndpoint = async (
     return;
   }
 
-  const normalizedQuery = query && query.trim().length > 0 ? query.trim() : 'Northwind';
+  const normalizedQuery = query && query.trim().length > 0 ? query.trim() : 'Sino';
 
   try {
     const normalizedApi = apiBaseUrl.replace(/\/+$/, '');
@@ -726,9 +726,9 @@ async function run() {
   const forceCardUpload = parseBooleanFlag(process.env['WEB_E2E_FORCE_CARD_UPLOAD']);
   const shouldUploadCard = forceCardUpload || !seededCard;
 
-  const expectedCardName = seededCard?.name ?? 'Avery Johnson';
-  const expectedCardCompany = seededCard?.company ?? 'Northwind Analytics';
-  const expectedCardEmail = seededCard?.email ?? 'avery.johnson@northwind-analytics.com';
+  const expectedCardName = seededCard?.name ?? 'David W. L. Ng';
+  const expectedCardCompany = seededCard?.company ?? 'Sino Land Company Limited';
+  const expectedCardEmail = seededCard?.email ?? 'davidng@sino.com';
   const effectiveSearchQuery =
     seededSearchQuery ??
     seededCard?.company ??

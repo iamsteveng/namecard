@@ -36,6 +36,7 @@ const getTextractClient = () => {
 const emailRegex = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
 const phoneRegex = /\+?\d[\d\s().-]{6,}\d/;
 const websiteRegex = /(https?:\/\/)?(www\.)?[-a-zA-Z0-9@:%._+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_+.~#?&//=]*)/i;
+const websiteRegexGlobal = new RegExp(websiteRegex.source, 'gi');
 const addressIndicators = /(suite|st\.?|street|ave\.?|avenue|road|rd\.?|drive|dr\.?|floor|fl\.?|blvd\.?|boulevard|city|state|zip|\d{5})/i;
 const jobKeywordRegex = /(chief|director|manager|vp|president|consultant|officer|executive|lead|head|founder|engineer|designer|marketing|sales|product|partnerships|strategy|operations)/i;
 
@@ -53,12 +54,37 @@ const scoreUppercaseRatio = (value: string): number => {
   return uppercase.length / letters.length;
 };
 
+const uppercaseNamePattern = /^[A-Z]+(?: [A-Z]+){1,3}$/;
+const uppercaseCompanyKeywords = /(GROUP|COMPANY|LIMITED|LTD|INC|LLC|CORP|CO)/i;
+const nameWordPattern = /^(?:[A-Z][a-z]+|[A-Z][a-z]+-[A-Z][a-z]+|[A-Z]\.?|[A-Z][a-z]?\.)$/;
+const disqualifyingNameKeywords = /(company|limited|group|centre|center|road|street|avenue|hong kong|kowloon)/i;
+
 const looksLikeName = (value: string): boolean => {
-  const words = value.trim().split(/\s+/).filter(Boolean);
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return false;
+  }
+
+  if (jobKeywordRegex.test(trimmed)) {
+    return false;
+  }
+
+  if (uppercaseNamePattern.test(trimmed)) {
+    if (uppercaseCompanyKeywords.test(trimmed)) {
+      return false;
+    }
+    return true;
+  }
+
+  const words = trimmed.split(/\s+/).filter(Boolean);
   if (words.length < 2 || words.length > 4) {
     return false;
   }
-  return words.every(word => /^(?:[A-Z][a-z]+|[A-Z][a-z]+-[A-Z][a-z]+)$/.test(word));
+  if (disqualifyingNameKeywords.test(trimmed)) {
+    return false;
+  }
+
+  return words.every(word => nameWordPattern.test(word));
 };
 
 const looksLikeCompany = (value: string): boolean => {
@@ -85,7 +111,20 @@ const deriveEmail = (rawText: string) => rawText.match(emailRegex)?.[0];
 
 const derivePhone = (rawText: string) => rawText.match(phoneRegex)?.[0];
 
-const deriveWebsite = (rawText: string) => rawText.match(websiteRegex)?.[0];
+const deriveWebsite = (rawText: string) => {
+  const matches = rawText.matchAll(websiteRegexGlobal);
+  for (const match of matches) {
+    const candidate = match[0];
+    if (!candidate) {
+      continue;
+    }
+    if (candidate.includes('@')) {
+      continue;
+    }
+    return candidate;
+  }
+  return undefined;
+};
 
 const deriveAddress = (lines: TextractLine[]) => {
   const candidate = lines.find(line => addressIndicators.test(line.text));
@@ -116,6 +155,16 @@ const deriveCompany = (
   if (jobTitleLine) excluded.add(jobTitleLine.text);
 
   const candidates = lines.filter(line => !excluded.has(line.text));
+
+  const corporateKeywordRegex = /(company|co\.|limited|ltd|holdings|plc)/i;
+  const keywordCandidates = candidates.filter(line => corporateKeywordRegex.test(line.text));
+
+  if (keywordCandidates.length > 0) {
+    const candidate = pickBestMatch(keywordCandidates, looksLikeCompany);
+    if (candidate) {
+      return candidate;
+    }
+  }
 
   const keywordCandidate = pickBestMatch(candidates, looksLikeCompany);
   if (keywordCandidate) {
