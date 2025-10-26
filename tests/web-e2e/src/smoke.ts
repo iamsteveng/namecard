@@ -281,6 +281,37 @@ const cleanupHostedTestCards = async (accessToken: string | null) => {
   }
 };
 
+const warmHostedSearchEndpoint = async (
+  accessToken: string | null,
+  query: string | null | undefined
+) => {
+  if (!accessToken) {
+    log('Skipping hosted search warmup: missing access token');
+    return;
+  }
+
+  const normalizedQuery = query && query.trim().length > 0 ? query.trim() : 'Northwind';
+
+  try {
+    const normalizedApi = apiBaseUrl.replace(/\/+$/, '');
+    const warmResponse = await fetch(`${normalizedApi}/v1/search/cards`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({ query: normalizedQuery, limit: 5 }),
+    });
+
+    log(
+      `Hosted search warmup status: ${warmResponse.status} ${warmResponse.statusText ?? ''}`.trim()
+    );
+  } catch (error) {
+    console.warn('Hosted search warmup encountered an error', error);
+  }
+};
+
 const buildUrl = (pathname: string) => {
   const normalized = pathname.startsWith('/') ? pathname : `/${pathname}`;
   return new URL(normalized, baseUrl).toString();
@@ -1132,14 +1163,17 @@ async function run() {
       parseBooleanFlag(process.env['WEB_E2E_SKIP_SEARCH']) ||
       parseBooleanFlag(process.env['WEB_E2E_SKIP_QUICK_SEARCH']);
 
-    if (skipQuickSearch) {
-      log('Skipping quick search validation due to WEB_E2E_SKIP_SEARCH flag');
-    } else {
-      log('Searching for uploaded card in quick search input');
-      const basicSearchInput = await page.waitForSelector(
-        'input[placeholder="Search cards by name, company, or email..."]',
-        { timeout: 10_000 }
-      );
+  if (skipQuickSearch) {
+    log('Skipping quick search validation due to WEB_E2E_SKIP_SEARCH flag');
+  } else {
+    authTokenForCleanup = await page.evaluate(() => window.localStorage.getItem('accessToken'));
+    await warmHostedSearchEndpoint(authTokenForCleanup, effectiveSearchQuery);
+
+    log('Searching for uploaded card in quick search input');
+    const basicSearchInput = await page.waitForSelector(
+      'input[placeholder="Search cards by name, company, or email..."]',
+      { timeout: 10_000 }
+    );
 
       if (!basicSearchInput) {
         throw new Error('Quick search input not found on cards page.');
