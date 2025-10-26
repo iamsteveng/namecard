@@ -455,6 +455,29 @@ export class ApiStack extends cdk.Stack {
         resources: [props.dbSecret.secretArn],
       }));
 
+      if (service.domain === 'cards') {
+        fn.addToRolePolicy(
+          new iam.PolicyStatement({
+            actions: ['textract:DetectDocumentText'],
+            resources: ['*'],
+          })
+        );
+
+        fn.addToRolePolicy(
+          new iam.PolicyStatement({
+            actions: ['s3:PutObject', 's3:GetObject', 's3:DeleteObject'],
+            resources: ['*'],
+          })
+        );
+
+        fn.addToRolePolicy(
+          new iam.PolicyStatement({
+            actions: ['s3:ListBucket', 's3:GetBucketLocation', 's3:GetBucketVersioning'],
+            resources: ['*'],
+          })
+        );
+      }
+
       fn.node.addDependency(runMigrations);
 
       functionRecords.push({ definition: service, fn });

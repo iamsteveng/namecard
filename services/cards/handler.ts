@@ -39,6 +39,10 @@ import {
 
 import { randomUUID } from 'node:crypto';
 
+import { parseMultipartForm, type ParsedMultipartForm } from './multipart';
+import { storeScanImage } from './storage';
+import { extractBusinessCardData } from './textract';
+
 const SUPPORTED_METHODS = ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'];
 
 const buildCorsResponse = (statusCode = 204) =>
@@ -121,44 +125,10 @@ const isMultipartScanRequest = (event: LambdaHttpEvent): boolean => {
 const hostedScanPlaceholderImageUrl =
   'https://d11ofb8v2c3wun.cloudfront.net/tests/fixtures/card-sample.jpg';
 
-const buildStubBusinessCardData = (): BusinessCardData => ({
-  rawText:
-    'Avery Johnson\nDirector of Partnerships\nNorthwind Analytics\navery.johnson@northwind-analytics.com\n+1-415-555-0100\nwww.northwind-analytics.com',
-  confidence: 0.96,
-  name: { text: 'Avery Johnson', confidence: 0.97 },
-  jobTitle: { text: 'Director of Partnerships', confidence: 0.93 },
-  company: { text: 'Northwind Analytics', confidence: 0.96 },
-  email: { text: 'avery.johnson@northwind-analytics.com', confidence: 0.99 },
-  phone: { text: '+1-415-555-0100', confidence: 0.92 },
-  website: { text: 'www.northwind-analytics.com', confidence: 0.88 },
-  address: {
-    text: '456 Market Street, Suite 800, San Francisco, CA 94111',
-    confidence: 0.83,
-  },
-});
-
 type ScanExtractionPayload = BusinessCardData & {
   normalizedEmail?: string;
   normalizedPhone?: string;
   normalizedWebsite?: string;
-};
-
-const buildStubExtractionResult = (): ScanExtractionPayload => {
-  const base = buildStubBusinessCardData();
-  const normalizedPhone = base.phone?.text ? base.phone.text.replace(/[^+\d]/g, '') : undefined;
-  const websiteText = base.website?.text ?? '';
-  const normalizedWebsite = websiteText
-    ? websiteText.startsWith('http')
-      ? websiteText
-      : `https://${websiteText}`
-    : undefined;
-
-  return {
-    ...base,
-    normalizedEmail: base.email?.text?.toLowerCase(),
-    normalizedPhone: normalizedPhone,
-    normalizedWebsite,
-  };
 };
 
 interface ScanResponseOverrides {
@@ -713,26 +683,122 @@ const handleScanMultipart = async (event: LambdaHttpEvent, requestId: string) =>
   const logger = getLogger();
   const metrics = getMetrics();
   const startedAt = Date.now();
+
   try {
     const { user } = await requireAuthenticatedUser(event);
     const tenantId = await getTenantForUser(user.id);
 
-    const extraction = buildStubExtractionResult();
+    let form: ParsedMultipartForm;
+    try {
+      form = parseMultipartForm(event);
+    } catch (parseError) {
+      logger.warn('cards.scan.upload.invalidMultipart', parseError, { requestId });
+      return withCors(
+        createErrorResponse(400, 'Invalid multipart payload', {
+          code: 'INVALID_MULTIPART',
+        })
+      );
+    }
+    const uploadedFile = form.files['image'] ?? Object.values(form.files)[0];
+
+    if (!uploadedFile) {
+      logger.warn('cards.scan.upload.missingFile', { requestId });
+      return withCors(
+        createErrorResponse(400, 'Image file is required for scanning', {
+          code: 'IMAGE_REQUIRED',
+        })
+      );
+    }
+
+    const minConfidenceField = form.fields['minConfidence'];
+    const minConfidence = minConfidenceField ? Number(minConfidenceField) : undefined;
+
+    let extraction;
+    try {
+      extraction = await extractBusinessCardData(uploadedFile.content, {
+        minConfidence,
+      });
+      metrics.count('cardsScanTextractSuccess');
+    } catch (error) {
+      metrics.count('cardsScanTextractFailure');
+      logger.error('cards.scan.upload.ocrFailed', error, { requestId });
+      return withCors(
+        createErrorResponse(422, 'Unable to extract text from uploaded image', {
+          code: 'OCR_FAILED',
+        })
+      );
+    }
+
+    let storedImage: Awaited<ReturnType<typeof storeScanImage>>;
+    try {
+      storedImage = await storeScanImage({
+        buffer: uploadedFile.content,
+        contentType: uploadedFile.contentType,
+        tenantId,
+        originalFileName: uploadedFile.fileName,
+      });
+    } catch (error) {
+      storedImage = null;
+      logger.warn('cards.scan.upload.storeImageFailed', error, {
+        requestId,
+        tenantId,
+      });
+    }
+
+    const sanitizedPhone = extraction.phone
+      ? extraction.phone.replace(/[^+\d]/g, '')
+      : undefined;
+    const normalizedEmail = extraction.email?.toLowerCase();
+    const normalizedWebsite = extraction.website;
+
+    const findLineConfidence = (value?: string) => {
+      if (!value) {
+        return extraction.confidence;
+      }
+      const matched = extraction.lines.find(line => line.text === value);
+      return matched?.confidence ?? extraction.confidence;
+    };
+
+    const fieldToPayload = (value?: string) =>
+      value
+        ? {
+            text: value,
+            confidence: Number(findLineConfidence(value).toFixed(4)),
+          }
+        : undefined;
+
+    const extractionPayload = {
+      rawText: extraction.rawText,
+      confidence: extraction.confidence,
+      name: fieldToPayload(extraction.name),
+      jobTitle: fieldToPayload(extraction.jobTitle),
+      company: fieldToPayload(extraction.company),
+      email: fieldToPayload(extraction.email),
+      phone: fieldToPayload(extraction.phone),
+      website: fieldToPayload(extraction.website),
+      address: fieldToPayload(extraction.address),
+      normalizedEmail,
+      normalizedPhone: sanitizedPhone,
+      normalizedWebsite,
+    } satisfies ScanExtractionPayload;
+
+    const extraTags = form.fields['tags'] ? parseTags(form.fields['tags']) : [];
+    const tags = Array.from(new Set(['scan', 'hosted', ...extraTags]));
 
     const card = await createCard({
       userId: user.id,
       tenantId,
-      name: extraction.name?.text ?? 'Avery Johnson',
-      title: extraction.jobTitle?.text ?? 'Director of Partnerships',
-      company: extraction.company?.text,
-      email: extraction.email?.text,
-      phone: extraction.phone?.text,
-      address: extraction.address?.text,
-      website: extraction.normalizedWebsite ?? extraction.website?.text,
+      name: extraction.name ?? 'Scanned Contact',
+      title: extraction.jobTitle ?? undefined,
+      company: extraction.company ?? undefined,
+      email: extraction.email ?? normalizedEmail ?? undefined,
+      phone: extraction.phone ?? sanitizedPhone ?? undefined,
+      address: extraction.address ?? undefined,
+      website: extraction.website ?? normalizedWebsite ?? undefined,
       notes: 'Generated via hosted scan upload',
-      tags: ['scan', 'hosted'],
-      originalImageUrl: hostedScanPlaceholderImageUrl,
-      processedImageUrl: hostedScanPlaceholderImageUrl,
+      tags,
+      originalImageUrl: storedImage?.url ?? hostedScanPlaceholderImageUrl,
+      processedImageUrl: storedImage?.url ?? hostedScanPlaceholderImageUrl,
       extractedText: extraction.rawText,
       confidence: extraction.confidence,
       scanDate: new Date(),
@@ -742,7 +808,10 @@ const handleScanMultipart = async (event: LambdaHttpEvent, requestId: string) =>
       requestedBy: user.id,
       payload: {
         source: 'api.scan',
-        fileName: 'card-sample.jpg',
+        fileName: uploadedFile.fileName ?? 'upload.jpg',
+        minConfidence,
+        textractRegion: process.env['TEXTRACT_REGION'] ?? process.env['AWS_REGION'],
+        textractLineCount: extraction.lines.length,
       },
     });
 
@@ -758,14 +827,15 @@ const handleScanMultipart = async (event: LambdaHttpEvent, requestId: string) =>
       requestId,
       cardId: card.id,
       ocrJobId: ocrJob.id,
+      storedImageKey: storedImage?.key,
     });
 
     const payload = buildScanSuccessPayload(requestId, card, ocrJob.id, enrichment.id, {
-      extractedData: extraction,
-      confidence: extraction.confidence,
+      extractedData: extractionPayload,
+      confidence: extractionPayload.confidence,
       imageUrls: {
-        original: hostedScanPlaceholderImageUrl,
-        processed: hostedScanPlaceholderImageUrl,
+        original: storedImage?.url ?? hostedScanPlaceholderImageUrl,
+        processed: storedImage?.url ?? hostedScanPlaceholderImageUrl,
       },
       processingTimeMs: durationMs,
     });
