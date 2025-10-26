@@ -128,16 +128,16 @@ const stubImageVariants = {
 
 const stubBusinessCardData = {
   rawText:
-    'Avery Johnson\nDirector of Partnerships\nNorthwind Analytics\navery.johnson@northwind-analytics.com\n+1-415-555-0100\nwww.northwind-analytics.com',
+    'SINO GROUP\nDavid W. L. Ng\nGroup Associate Director\nSino Land Company Limited\n11 - 12/F, Tsim Sha Tsui Centre, Salisbury Road\nTsim Sha Tsui, Kowloon, Hong Kong\nT: (852) 2721 8388\nDL : (852) 2132 8222\nE : davidng@sino.com\nwww.sino.com',
   confidence: 0.96,
-  name: { text: 'Avery Johnson', confidence: 0.99 },
-  jobTitle: { text: 'Director of Partnerships', confidence: 0.95 },
-  company: { text: 'Northwind Analytics', confidence: 0.97 },
-  email: { text: 'avery.johnson@northwind-analytics.com', confidence: 0.94 },
-  phone: { text: '+1-415-555-0100', confidence: 0.91 },
-  website: { text: 'https://northwind-analytics.com', confidence: 0.9 },
+  name: { text: 'David W. L. Ng', confidence: 0.99 },
+  jobTitle: { text: 'Group Associate Director', confidence: 0.95 },
+  company: { text: 'Sino Land Company Limited', confidence: 0.97 },
+  email: { text: 'davidng@sino.com', confidence: 0.94 },
+  phone: { text: '+852-2721-8388', confidence: 0.91 },
+  website: { text: 'https://www.sino.com', confidence: 0.9 },
   address: {
-    text: '525 Market Street, Suite 2100, San Francisco, CA 94105',
+    text: '11 - 12/F, Tsim Sha Tsui Centre, Salisbury Road, Tsim Sha Tsui, Kowloon, Hong Kong',
     confidence: 0.88,
   },
 };
