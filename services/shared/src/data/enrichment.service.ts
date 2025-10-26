@@ -46,7 +46,8 @@ async function findOrCreateCompanyProfile(
   tenantId: string,
   name?: string
 ): Promise<EnrichmentCompanyProfile | null> {
-  if (!name) {
+  const normalizedName = name?.trim();
+  if (!normalizedName) {
     return null;
   }
 
@@ -55,7 +56,7 @@ async function findOrCreateCompanyProfile(
     where: {
       tenantId,
       name: {
-        equals: name,
+        equals: normalizedName,
         mode: 'insensitive',
       },
     },
@@ -70,12 +71,12 @@ async function findOrCreateCompanyProfile(
     data: {
       id: randomUUID(),
       tenantId,
-      name,
+      name: normalizedName,
       industry: 'Technology',
       size: '50-100',
       headquarters: 'Remote',
       website: 'https://example.com',
-      description: `Auto-generated company profile for ${name}.`,
+      description: `Auto-generated company profile for ${normalizedName}.`,
       logoUrl: 'https://cdn.namecard.app/company/default.png',
       lastUpdated: now,
       createdAt: now,
