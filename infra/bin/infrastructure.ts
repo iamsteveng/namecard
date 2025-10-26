@@ -14,6 +14,21 @@ const environment = app.node.tryGetContext('environment') || 'development';
 const account = process.env.CDK_DEFAULT_ACCOUNT;
 const region = process.env.CDK_DEFAULT_REGION || 'ap-southeast-1';
 
+const normalizeStageName = (env: string): string => {
+  switch (env) {
+    case 'development':
+    case 'dev':
+      return 'dev';
+    case 'staging':
+      return 'staging';
+    case 'production':
+    case 'prod':
+      return 'prod';
+    default:
+      return env;
+  }
+};
+
 // Optional domain configuration for production
 const domainName = app.node.tryGetContext('domainName'); // e.g., 'namecard.app'
 const certificateArn = app.node.tryGetContext('certificateArn');
@@ -79,6 +94,7 @@ const infraStack = new InfrastructureStack(app, `NameCardInfra-${environment}`, 
 
 // Deploy frontend stack (only for staging and production)
 if (environment === 'staging' || environment === 'production') {
+  const apiStageName = normalizeStageName(environment);
   const frontendStack = new FrontendStack(app, `NameCardFrontend-${environment}`, {
     environment,
     env,
@@ -87,6 +103,7 @@ if (environment === 'staging' || environment === 'production') {
 
     // API Gateway endpoint exposed by the Lambda-based API stack
     apiUrl: apiStack.httpApi.apiEndpoint,
+    apiStage: apiStageName,
 
     // Optional domain configuration
     domainName: domainName ? `app.${domainName}` : undefined,

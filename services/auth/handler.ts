@@ -1,5 +1,4 @@
-// @ts-expect-error runtime shim is CommonJS bridged from TypeScript source
-import { ensureDatabaseUrl } from './runtime-shim.js';
+import { ensureDatabaseUrl } from './runtime-shim';
 
 import {
   authenticateUser,
