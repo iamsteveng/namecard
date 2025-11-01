@@ -188,6 +188,16 @@ export class ApiStack extends cdk.Stack {
 
     const envKey = normalizeEnvironment(props.environment ?? this.node.tryGetContext('environment'));
     const stageName = envKey;
+    const deploymentEnvironment = props.environment ?? this.node.tryGetContext('environment');
+    if (!deploymentEnvironment) {
+      throw new Error('ApiStack requires environment context to resolve infrastructure exports.');
+    }
+    const infraExportPrefix = `NameCardInfra-${deploymentEnvironment}`;
+    const cardsStorageEnvironment = {
+      S3_BUCKET_NAME: cdk.Fn.importValue(`${infraExportPrefix}-S3-BUCKET-NAME`),
+      S3_REGION: cdk.Fn.importValue(`${infraExportPrefix}-S3-REGION`),
+      S3_CDN_DOMAIN: cdk.Fn.importValue(`${infraExportPrefix}-S3-CDN-DOMAIN`),
+    } satisfies Record<string, string>;
     const skipNetworkWiring = this.node.tryGetContext('skipCrossStackNetworking') === true;
 
     const baseLambdaEnv = {
@@ -420,6 +430,10 @@ export class ApiStack extends cdk.Stack {
         SERVICE_NAME: service.domain,
         ...(service.environment ?? {}),
       };
+
+      if (service.domain === 'cards') {
+        Object.assign(functionEnv, cardsStorageEnvironment);
+      }
 
       const fn = new NodejsFunction(this, `${service.id}Function`, {
         entry: service.entry,
