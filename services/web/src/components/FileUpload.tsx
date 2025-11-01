@@ -14,7 +14,16 @@ interface FileUploadProps {
 }
 
 const DEFAULT_MAX_SIZE = 10 * 1024 * 1024; // 10MB
-const DEFAULT_FORMATS = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic'];
+const DEFAULT_FORMATS = [
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+  'image/heic-sequence',
+  'image/heif-sequence',
+];
 
 export default function FileUpload({
   onFileSelect,
@@ -46,7 +55,55 @@ export default function FileUpload({
   // Validate file
   const validateFile = (file: File): string | null => {
     // Check file type
-    if (!acceptedFormats.includes(file.type.toLowerCase())) {
+    const fileType = file.type?.toLowerCase();
+    const fileExtension = file.name?.split('.').pop()?.toLowerCase();
+
+    const isAccepted =
+      acceptedFormats.length === 0 ||
+      acceptedFormats.some(format => {
+        const normalizedFormat = format.toLowerCase();
+
+        if (normalizedFormat === 'image/*') {
+          return fileType?.startsWith('image/') ?? false;
+        }
+
+        if (normalizedFormat.endsWith('/*')) {
+          const baseType = normalizedFormat.replace('/*', '/');
+          return fileType?.startsWith(baseType) ?? false;
+        }
+
+        if (fileType) {
+          if (fileType === normalizedFormat) {
+            return true;
+          }
+
+          if (
+            normalizedFormat === 'image/heic' &&
+            (fileType === 'image/heic-sequence' || fileType === 'image/heif')
+          ) {
+            return true;
+          }
+
+          if (
+            normalizedFormat === 'image/heif' &&
+            (fileType === 'image/heif-sequence' || fileType === 'image/heic')
+          ) {
+            return true;
+          }
+        }
+
+        if (fileExtension) {
+          return (
+            normalizedFormat === `.${fileExtension}` ||
+            normalizedFormat === fileExtension ||
+            normalizedFormat === `image/${fileExtension}`
+          );
+        }
+
+        return false;
+      });
+
+    if (!isAccepted) {
       const formats = acceptedFormats
         .map(f => f.split('/')[1]?.toUpperCase() || f.toUpperCase())
         .join(', ');
