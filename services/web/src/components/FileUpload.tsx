@@ -1,6 +1,6 @@
 import { clsx } from 'clsx';
 import { Upload, Camera, X, FileImage, AlertCircle } from 'lucide-react';
-import { useState, useCallback, DragEvent, ChangeEvent, useRef } from 'react';
+import { useState, useCallback, DragEvent, ChangeEvent, useRef, useId } from 'react';
 
 interface FileUploadProps {
   onFileSelect: (file: File) => void;
@@ -14,7 +14,16 @@ interface FileUploadProps {
 }
 
 const DEFAULT_MAX_SIZE = 10 * 1024 * 1024; // 10MB
-const DEFAULT_FORMATS = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic'];
+const DEFAULT_FORMATS = [
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+  'image/heic-sequence',
+  'image/heif-sequence',
+];
 
 export default function FileUpload({
   onFileSelect,
@@ -30,6 +39,7 @@ export default function FileUpload({
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const inputId = useId();
 
   // Format file size for display
   const formatFileSize = (bytes: number): string => {
@@ -45,7 +55,55 @@ export default function FileUpload({
   // Validate file
   const validateFile = (file: File): string | null => {
     // Check file type
-    if (!acceptedFormats.includes(file.type.toLowerCase())) {
+    const fileType = file.type?.toLowerCase();
+    const fileExtension = file.name?.split('.').pop()?.toLowerCase();
+
+    const isAccepted =
+      acceptedFormats.length === 0 ||
+      acceptedFormats.some(format => {
+        const normalizedFormat = format.toLowerCase();
+
+        if (normalizedFormat === 'image/*') {
+          return fileType?.startsWith('image/') ?? false;
+        }
+
+        if (normalizedFormat.endsWith('/*')) {
+          const baseType = normalizedFormat.replace('/*', '/');
+          return fileType?.startsWith(baseType) ?? false;
+        }
+
+        if (fileType) {
+          if (fileType === normalizedFormat) {
+            return true;
+          }
+
+          if (
+            normalizedFormat === 'image/heic' &&
+            (fileType === 'image/heic-sequence' || fileType === 'image/heif')
+          ) {
+            return true;
+          }
+
+          if (
+            normalizedFormat === 'image/heif' &&
+            (fileType === 'image/heif-sequence' || fileType === 'image/heic')
+          ) {
+            return true;
+          }
+        }
+
+        if (fileExtension) {
+          return (
+            normalizedFormat === `.${fileExtension}` ||
+            normalizedFormat === fileExtension ||
+            normalizedFormat === `image/${fileExtension}`
+          );
+        }
+
+        return false;
+      });
+
+    if (!isAccepted) {
       const formats = acceptedFormats
         .map(f => f.split('/')[1]?.toUpperCase() || f.toUpperCase())
         .join(', ');
@@ -92,7 +150,7 @@ export default function FileUpload({
 
   // Handle drag events
   const handleDrag = useCallback(
-    (e: DragEvent<HTMLDivElement>) => {
+    (e: DragEvent<HTMLLabelElement>) => {
       e.preventDefault();
       e.stopPropagation();
 
@@ -111,7 +169,7 @@ export default function FileUpload({
 
   // Handle drop
   const handleDrop = useCallback(
-    (e: DragEvent<HTMLDivElement>) => {
+    (e: DragEvent<HTMLLabelElement>) => {
       e.preventDefault();
       e.stopPropagation();
       setDragActive(false);
@@ -146,18 +204,36 @@ export default function FileUpload({
     onClearFile?.();
   };
 
-  // Click to select file
-  const handleClick = () => {
-    if (!disabled) {
-      fileInputRef.current?.click();
+  // Trigger native file picker
+  const handleOpenFilePicker = useCallback(() => {
+    if (disabled) {
+      return;
     }
-  };
+
+    const input = fileInputRef.current;
+
+    if (!input) {
+      return;
+    }
+
+    try {
+      if (typeof input.showPicker === 'function') {
+        input.showPicker();
+      } else {
+        input.click();
+      }
+    } catch {
+      input.click();
+    }
+  }, [disabled]);
 
   return (
     <div className={clsx('space-y-4', className)}>
       {/* Upload Area */}
-      <div
+      <label
+        htmlFor={inputId}
         className={clsx(
+          'block',
           'relative border-2 border-dashed rounded-lg transition-all duration-200',
           dragActive
             ? 'border-blue-400 bg-blue-50'
@@ -172,14 +248,26 @@ export default function FileUpload({
         onDragLeave={handleDrag}
         onDragOver={handleDrag}
         onDrop={handleDrop}
-        onClick={handleClick}
+        role="button"
+        tabIndex={disabled ? -1 : 0}
+        aria-disabled={disabled}
+        onKeyDown={e => {
+          if (disabled) {
+            return;
+          }
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleOpenFilePicker();
+          }
+        }}
       >
         <input
           ref={fileInputRef}
           type="file"
+          id={inputId}
           accept={acceptedFormats.join(',')}
           onChange={handleInputChange}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+          className="sr-only"
           disabled={disabled}
         />
 
@@ -195,7 +283,9 @@ export default function FileUpload({
                     className="max-w-48 max-h-32 object-contain rounded-lg border border-gray-200"
                   />
                   <button
+                    type="button"
                     onClick={e => {
+                      e.preventDefault();
                       e.stopPropagation();
                       handleClearFile();
                     }}
@@ -237,20 +327,22 @@ export default function FileUpload({
 
               {/* Action buttons */}
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <button
-                  type="button"
-                  onClick={handleClick}
-                  disabled={disabled}
-                  className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors touch-manipulation"
+                <span
+                  className={clsx(
+                    'inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-colors touch-manipulation',
+                    'bg-blue-600 text-white hover:bg-blue-700',
+                    disabled && 'opacity-50 cursor-not-allowed'
+                  )}
                 >
                   <Upload className="h-4 w-4" />
                   Choose File
-                </button>
+                </span>
 
                 {onCameraClick && (
                   <button
                     type="button"
                     onClick={e => {
+                      e.preventDefault();
                       e.stopPropagation();
                       onCameraClick();
                     }}
@@ -265,7 +357,7 @@ export default function FileUpload({
             </div>
           )}
         </div>
-      </div>
+      </label>
 
       {/* Error message */}
       {error && (
