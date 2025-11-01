@@ -92,6 +92,8 @@ const infraStack = new InfrastructureStack(app, `NameCardInfra-${environment}`, 
   tags: commonTags,
 });
 
+apiStack.addDependency(infraStack);
+
 // Deploy frontend stack (only for staging and production)
 if (environment === 'staging' || environment === 'production') {
   const apiStageName = normalizeStageName(environment);

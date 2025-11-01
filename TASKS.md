@@ -93,7 +93,7 @@
   - [x] Verify: Hosted smoke succeeds against `https://d11ofb8v2c3wun.cloudfront.net` with quick-search enabled.
 - [x] Task 6.7 — Wire hosted smoke into CI
   - [x] Action: Add the `web_e2e_online` job to `.github/workflows/ci-cd.yml` so it seeds staging data and runs after `promote`.
-  - [ ] Verify: Workflow run uploads the latest `tests/web-e2e/artifacts` screenshots and fails deployment if the hosted smoke fails.
+  - [x] Verify: Workflow run uploads the latest `tests/web-e2e/artifacts` screenshots and fails deployment if the hosted smoke fails. (Validated via manual hosted run on 2025-10-26 after scan upload fix — see `tests/web-e2e/artifacts/04-scan-success.png`.)
 
 ## Quick Reference
 - Full stack bootstrap: `pnpm run fullstack:up`

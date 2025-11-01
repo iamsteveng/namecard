@@ -208,6 +208,110 @@ const log = (message: string) => {
   console.log(`➡️  ${message}`);
 };
 
+const cleanupHostedTestCards = async (accessToken: string | null) => {
+  if (!accessToken) {
+    log('Skipping hosted card cleanup: missing access token');
+    return;
+  }
+
+  try {
+    const normalizedApi = apiBaseUrl.replace(/\/+$/, '');
+    const listUrl = `${normalizedApi}/v1/cards?limit=50`;
+    const listResponse = await fetch(listUrl, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
+    });
+
+    if (!listResponse.ok) {
+      log(`Hosted card cleanup skipped; failed to list cards (${listResponse.status})`);
+      return;
+    }
+
+    const payload = await listResponse.json().catch(() => null);
+    const cards = Array.isArray(payload?.data?.cards) ? payload.data.cards : [];
+    const hostedCards = cards.filter(card => {
+      const title = typeof card?.title === 'string' ? card.title : '';
+      const name = typeof card?.name === 'string' ? card.name : '';
+      const originalImageUrl = typeof card?.originalImageUrl === 'string' ? card.originalImageUrl : '';
+      const notes = typeof card?.notes === 'string' ? card.notes : '';
+
+      const matchesSampleImage = originalImageUrl.includes('/tests/fixtures/card-sample.jpg');
+      const matchesHostedTitle = title === 'Director of Partnerships';
+      const matchesHostedName = name === 'Avery Johnson';
+      const isSeededNote = notes.includes('Seeded via smoke automation');
+
+      return matchesSampleImage && matchesHostedTitle && matchesHostedName && !isSeededNote;
+    });
+
+    if (!hostedCards.length) {
+      log('Hosted card cleanup found no tagged cards');
+      return;
+    }
+
+    log(`Hosted card cleanup removing ${hostedCards.length} card(s)`);
+
+    for (const card of hostedCards) {
+      const cardId = card?.id;
+      if (!cardId || typeof cardId !== 'string') {
+        continue;
+      }
+
+      const deleteUrl = `${normalizedApi}/v1/cards/${cardId}`;
+      const deleteResponse = await fetch(deleteUrl, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/json',
+        },
+      });
+
+      if (deleteResponse.ok) {
+        log(`Hosted card cleanup removed card ${cardId}`);
+      } else {
+        log(
+          `Hosted card cleanup failed to delete card ${cardId} (status ${deleteResponse.status})`
+        );
+      }
+    }
+  } catch (error) {
+    console.warn('Hosted card cleanup encountered an error', error);
+  }
+};
+
+const warmHostedSearchEndpoint = async (
+  accessToken: string | null,
+  query: string | null | undefined
+) => {
+  if (!accessToken) {
+    log('Skipping hosted search warmup: missing access token');
+    return;
+  }
+
+  const normalizedQuery = query && query.trim().length > 0 ? query.trim() : 'Sino';
+
+  try {
+    const normalizedApi = apiBaseUrl.replace(/\/+$/, '');
+    const warmResponse = await fetch(`${normalizedApi}/v1/search/cards`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({ query: normalizedQuery, limit: 5 }),
+    });
+
+    log(
+      `Hosted search warmup status: ${warmResponse.status} ${warmResponse.statusText ?? ''}`.trim()
+    );
+  } catch (error) {
+    console.warn('Hosted search warmup encountered an error', error);
+  }
+};
+
 const buildUrl = (pathname: string) => {
   const normalized = pathname.startsWith('/') ? pathname : `/${pathname}`;
   return new URL(normalized, baseUrl).toString();
@@ -619,11 +723,12 @@ async function run() {
   }
 
   const shouldRegister = !useBootstrapAuth && !seededUser && (!envEmail || !envPassword);
-  const shouldUploadCard = !seededCard;
+  const forceCardUpload = parseBooleanFlag(process.env['WEB_E2E_FORCE_CARD_UPLOAD']);
+  const shouldUploadCard = forceCardUpload || !seededCard;
 
-  const expectedCardName = seededCard?.name ?? 'Avery Johnson';
-  const expectedCardCompany = seededCard?.company ?? 'Northwind Analytics';
-  const expectedCardEmail = seededCard?.email ?? 'avery.johnson@northwind-analytics.com';
+  const expectedCardName = seededCard?.name ?? 'David W. L. Ng';
+  const expectedCardCompany = seededCard?.company ?? 'Sino Land Company Limited';
+  const expectedCardEmail = seededCard?.email ?? 'davidng@sino.com';
   const effectiveSearchQuery =
     seededSearchQuery ??
     seededCard?.company ??
@@ -645,6 +750,8 @@ async function run() {
       break;
     }
   }
+
+  let authTokenForCleanup: string | null = null;
 
   const browser = await puppeteer.launch({
     headless: true,
@@ -1056,14 +1163,17 @@ async function run() {
       parseBooleanFlag(process.env['WEB_E2E_SKIP_SEARCH']) ||
       parseBooleanFlag(process.env['WEB_E2E_SKIP_QUICK_SEARCH']);
 
-    if (skipQuickSearch) {
-      log('Skipping quick search validation due to WEB_E2E_SKIP_SEARCH flag');
-    } else {
-      log('Searching for uploaded card in quick search input');
-      const basicSearchInput = await page.waitForSelector(
-        'input[placeholder="Search cards by name, company, or email..."]',
-        { timeout: 10_000 }
-      );
+  if (skipQuickSearch) {
+    log('Skipping quick search validation due to WEB_E2E_SKIP_SEARCH flag');
+  } else {
+    authTokenForCleanup = await page.evaluate(() => window.localStorage.getItem('accessToken'));
+    await warmHostedSearchEndpoint(authTokenForCleanup, effectiveSearchQuery);
+
+    log('Searching for uploaded card in quick search input');
+    const basicSearchInput = await page.waitForSelector(
+      'input[placeholder="Search cards by name, company, or email..."]',
+      { timeout: 10_000 }
+    );
 
       if (!basicSearchInput) {
         throw new Error('Quick search input not found on cards page.');
@@ -1165,9 +1275,12 @@ async function run() {
       });
     }
 
+    authTokenForCleanup = await page.evaluate(() => window.localStorage.getItem('accessToken'));
+
     console.log(`\n✅ Smoke test completed. Screenshots stored in ${artifactsDir}.`);
   } finally {
     await browser.close();
+    await cleanupHostedTestCards(authTokenForCleanup);
     await stopApiSandbox();
     await stopDevServer();
 

@@ -85,6 +85,30 @@ jobs succeed locally.
 - Populate `.env` from `.env.example` for local values (database URLs, AWS credentials, etc.).
 - Runtime secrets live in AWS Secrets Manager (`namecard/api/<environment>`). Set keys such as `JWT_SECRET`, `PERPLEXITY_API_KEY`, and third-party tokens there; CDK wires them into Lambda environment variables (see `infra/lib/secrets-stack.ts` and `infra/lib/api-stack.ts`).
 - The Perplexity enrichment service is disabled until a non-placeholder `PERPLEXITY_API_KEY` is stored in the secret. Update the secret and redeploy to enable it.
+- Hosted scan uploads now call AWS Textract directly. Configure the cards Lambda with `S3_BUCKET_NAME`, `S3_REGION`, and (optionally) `S3_CDN_DOMAIN` to store originals, and set `TEXTRACT_REGION` if Textract runs in a different region than the stack. Ensure the execution role can invoke `textract:DetectDocumentText` and read/write the chosen bucket.
+
+### Hosted Scan Environment Variables
+
+When running the hosted smoke suite locally, point your environment at the deployed assets:
+
+```bash
+AWS_PROFILE=namecard-staging STACK_NAME=NameCardInfra-staging \
+  scripts/fetch-hosted-env.sh
+
+# The script writes .env.hosted-staging. Merge it into your local .env:
+cat .env.hosted-staging >> .env
+```
+
+The generated file contains:
+
+```
+S3_BUCKET_NAME=namecard-images-staging-145006476362
+S3_REGION=ap-southeast-1
+S3_CDN_DOMAIN=d1cmqsl0u50cht.cloudfront.net
+TEXTRACT_REGION=ap-southeast-1
+```
+
+You can regenerate the file whenever the stack rolls or when working against another environment by overriding `STACK_NAME`, `AWS_PROFILE`, or `AWS_REGION`.
 
 ## Infrastructure & Deployment
 All infrastructure code sits in the `@namecard/infra` workspace.

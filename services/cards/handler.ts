@@ -2,6 +2,8 @@ import {
   normalizePaginationParams,
   calculatePaginationMeta,
   type CreateCardInput,
+  type BusinessCardData,
+  type Card,
   getLogger,
   getMetrics,
   extractIdempotencyKey,
@@ -36,6 +38,10 @@ import {
 } from '@namecard/shared';
 
 import { randomUUID } from 'node:crypto';
+
+import { parseMultipartForm, type ParsedMultipartForm } from './multipart';
+import { storeScanImage } from './storage';
+import { extractBusinessCardData } from './textract';
 
 const SUPPORTED_METHODS = ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'];
 
@@ -93,6 +99,77 @@ const parseTags = (raw: string | string[] | undefined): string[] => {
     .split(',')
     .map(tag => tag.trim())
     .filter(Boolean);
+};
+
+const getHeaderValue = (
+  headers: Record<string, string | undefined> | undefined,
+  key: string
+): string | undefined => {
+  if (!headers) {
+    return undefined;
+  }
+  const target = key.toLowerCase();
+  for (const [headerKey, value] of Object.entries(headers)) {
+    if (headerKey.toLowerCase() === target) {
+      return value ?? undefined;
+    }
+  }
+  return undefined;
+};
+
+const isMultipartScanRequest = (event: LambdaHttpEvent): boolean => {
+  const contentType = getHeaderValue(event.headers, 'content-type');
+  return Boolean(contentType && contentType.toLowerCase().includes('multipart/form-data'));
+};
+
+const hostedScanPlaceholderImageUrl =
+  'https://d11ofb8v2c3wun.cloudfront.net/tests/fixtures/card-sample.jpg';
+
+type ScanExtractionPayload = BusinessCardData & {
+  normalizedEmail?: string;
+  normalizedPhone?: string;
+  normalizedWebsite?: string;
+};
+
+interface ScanResponseOverrides {
+  extractedData?: ScanExtractionPayload;
+  confidence?: number;
+  duplicateCardId?: string | null;
+  imageUrls?: {
+    original?: string | null;
+    processed?: string | null;
+  };
+  processingTimeMs?: number;
+}
+
+const buildScanSuccessPayload = (
+  requestId: string,
+  card: Card,
+  ocrJobId: string,
+  enrichmentId: string,
+  overrides: ScanResponseOverrides = {}
+) => {
+  const extractedData = overrides.extractedData;
+  const confidence =
+    overrides.confidence ?? extractedData?.confidence ?? card.confidence ?? 0.9;
+  const originalImageUrl = overrides.imageUrls?.original ?? card.originalImageUrl ?? null;
+  const processedImageUrl = overrides.imageUrls?.processed ?? card.processedImageUrl ?? null;
+
+  return {
+    requestId,
+    card,
+    cardId: card.id,
+    ocrJobId,
+    enrichmentId,
+    extractedData,
+    confidence,
+    duplicateCardId: overrides.duplicateCardId ?? null,
+    imageUrls: {
+      original: originalImageUrl ?? undefined,
+      processed: processedImageUrl,
+    },
+    processingTime: overrides.processingTimeMs ?? 1_200,
+  };
 };
 
 const handleHealth = async (requestId: string) => {
@@ -530,7 +607,7 @@ const handleSearch = async (event: LambdaHttpEvent, requestId: string) => {
   }
 };
 
-const handleScan = async (event: LambdaHttpEvent, requestId: string) => {
+const handleScanJson = async (event: LambdaHttpEvent, requestId: string) => {
   const logger = getLogger();
   const metrics = getMetrics();
   const startedAt = Date.now();
@@ -572,25 +649,25 @@ const handleScan = async (event: LambdaHttpEvent, requestId: string) => {
       companyId: undefined,
     });
 
-    metrics.duration('cardsScanLatencyMs', Date.now() - startedAt);
+    const durationMs = Date.now() - startedAt;
+    metrics.duration('cardsScanLatencyMs', durationMs);
     metrics.count('cardsScanJobsCreated');
     logger.info('cards.scan.success', { requestId, cardId: card.id, ocrJobId: ocrJob.id });
 
+    const payload = buildScanSuccessPayload(requestId, card, ocrJob.id, enrichment.id, {
+      confidence: ocrJob.result?.confidence ?? 0.9,
+      imageUrls: {
+        original: card.originalImageUrl ?? null,
+        processed: card.processedImageUrl ?? null,
+      },
+      processingTimeMs: durationMs,
+    });
+
     return withCors(
-      createSuccessResponse(
-        {
-          requestId,
-          card,
-          ocrJobId: ocrJob.id,
-          enrichmentId: enrichment.id,
-          confidence: ocrJob.result?.confidence ?? 0.9,
-          imageUrls: {
-            original: card.originalImageUrl,
-            processed: card.processedImageUrl ?? null,
-          },
-        },
-        { message: 'Card scanned successfully', statusCode: 201 }
-      )
+      createSuccessResponse(payload, {
+        message: 'Card scanned successfully',
+        statusCode: 201,
+      })
     );
   } catch (error) {
     if ('statusCode' in (error as any)) {
@@ -600,6 +677,210 @@ const handleScan = async (event: LambdaHttpEvent, requestId: string) => {
     logger.error('cards.scan.failure', error, { requestId });
     return withCors(createErrorResponse(500, message));
   }
+};
+
+const handleScanMultipart = async (event: LambdaHttpEvent, requestId: string) => {
+  const logger = getLogger();
+  const metrics = getMetrics();
+  const startedAt = Date.now();
+
+  try {
+    const { user } = await requireAuthenticatedUser(event);
+    const tenantId = await getTenantForUser(user.id);
+
+    let form: ParsedMultipartForm;
+    try {
+      form = parseMultipartForm(event);
+    } catch (parseError) {
+      logger.warn('cards.scan.upload.invalidMultipart', parseError, { requestId });
+      return withCors(
+        createErrorResponse(400, 'Invalid multipart payload', {
+          code: 'INVALID_MULTIPART',
+        })
+      );
+    }
+    const uploadedFile = form.files['image'] ?? Object.values(form.files)[0];
+
+    if (!uploadedFile) {
+      logger.warn('cards.scan.upload.missingFile', { requestId });
+      return withCors(
+        createErrorResponse(400, 'Image file is required for scanning', {
+          code: 'IMAGE_REQUIRED',
+        })
+      );
+    }
+
+    const minConfidenceField = form.fields['minConfidence'];
+    const minConfidence = minConfidenceField ? Number(minConfidenceField) : undefined;
+
+    let extraction;
+    try {
+      extraction = await extractBusinessCardData(uploadedFile.content, {
+        minConfidence,
+      });
+      metrics.count('cardsScanTextractSuccess');
+    } catch (error) {
+      metrics.count('cardsScanTextractFailure');
+      logger.error('cards.scan.upload.ocrFailed', error, { requestId });
+      return withCors(
+        createErrorResponse(422, 'Unable to extract text from uploaded image', {
+          code: 'OCR_FAILED',
+        })
+      );
+    }
+
+    let storedImage: Awaited<ReturnType<typeof storeScanImage>>;
+    try {
+      storedImage = await storeScanImage({
+        buffer: uploadedFile.content,
+        contentType: uploadedFile.contentType,
+        tenantId,
+        originalFileName: uploadedFile.fileName,
+      });
+    } catch (error) {
+      storedImage = null;
+      logger.warn('cards.scan.upload.storeImageFailed', error, {
+        requestId,
+        tenantId,
+      });
+    }
+
+    const sanitizedPhone = (() => {
+      if (!extraction.phone) {
+        return undefined;
+      }
+      const digits = extraction.phone.replace(/\D+/g, '');
+      if (!digits) {
+        return undefined;
+      }
+      return extraction.phone.trim().startsWith('+') ? `+${digits}` : `+${digits}`;
+    })();
+    const normalizedEmail = extraction.email?.toLowerCase();
+    const normalizedWebsite = extraction.website;
+
+    const findLineConfidence = (value?: string) => {
+      if (!value) {
+        return extraction.confidence;
+      }
+      const matched = extraction.lines.find(line => line.text === value);
+      return matched?.confidence ?? extraction.confidence;
+    };
+
+    const fieldToPayload = (value?: string) =>
+      value
+        ? {
+            text: value,
+            confidence: Number(findLineConfidence(value).toFixed(4)),
+          }
+        : undefined;
+
+    const phoneFieldValue = sanitizedPhone ?? extraction.phone;
+
+    const extractionPayload = {
+      rawText: extraction.rawText,
+      confidence: extraction.confidence,
+      name: fieldToPayload(extraction.name),
+      jobTitle: fieldToPayload(extraction.jobTitle),
+      company: fieldToPayload(extraction.company),
+      email: fieldToPayload(extraction.email),
+      phone: fieldToPayload(phoneFieldValue),
+      website: fieldToPayload(extraction.website),
+      address: fieldToPayload(extraction.address),
+      normalizedEmail,
+      normalizedPhone: sanitizedPhone,
+      normalizedWebsite,
+    } satisfies ScanExtractionPayload;
+
+    const extraTags = form.fields['tags'] ? parseTags(form.fields['tags']) : [];
+    const tags = Array.from(new Set(['scan', 'hosted', ...extraTags]));
+
+    const card = await createCard({
+      userId: user.id,
+      tenantId,
+      name: extraction.name ?? 'Scanned Contact',
+      title: extraction.jobTitle ?? undefined,
+      company: extraction.company ?? undefined,
+      email: extraction.email ?? normalizedEmail ?? undefined,
+      phone: sanitizedPhone ?? extraction.phone ?? undefined,
+      address: extraction.address ?? undefined,
+      website: extraction.website ?? normalizedWebsite ?? undefined,
+      notes: 'Generated via hosted scan upload',
+      tags,
+      originalImageUrl: storedImage?.url ?? hostedScanPlaceholderImageUrl,
+      processedImageUrl: storedImage?.url ?? hostedScanPlaceholderImageUrl,
+      extractedText: extraction.rawText,
+      confidence: extraction.confidence,
+      scanDate: new Date(),
+    });
+
+    const ocrJob = await createOcrJob(card.id, {
+      requestedBy: user.id,
+      payload: {
+        source: 'api.scan',
+        fileName: uploadedFile.fileName ?? 'upload.jpg',
+        minConfidence,
+        textractRegion: process.env['TEXTRACT_REGION'] ?? process.env['AWS_REGION'],
+        textractLineCount: extraction.lines.length,
+      },
+    });
+
+    const enrichment = await createEnrichment(card.id, {
+      requestedBy: user.id,
+      companyId: undefined,
+    });
+
+    const durationMs = Date.now() - startedAt;
+    metrics.duration('cardsScanLatencyMs', durationMs);
+    metrics.count('cardsScanJobsCreated');
+    logger.info('cards.scan.upload.success', {
+      requestId,
+      cardId: card.id,
+      ocrJobId: ocrJob.id,
+      storedImageKey: storedImage?.key,
+      extractionSummary: {
+        name: extractionPayload.name?.text,
+        company: extractionPayload.company?.text,
+        email: extractionPayload.email?.text,
+        phone: extractionPayload.phone?.text,
+        website: extractionPayload.website?.text,
+      },
+    });
+
+    const payload = buildScanSuccessPayload(requestId, card, ocrJob.id, enrichment.id, {
+      extractedData: extractionPayload,
+      confidence: extractionPayload.confidence,
+      imageUrls: {
+        original: storedImage?.url ?? hostedScanPlaceholderImageUrl,
+        processed: storedImage?.url ?? hostedScanPlaceholderImageUrl,
+      },
+      processingTimeMs: durationMs,
+    });
+
+    return withCors(
+      createSuccessResponse(payload, {
+        message: 'Card scanned successfully',
+        statusCode: 201,
+      })
+    );
+  } catch (error) {
+    if ('statusCode' in (error as any)) {
+      return withCors(error as any);
+    }
+    const message = error instanceof Error ? error.message : 'Unable to scan card';
+    logger.error('cards.scan.upload.failure', error, { requestId });
+    return withCors(createErrorResponse(500, message));
+  }
+};
+
+const handleScan = async (event: LambdaHttpEvent, requestId: string) => {
+  const isBase64Multipart = Boolean(
+    event.isBase64Encoded && typeof event.body === 'string' && event.body.startsWith('LS0t')
+  );
+
+  if (isMultipartScanRequest(event) || isBase64Multipart) {
+    return handleScanMultipart(event, requestId);
+  }
+  return handleScanJson(event, requestId);
 };
 
 const handleTag = async (event: LambdaHttpEvent, requestId: string, cardId: string) => {

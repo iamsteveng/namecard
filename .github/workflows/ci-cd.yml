@@ -514,6 +514,7 @@ jobs:
           WEB_BASE_URL: ${{ env.HOSTED_WEB_BASE_URL }}
           E2E_EMAIL: ${{ env.HOSTED_E2E_EMAIL }}
           E2E_PASSWORD: ${{ env.HOSTED_E2E_PASSWORD }}
+          WEB_E2E_FORCE_CARD_UPLOAD: 'true'
         run: pnpm --filter @namecard/web-e2e run test:smoke
 
       - name: Upload smoke artifacts
